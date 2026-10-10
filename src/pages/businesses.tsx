@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Briefcase, Calendar, Plus } from "lucide-react";
+import { Briefcase, Calendar, Plus, Rocket } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
@@ -125,6 +125,19 @@ export default function BusinessesPage() {
           ))}
         </div>
       )}
+
+      <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Rocket className="size-6 text-orange-600" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-orange-900">Butuh bimbingan memulai usaha?</p>
+            <p className="text-xs text-orange-700">Ikuti program Inkubasi Bisnis di Learning Center — panduan langkah demi langkah dari ide hingga penjualan pertama.</p>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/learning-center">Buka Learning Center</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

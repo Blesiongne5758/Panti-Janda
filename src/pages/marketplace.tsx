@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ShoppingBag, MapPin } from "lucide-react";
+import { ShoppingBag, MapPin, Briefcase } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
@@ -142,6 +142,19 @@ export default function MarketplacePage() {
             ))}
           </div>
         )}
+
+        <div className="mt-8 rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Briefcase className="size-6 text-blue-600" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-blue-900">Cari kerja remote atau part-time?</p>
+              <p className="text-xs text-blue-700">Kunjungi Job Board di Learning Center untuk lowongan yang ramah ibu tunggal.</p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/learning-center">Buka Learning Center</Link>
+            </Button>
+          </div>
+        </div>
       </div>
     </>
   );

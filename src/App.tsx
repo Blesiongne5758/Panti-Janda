@@ -23,6 +23,7 @@ import MarketplaceFormPage from "@/pages/marketplace-form";
 import CoinsPage from "@/pages/coins";
 import LiveTradingPage from "@/pages/live-trading";
 import AiAgentPage from "@/pages/ai-agent";
+import LearningCenterPage from "@/pages/learning-center";
 import GroupsPage from "@/pages/groups";
 import ChatPage from "@/pages/chat";
 import DashboardPage from "@/pages/dashboard";
@@ -79,6 +80,8 @@ function Routes() {
       return <LiveTradingPage />;
     case "ai-agent":
       return <AiAgentPage />;
+    case "learning-center":
+      return <LearningCenterPage />;
     case "groups":
       return <GroupsPage />;
     case "chat":

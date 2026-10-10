@@ -18,6 +18,7 @@ const NAV = [
   { to: "/event", label: "Event" },
   { to: "/galang-dana", label: "Galang Dana" },
   { to: "/marketplace", label: "Marketplace" },
+  { to: "/learning-center", label: "Learning" },
   { to: "/koin", label: "Koin" },
 ];
 

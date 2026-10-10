@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, DollarSign, CreditCard, Calendar, Download } from "lucide-react";
+import { TrendingUp, DollarSign, CreditCard, Calendar, Download, Wallet } from "lucide-react";
+import { Link } from "@/lib/router";
 import { api } from "@/lib/api";
 import { formatDate, formatRupiah } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,19 @@ export default function FinancePage() {
           </Card>
         </>
       )}
+
+      <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Wallet className="size-6 text-emerald-600" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-emerald-900">Ingin belajar mengelola keuangan?</p>
+            <p className="text-xs text-emerald-700">Kunjungi Literasi Keuangan di Learning Center untuk modul dan tools keuangan praktis.</p>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/learning-center">Buka Learning Center</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

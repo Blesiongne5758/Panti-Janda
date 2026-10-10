@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   BadgeCheck,
+  BookOpen,
   Bot,
   Coins,
   Crown,
@@ -954,6 +955,29 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
+            <BookOpen className="size-4 text-blue-600" aria-hidden />
+            Learning Center
+          </CardTitle>
+          <CardDescription>
+            Pusat pembelajaran fleksibel: micro-learning 5-15 menit, podcast, literasi keuangan & hukum, job board, inkubasi bisnis, forum komunitas, dan sistem reward.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link to="/learning-center">Buka Learning Center</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/learning-center?tab=micro-learning">Micro-Learning</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/learning-center?tab=komunitas">Forum Komunitas</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {rank >= 2 ? (
         <div className="grid gap-6 lg:grid-cols-2">

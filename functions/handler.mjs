@@ -456,6 +456,999 @@ async function countRows(supabase, table, build) {
   return (data ?? []).length;
 }
 
+// ---------- learning center ----------
+
+const LEARNING_CATEGORIES = ["umum", "bisnis", "digital", "keuangan", "hukum", "keterampilan", "kepemimpinan"];
+const JOB_TYPES = ["freelance", "part_time", "full_time", "magang", "remote"];
+const COUNSELOR_TYPES = ["psychologist", "legal", "spiritual", "career"];
+const SESSION_TYPES = ["free", "premium"];
+const FORUM_STATUSES = ["active", "archived"];
+
+function learningModulePublic(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    category: row.category,
+    description: row.description,
+    durationMinutes: row.duration_minutes,
+    totalLessons: row.total_lessons,
+    icon: row.icon ?? null,
+    color: row.color ?? null,
+    bgColor: row.bg_color ?? null,
+    monetizable: row.monetizable ?? false,
+    downloadable: row.downloadable ?? true,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function lessonPublic(row) {
+  return {
+    id: row.id,
+    moduleId: row.module_id,
+    position: row.position,
+    title: row.title,
+    description: row.description,
+    contentType: row.content_type,
+    contentUrl: row.content_url ?? null,
+    durationSeconds: row.duration_seconds,
+    downloadable: row.downloadable ?? true,
+    status: row.status,
+  };
+}
+
+async function learningModulesList(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const category = text(ctx.body.category, 30) || null;
+  const { data } = await ctx.supabase.from("learning_modules").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(60);
+  const rows = (data ?? []).filter((r) => !category || r.category === category);
+  const progressMap = new Map();
+  if (account && rows.length) {
+    const moduleIds = rows.map((r) => r.id);
+    const { data: progressRows } = await ctx.supabase
+      .from("learning_progress")
+      .select("module_id,status")
+      .eq("account_id", account.id)
+      .in("module_id", moduleIds);
+    for (const p of progressRows ?? []) {
+      if (!progressMap.has(p.module_id)) progressMap.set(p.module_id, { completed: 0, total: 0 });
+      const entry = progressMap.get(p.module_id);
+      entry.total += 1;
+      if (p.status === "completed") entry.completed += 1;
+    }
+  }
+  return ok({
+    items: rows.map((row) => ({
+      ...learningModulePublic(row),
+      progress: account ? progressMap.get(row.id) ?? null : null,
+    })),
+  });
+}
+
+async function learningModulesGet(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const slug = text(ctx.body.slug, 100);
+  const id = text(ctx.body.id, 60);
+  let moduleRow = null;
+  if (slug) {
+    const { data } = await ctx.supabase.from("learning_modules").select("*").eq("slug", slug).eq("status", "active").maybeSingle();
+    moduleRow = data;
+  } else if (id) {
+    const { data } = await ctx.supabase.from("learning_modules").select("*").eq("id", id).eq("status", "active").maybeSingle();
+    moduleRow = data;
+  }
+  if (!moduleRow) return fail(404, "not_found");
+  const { data: lessons } = await ctx.supabase
+    .from("learning_lessons")
+    .select("*")
+    .eq("module_id", moduleRow.id)
+    .eq("status", "active")
+    .order("position", { ascending: true });
+  let progressRows = [];
+  if (account) {
+    const { data: p } = await ctx.supabase
+      .from("learning_progress")
+      .select("lesson_id,status,completed_at,time_spent_seconds")
+      .eq("account_id", account.id)
+      .eq("module_id", moduleRow.id);
+    progressRows = p ?? [];
+  }
+  const progressByLesson = new Map(progressRows.map((p) => [p.lesson_id, p]));
+  return ok({
+    module: learningModulePublic(moduleRow),
+    lessons: (lessons ?? []).map((l) => ({
+      ...lessonPublic(l),
+      progress: progressByLesson.get(l.id) ?? null,
+    })),
+  });
+}
+
+async function learningProgressUpdate(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const lessonId = text(ctx.body.lessonId, 60);
+  const moduleId = text(ctx.body.moduleId, 60);
+  const status = ctx.body.status === "completed" ? "completed" : "in_progress";
+  const timeSpent = intOrNull(ctx.body.timeSpentSeconds, 0, 999999) ?? 0;
+  if (!lessonId || !moduleId) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("learning_progress")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("lesson_id", lessonId)
+    .maybeSingle();
+  if (existing) {
+    const patch = { status, time_spent_seconds: Math.max(existing.time_spent_seconds, timeSpent) };
+    if (status === "completed" && existing.status !== "completed") patch.completed_at = now();
+    await ctx.supabase.from("learning_progress").update(patch).eq("id", existing.id);
+  } else {
+    await ctx.supabase.from("learning_progress").insert({
+      id: crypto.randomUUID(),
+      account_id: auth.account.id,
+      module_id: moduleId,
+      lesson_id: lessonId,
+      status,
+      completed_at: status === "completed" ? now() : null,
+      time_spent_seconds: timeSpent,
+      created_at: now(),
+    });
+  }
+  if (status === "completed") {
+    await ctx.supabase.from("accounts").update({ xp: auth.account.xp + 10 }).eq("id", auth.account.id);
+  }
+  return ok({ updated: true });
+}
+
+async function learningProgressGet(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const moduleId = text(ctx.body.moduleId, 60);
+  if (!moduleId) return fail(400, "invalid_input");
+  const { data } = await ctx.supabase
+    .from("learning_progress")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("module_id", moduleId);
+  return ok({
+    items: (data ?? []).map((p) => ({
+      id: p.id,
+      lessonId: p.lesson_id,
+      moduleId: p.module_id,
+      status: p.status,
+      completedAt: p.completed_at,
+      timeSpentSeconds: p.time_spent_seconds,
+    })),
+  });
+}
+
+async function learningDownloadsTrack(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const lessonId = text(ctx.body.lessonId, 60);
+  if (!lessonId) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("learning_downloads")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("lesson_id", lessonId)
+    .maybeSingle();
+  if (existing) return ok({ downloaded: true, downloadedAt: existing.downloaded_at });
+  await ctx.supabase.from("learning_downloads").insert({
+    id: crypto.randomUUID(),
+    account_id: auth.account.id,
+    lesson_id: lessonId,
+    file_path: textOrNull(ctx.body.filePath, 500),
+    file_size_bytes: intOrNull(ctx.body.fileSizeBytes, 0, 999999999) ?? 0,
+    downloaded_at: now(),
+  });
+  return ok({ downloaded: true });
+}
+
+async function learningPodcastsList(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const category = text(ctx.body.category, 30) || null;
+  const { data } = await ctx.supabase
+    .from("podcasts")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(60);
+  const rows = (data ?? []).filter((r) => !category || r.category === category);
+  const playMap = new Map();
+  if (account && rows.length) {
+    const { data: plays } = await ctx.supabase
+      .from("podcast_plays")
+      .select("podcast_id,played_seconds,completed,last_played_at")
+      .eq("account_id", account.id);
+    for (const p of plays ?? []) playMap.set(p.podcast_id, p);
+  }
+  return ok({
+    items: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      hostName: row.host_name,
+      durationSeconds: row.duration_seconds,
+      category: row.category,
+      downloadable: row.downloadable,
+      play: playMap.get(row.id) ?? null,
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningPodcastsPlay(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const podcastId = text(ctx.body.podcastId, 60);
+  const playedSeconds = intOrNull(ctx.body.playedSeconds, 0, 999999) ?? 0;
+  if (!podcastId) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("podcast_plays")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("podcast_id", podcastId)
+    .maybeSingle();
+  const completed = playedSeconds > 60;
+  if (existing) {
+    await ctx.supabase
+      .from("podcast_plays")
+      .update({
+        played_seconds: Math.max(existing.played_seconds, playedSeconds),
+        completed: existing.completed || completed,
+        last_played_at: now(),
+      })
+      .eq("id", existing.id);
+  } else {
+    await ctx.supabase.from("podcast_plays").insert({
+      id: crypto.randomUUID(),
+      account_id: auth.account.id,
+      podcast_id: podcastId,
+      played_seconds: playedSeconds,
+      completed,
+      last_played_at: now(),
+    });
+  }
+  return ok({ updated: true });
+}
+
+async function learningStoriesList(ctx) {
+  const auth = await actor(ctx, 0);
+  const { data } = await ctx.supabase
+    .from("success_stories")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(40);
+  const profileIds = (data ?? []).map((r) => r.profile_id);
+  const uniqueIds = [...new Set(profileIds)];
+  const profileMap = new Map();
+  if (uniqueIds.length) {
+    const { data: profiles } = await ctx.supabase
+      .from("profiles")
+      .select("id,nickname,tier,photo_data,account_id")
+      .in("id", uniqueIds);
+    for (const p of profiles ?? []) profileMap.set(p.id, p);
+  }
+  return ok({
+    items: (data ?? []).map((row) => {
+      const profile = profileMap.get(row.profile_id);
+      return {
+        id: row.id,
+        title: row.title,
+        story: row.story,
+        achievement: row.achievement,
+        photoData: row.photo_data ?? null,
+        featured: row.featured,
+        authorName: profile?.nickname ?? null,
+        authorTier: profile?.tier ?? null,
+        authorPhoto: profile?.photo_data ?? null,
+        createdAt: row.created_at,
+      };
+    }),
+  });
+}
+
+async function learningStoriesCreate(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const title = text(ctx.body.title, 200);
+  const story = text(ctx.body.story, 5000);
+  if (title.length < 3 || story.length < 10) return fail(400, "invalid_input");
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("id")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!profile) return fail(400, "no_profile");
+  const row = {
+    id: crypto.randomUUID(),
+    profile_id: profile.id,
+    title,
+    story,
+    achievement: textOrNull(ctx.body.achievement, 500),
+    photo_data: textOrNull(ctx.body.photoData, MAX_DOC_CHARS),
+    featured: false,
+    status: "active",
+    created_at: now(),
+    updated_at: now(),
+  };
+  const { error } = await ctx.supabase.from("success_stories").insert(row);
+  if (error) return fail(500, "server_error");
+  return ok({ story: { id: row.id, title: row.title, createdAt: row.created_at } });
+}
+
+async function learningForumCategories(ctx) {
+  const auth = await actor(ctx, 0);
+  const { data } = await ctx.supabase
+    .from("forum_categories")
+    .select("*")
+    .eq("status", "active")
+    .order("position", { ascending: true });
+  return ok({
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      icon: row.icon ?? null,
+      color: row.color ?? null,
+      isPrivate: row.is_private,
+      moderated: row.moderated,
+    })),
+  });
+}
+
+async function learningForumTopicsList(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const categoryId = text(ctx.body.categoryId, 60) || null;
+  let query = ctx.supabase
+    .from("forum_topics")
+    .select("*")
+    .eq("status", "active")
+    .order("pinned", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const { data } = await query;
+  const rows = (data ?? []).filter((r) => !categoryId || r.category_id === categoryId);
+  const topicIds = rows.map((r) => r.id);
+  const postCounts = new Map();
+  if (topicIds.length) {
+    const { data: posts } = await ctx.supabase
+      .from("forum_posts")
+      .select("topic_id")
+      .eq("status", "active")
+      .in("topic_id", topicIds);
+    for (const p of posts ?? []) postCounts.set(p.topic_id, (postCounts.get(p.topic_id) ?? 0) + 1);
+  }
+  const authorNames = await namesFor(ctx.supabase, rows.map((r) => r.author_id));
+  return ok({
+    items: rows.map((row) => {
+      const displayName = row.is_anonymous
+        ? row.display_name || "Anonim"
+        : authorNames.get(row.author_id)?.nickname ?? authorNames.get(row.author_id)?.displayName ?? "Anggota";
+      return {
+        id: row.id,
+        categoryId: row.category_id,
+        title: row.title,
+        body: row.body,
+        isAnonymous: row.is_anonymous,
+        displayName,
+        pinned: row.pinned,
+        locked: row.locked,
+        viewCount: row.view_count,
+        postCount: postCounts.get(row.id) ?? 0,
+        createdAt: row.created_at,
+      };
+    }),
+  });
+}
+
+async function learningForumTopicsGet(ctx) {
+  const auth = await actor(ctx, 0);
+  const topicId = text(ctx.body.topicId, 60);
+  if (!topicId) return fail(400, "invalid_input");
+  const { data: topic } = await ctx.supabase.from("forum_topics").select("*").eq("id", topicId).eq("status", "active").maybeSingle();
+  if (!topic) return fail(404, "not_found");
+  await ctx.supabase
+    .from("forum_topics")
+    .update({ view_count: (topic.view_count ?? 0) + 1 })
+    .eq("id", topicId);
+  const { data: posts } = await ctx.supabase
+    .from("forum_posts")
+    .select("*")
+    .eq("topic_id", topicId)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(100);
+  const authorNames = await namesFor(ctx.supabase, (posts ?? []).map((p) => p.author_id));
+  return ok({
+    topic: {
+      id: topic.id,
+      title: topic.title,
+      body: topic.body,
+      isAnonymous: topic.is_anonymous,
+      displayName: topic.is_anonymous ? topic.display_name || "Anonim" : topic.display_name,
+      pinned: topic.pinned,
+      locked: topic.locked,
+      viewCount: topic.view_count + 1,
+      createdAt: topic.created_at,
+    },
+    posts: (posts ?? []).map((p) => {
+      const displayName = p.is_anonymous
+        ? p.display_name || "Anonim"
+        : authorNames.get(p.author_id)?.nickname ?? authorNames.get(p.author_id)?.displayName ?? "Anggota";
+      return {
+        id: p.id,
+        body: p.body,
+        isAnonymous: p.is_anonymous,
+        displayName,
+        parentPostId: p.parent_post_id ?? null,
+        createdAt: p.created_at,
+      };
+    }),
+  });
+}
+
+async function learningForumTopicsCreate(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const categoryId = text(ctx.body.categoryId, 60);
+  const title = text(ctx.body.title, 200);
+  const body = text(ctx.body.body, 5000);
+  if (!categoryId || title.length < 3 || body.length < 10) return fail(400, "invalid_input");
+  const { data: category } = await ctx.supabase
+    .from("forum_categories")
+    .select("*")
+    .eq("id", categoryId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!category) return fail(404, "category_not_found");
+  const isAnonymous = Boolean(ctx.body.isAnonymous);
+  let displayName = null;
+  if (isAnonymous) {
+    const { data: anon } = await ctx.supabase
+      .from("anonymous_profiles")
+      .select("display_name")
+      .eq("account_id", auth.account.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    displayName = anon?.display_name ?? `Anonim-${auth.account.id.slice(0, 6)}`;
+  }
+  const row = {
+    id: crypto.randomUUID(),
+    category_id: categoryId,
+    author_id: auth.account.id,
+    title,
+    body,
+    is_anonymous: isAnonymous,
+    display_name: displayName,
+    pinned: false,
+    locked: false,
+    status: "active",
+    view_count: 0,
+    created_at: now(),
+    updated_at: now(),
+  };
+  const { error } = await ctx.supabase.from("forum_topics").insert(row);
+  if (error) return fail(500, "server_error");
+  return ok({ topic: { id: row.id, title: row.title, createdAt: row.created_at } });
+}
+
+async function learningForumPostsCreate(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const topicId = text(ctx.body.topicId, 60);
+  const body = text(ctx.body.body, 5000);
+  if (!topicId || body.length < 3) return fail(400, "invalid_input");
+  const { data: topic } = await ctx.supabase
+    .from("forum_topics")
+    .select("*")
+    .eq("id", topicId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!topic) return fail(404, "topic_not_found");
+  if (topic.locked) return fail(403, "topic_locked");
+  const isAnonymous = Boolean(ctx.body.isAnonymous);
+  let displayName = null;
+  if (isAnonymous) {
+    const { data: anon } = await ctx.supabase
+      .from("anonymous_profiles")
+      .select("display_name")
+      .eq("account_id", auth.account.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    displayName = anon?.display_name ?? `Anonim-${auth.account.id.slice(0, 6)}`;
+  }
+  const parentPostId = textOrNull(ctx.body.parentPostId, 60);
+  const row = {
+    id: crypto.randomUUID(),
+    topic_id: topicId,
+    author_id: auth.account.id,
+    body,
+    is_anonymous: isAnonymous,
+    display_name: displayName,
+    parent_post_id: parentPostId,
+    status: "active",
+    created_at: now(),
+    updated_at: now(),
+  };
+  const { error } = await ctx.supabase.from("forum_posts").insert(row);
+  if (error) return fail(500, "server_error");
+  return ok({ post: { id: row.id, createdAt: row.created_at } });
+}
+
+async function learningMentoringList(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data } = await ctx.supabase
+    .from("peer_mentoring")
+    .select("*")
+    .filter("mentor_id", "eq", auth.account.id)
+    .limit(20);
+  const { data: menteeData } = await ctx.supabase
+    .from("peer_mentoring")
+    .select("*")
+    .filter("mentee_id", "eq", auth.account.id)
+    .limit(20);
+  const allRows = [...(data ?? []), ...(menteeData ?? [])];
+  const names = await namesFor(
+    ctx.supabase,
+    allRows.flatMap((r) => [r.mentor_id, r.mentee_id]),
+  );
+  return ok({
+    asMentor: (data ?? []).map((r) => ({
+      id: r.id,
+      menteeId: r.mentee_id,
+      menteeName: names.get(r.mentee_id)?.nickname ?? names.get(r.mentee_id)?.displayName ?? null,
+      status: r.status,
+      matchedAt: r.matched_at,
+      notes: r.notes,
+    })),
+    asMentee: (menteeData ?? []).map((r) => ({
+      id: r.id,
+      mentorId: r.mentor_id,
+      mentorName: names.get(r.mentor_id)?.nickname ?? names.get(r.mentor_id)?.displayName ?? null,
+      status: r.status,
+      matchedAt: r.matched_at,
+      notes: r.notes,
+    })),
+  });
+}
+
+async function learningMentoringRequest(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const mentorId = text(ctx.body.mentorId, 60);
+  const notes = textOrNull(ctx.body.notes, 500);
+  if (!mentorId) return fail(400, "invalid_input");
+  if (mentorId === auth.account.id) return fail(400, "cannot_mentor_self");
+  const { data: existing } = await ctx.supabase
+    .from("peer_mentoring")
+    .select("*")
+    .eq("mentor_id", mentorId)
+    .eq("mentee_id", auth.account.id)
+    .maybeSingle();
+  if (existing) return fail(409, "already_requested");
+  await ctx.supabase.from("peer_mentoring").insert({
+    id: crypto.randomUUID(),
+    mentor_id: mentorId,
+    mentee_id: auth.account.id,
+    status: "pending",
+    matched_at: now(),
+    notes,
+  });
+  return ok({ requested: true });
+}
+
+async function learningCounselingList(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data } = await ctx.supabase
+    .from("counseling_bookings")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .order("scheduled_at", { ascending: false })
+    .limit(30);
+  return ok({
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      counselorName: row.counselor_name,
+      counselorType: row.counselor_type,
+      sessionType: row.session_type,
+      scheduledAt: row.scheduled_at,
+      durationMinutes: row.duration_minutes,
+      status: row.status,
+      meetingUrl: row.meeting_url ?? null,
+      amount: row.amount,
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningCounselingBook(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const counselorName = text(ctx.body.counselorName, 100);
+  const counselorType = COUNSELOR_TYPES.includes(ctx.body.counselorType) ? ctx.body.counselorType : "psychologist";
+  const sessionType = SESSION_TYPES.includes(ctx.body.sessionType) ? ctx.body.sessionType : "free";
+  const scheduledAt = text(ctx.body.scheduledAt, 30);
+  if (!counselorName || !scheduledAt) return fail(400, "invalid_input");
+  const amount = sessionType === "premium" ? (intOrNull(ctx.body.amount, 0, 99999999) ?? 0) : 0;
+  const row = {
+    id: crypto.randomUUID(),
+    account_id: auth.account.id,
+    counselor_name: counselorName,
+    counselor_type: counselorType,
+    session_type: sessionType,
+    scheduled_at: scheduledAt,
+    duration_minutes: intOrNull(ctx.body.durationMinutes, 15, 180) ?? 60,
+    status: "pending",
+    notes: textOrNull(ctx.body.notes, 500),
+    amount,
+    created_at: now(),
+  };
+  const { error } = await ctx.supabase.from("counseling_bookings").insert(row);
+  if (error) return fail(500, "server_error");
+  return ok({ booking: { id: row.id, scheduledAt: row.scheduled_at, status: row.status } });
+}
+
+async function learningFinancialList(ctx) {
+  const auth = await actor(ctx, 0);
+  const { data } = await ctx.supabase
+    .from("financial_modules")
+    .select("*")
+    .eq("status", "active")
+    .order("position", { ascending: true })
+    .limit(40);
+  return ok({
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      contentType: row.content_type,
+      description: row.description,
+      body: row.body,
+      toolData: row.tool_data ?? null,
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningLegalList(ctx) {
+  const auth = await actor(ctx, 0);
+  const { data } = await ctx.supabase
+    .from("legal_modules")
+    .select("*")
+    .eq("status", "active")
+    .order("position", { ascending: true })
+    .limit(40);
+  return ok({
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      contentType: row.content_type,
+      description: row.description,
+      body: row.body,
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningJobsList(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const jobType = text(ctx.body.jobType, 30) || null;
+  const remote = ctx.body.remote;
+  let { data } = await ctx.supabase
+    .from("job_listings")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const rows = (data ?? []).filter((r) => {
+    if (jobType && r.job_type !== jobType) return false;
+    if (remote !== undefined && remote !== null && Boolean(remote) !== r.remote) return false;
+    return true;
+  });
+  const appliedSet = new Set();
+  if (account && rows.length) {
+    const jobIds = rows.map((r) => r.id);
+    const { data: apps } = await ctx.supabase
+      .from("job_applications")
+      .select("job_id")
+      .eq("account_id", account.id)
+      .in("job_id", jobIds);
+    for (const a of apps ?? []) appliedSet.add(a.job_id);
+  }
+  return ok({
+    items: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      company: row.company,
+      description: row.description,
+      jobType: row.job_type,
+      salaryMin: row.salary_min,
+      salaryMax: row.salary_max,
+      salaryCurrency: row.salary_currency,
+      remote: row.remote,
+      location: row.location,
+      requirements: row.requirements,
+      skills: row.skills ?? [],
+      contactEmail: row.contact_email ?? null,
+      contactUrl: row.contact_url ?? null,
+      applied: appliedSet.has(row.id),
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningJobsApply(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const jobId = text(ctx.body.jobId, 60);
+  const coverLetter = text(ctx.body.coverLetter, 3000);
+  if (!jobId) return fail(400, "invalid_input");
+  const { data: job } = await ctx.supabase
+    .from("job_listings")
+    .select("*")
+    .eq("id", jobId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!job) return fail(404, "job_not_found");
+  const { data: existing } = await ctx.supabase
+    .from("job_applications")
+    .select("*")
+    .eq("job_id", jobId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (existing) return fail(409, "already_applied");
+  await ctx.supabase.from("job_applications").insert({
+    id: crypto.randomUUID(),
+    job_id: jobId,
+    account_id: auth.account.id,
+    cover_letter: coverLetter || null,
+    resume_url: textOrNull(ctx.body.resumeUrl, 500),
+    status: "pending",
+    created_at: now(),
+  });
+  return ok({ applied: true });
+}
+
+async function learningIncubationList(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const { data } = await ctx.supabase
+    .from("incubation_programs")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const rows = data ?? [];
+  const progressMap = new Map();
+  if (account && rows.length) {
+    const programIds = rows.map((r) => r.id);
+    const { data: progress } = await ctx.supabase
+      .from("incubation_progress")
+      .select("program_id,status")
+      .eq("account_id", account.id)
+      .in("program_id", programIds);
+    for (const p of progress ?? []) {
+      if (!progressMap.has(p.program_id)) progressMap.set(p.program_id, { completed: 0, total: 0 });
+      const entry = progressMap.get(p.program_id);
+      entry.total += 1;
+      if (p.status === "completed") entry.completed += 1;
+    }
+  }
+  return ok({
+    items: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      totalSteps: row.total_steps,
+      progress: account ? progressMap.get(row.id) ?? null : null,
+      createdAt: row.created_at,
+    })),
+  });
+}
+
+async function learningIncubationGet(ctx) {
+  const auth = await actor(ctx, 0);
+  const account = auth.error ? null : auth.account;
+  const programId = text(ctx.body.programId, 60);
+  if (!programId) return fail(400, "invalid_input");
+  const { data: program } = await ctx.supabase
+    .from("incubation_programs")
+    .select("*")
+    .eq("id", programId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!program) return fail(404, "not_found");
+  const { data: steps } = await ctx.supabase
+    .from("incubation_steps")
+    .select("*")
+    .eq("program_id", programId)
+    .eq("status", "active")
+    .order("position", { ascending: true });
+  let progressRows = [];
+  if (account) {
+    const { data: p } = await ctx.supabase
+      .from("incubation_progress")
+      .select("step_id,status,completed_at,notes")
+      .eq("account_id", account.id)
+      .eq("program_id", programId);
+    progressRows = p ?? [];
+  }
+  const progressByStep = new Map(progressRows.map((p) => [p.step_id, p]));
+  return ok({
+    program: {
+      id: program.id,
+      title: program.title,
+      description: program.description,
+      totalSteps: program.total_steps,
+      createdAt: program.created_at,
+    },
+    steps: (steps ?? []).map((s) => ({
+      id: s.id,
+      position: s.position,
+      title: s.title,
+      description: s.description,
+      content: s.content,
+      milestone: s.milestone,
+      progress: progressByStep.get(s.id) ?? null,
+    })),
+  });
+}
+
+async function learningIncubationProgress(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const stepId = text(ctx.body.stepId, 60);
+  const programId = text(ctx.body.programId, 60);
+  const status = ctx.body.status === "completed" ? "completed" : "in_progress";
+  if (!stepId || !programId) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("incubation_progress")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("step_id", stepId)
+    .maybeSingle();
+  if (existing) {
+    const patch = { status };
+    if (status === "completed") patch.completed_at = now();
+    if (ctx.body.notes) patch.notes = text(ctx.body.notes, 500);
+    await ctx.supabase.from("incubation_progress").update(patch).eq("id", existing.id);
+  } else {
+    await ctx.supabase.from("incubation_progress").insert({
+      id: crypto.randomUUID(),
+      account_id: auth.account.id,
+      program_id: programId,
+      step_id: stepId,
+      status,
+      completed_at: status === "completed" ? now() : null,
+      notes: textOrNull(ctx.body.notes, 500),
+      created_at: now(),
+    });
+  }
+  if (status === "completed") {
+    await ctx.supabase.from("accounts").update({ xp: auth.account.xp + 20 }).eq("id", auth.account.id);
+  }
+  return ok({ updated: true });
+}
+
+async function learningBadgesList(ctx) {
+  const auth = await actor(ctx, 0);
+  const { data } = await ctx.supabase
+    .from("learning_badges")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+  const earnedSet = new Set();
+  if (auth.account) {
+    const { data: earnings } = await ctx.supabase
+      .from("learning_badge_earnings")
+      .select("badge_id")
+      .eq("account_id", auth.account.id);
+    for (const e of earnings ?? []) earnedSet.add(e.badge_id);
+  }
+  return ok({
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      icon: row.icon ?? null,
+      emoji: row.emoji ?? null,
+      category: row.category,
+      requirement: row.requirement,
+      xpReward: row.xp_reward,
+      earned: earnedSet.has(row.id),
+    })),
+  });
+}
+
+async function learningBadgesMine(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data: earnings } = await ctx.supabase
+    .from("learning_badge_earnings")
+    .select("badge_id,earned_at")
+    .eq("account_id", auth.account.id);
+  const badgeIds = (earnings ?? []).map((e) => e.badge_id);
+  const badgeMap = new Map();
+  if (badgeIds.length) {
+    const { data: badges } = await ctx.supabase.from("learning_badges").select("*").in("id", badgeIds);
+    for (const b of badges ?? []) badgeMap.set(b.id, b);
+  }
+  return ok({
+    items: (earnings ?? []).map((e) => {
+      const badge = badgeMap.get(e.badge_id);
+      return {
+        id: e.badge_id,
+        name: badge?.name ?? null,
+        emoji: badge?.emoji ?? null,
+        icon: badge?.icon ?? null,
+        category: badge?.category ?? null,
+        earnedAt: e.earned_at,
+      };
+    }),
+  });
+}
+
+async function learningAnonymousGet(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data } = await ctx.supabase
+    .from("anonymous_profiles")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  return ok({
+    profile: data
+      ? {
+          displayName: data.display_name,
+          avatarUrl: data.avatar_url ?? null,
+          isActive: data.is_active,
+        }
+      : null,
+  });
+}
+
+async function learningAnonymousSet(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const displayName = text(ctx.body.displayName, 60);
+  const isActive = Boolean(ctx.body.isActive);
+  if (displayName.length < 2) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("anonymous_profiles")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (existing) {
+    await ctx.supabase
+      .from("anonymous_profiles")
+      .update({ display_name: displayName, is_active: isActive, updated_at: now() })
+      .eq("id", existing.id);
+  } else {
+    await ctx.supabase.from("anonymous_profiles").insert({
+      id: crypto.randomUUID(),
+      account_id: auth.account.id,
+      display_name: displayName,
+      is_active: isActive,
+      created_at: now(),
+      updated_at: now(),
+    });
+  }
+  return ok({ displayName, isActive });
+}
+
 // ---------- routes ----------
 
 const ROUTES = {
@@ -579,6 +1572,36 @@ const ROUTES = {
   "coins.spend": coinsSpend,
   "coins.features": coinsFeatures,
   "coins.withdraw": coinsWithdraw,
+
+  "learning.modules.list": learningModulesList,
+  "learning.modules.get": learningModulesGet,
+  "learning.progress.get": learningProgressGet,
+  "learning.progress.update": learningProgressUpdate,
+  "learning.downloads.track": learningDownloadsTrack,
+  "learning.podcasts.list": learningPodcastsList,
+  "learning.podcasts.play": learningPodcastsPlay,
+  "learning.stories.list": learningStoriesList,
+  "learning.stories.create": learningStoriesCreate,
+  "learning.forum.categories": learningForumCategories,
+  "learning.forum.topics.list": learningForumTopicsList,
+  "learning.forum.topics.get": learningForumTopicsGet,
+  "learning.forum.topics.create": learningForumTopicsCreate,
+  "learning.forum.posts.create": learningForumPostsCreate,
+  "learning.mentoring.list": learningMentoringList,
+  "learning.mentoring.request": learningMentoringRequest,
+  "learning.counseling.list": learningCounselingList,
+  "learning.counseling.book": learningCounselingBook,
+  "learning.financial.list": learningFinancialList,
+  "learning.legal.list": learningLegalList,
+  "learning.jobs.list": learningJobsList,
+  "learning.jobs.apply": learningJobsApply,
+  "learning.incubation.list": learningIncubationList,
+  "learning.incubation.get": learningIncubationGet,
+  "learning.incubation.progress": learningIncubationProgress,
+  "learning.badges.list": learningBadgesList,
+  "learning.badges.mine": learningBadgesMine,
+  "learning.anonymous.get": learningAnonymousGet,
+  "learning.anonymous.set": learningAnonymousSet,
 };
 
 // ---------- auth handlers ----------

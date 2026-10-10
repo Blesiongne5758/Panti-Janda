@@ -121,6 +121,8 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "live-trading", params: {} };
     case "ai-agent":
       return { name: "ai-agent", params: {} };
+    case "learning-center":
+      return { name: "learning-center", params: {} };
     default:
       return { name: "notfound", params: {} };
   }
