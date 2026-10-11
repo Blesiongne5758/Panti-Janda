@@ -24,6 +24,7 @@ import CoinsPage from "@/pages/coins";
 import LiveTradingPage from "@/pages/live-trading";
 import AiAgentPage from "@/pages/ai-agent";
 import LearningCenterPage from "@/pages/learning-center";
+import { FeedPage } from "@/pages/feed";
 import GroupsPage from "@/pages/groups";
 import ChatPage from "@/pages/chat";
 import DashboardPage from "@/pages/dashboard";
@@ -82,6 +83,8 @@ function Routes() {
       return <AiAgentPage />;
     case "learning-center":
       return <LearningCenterPage />;
+    case "feed":
+      return <FeedPage />;
     case "groups":
       return <GroupsPage />;
     case "chat":

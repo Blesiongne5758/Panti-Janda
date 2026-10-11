@@ -65,11 +65,20 @@ function levelFromXp(xp) {
 }
 
 function roleFromLevel(level, isJanda) {
-  if (level >= 46) return isJanda ? "the_ceo" : "presiden";
-  if (level >= 36) return isJanda ? "high_society" : "panglima";
-  if (level >= 21) return isJanda ? "sosialita" : "gubernur";
-  if (level >= 1) return isJanda ? "wonder_woman" : "kades";
-  return "public";
+  if (isJanda) {
+    if (level >= 46) return "the_ceo";
+    if (level >= 36) return "high_society";
+    if (level >= 21) return "sosialita";
+    if (level >= 1) return "wonder_woman";
+    return "public";
+  } else {
+    if (level >= 50) return "presiden";
+    if (level >= 45) return "panglima";
+    if (level >= 35) return "gubernur";
+    if (level >= 25) return "walikota";
+    if (level >= 15) return "kades";
+    return "public";
+  }
 }
 
 function tierFromLevel(level) {
@@ -79,11 +88,13 @@ function tierFromLevel(level) {
   return "wonder_woman";
 }
 
-function publicTierFromLevel(level) {
-  if (level >= 46) return "presiden";
-  if (level >= 36) return "panglima";
-  if (level >= 21) return "gubernur";
-  return "kades";
+function publicBadgeFromLevel(level) {
+  if (level >= 50) return "presiden";
+  if (level >= 45) return "panglima";
+  if (level >= 35) return "gubernur";
+  if (level >= 25) return "walikota";
+  if (level >= 15) return "kades";
+  return null;
 }
 
 const LEVEL_TITLES = {
@@ -1449,6 +1460,514 @@ async function learningAnonymousSet(ctx) {
   return ok({ displayName, isActive });
 }
 
+// ---------- crypto wallet handlers ----------
+
+function generateWalletAddress(symbol, accountId) {
+  const hash = sha256Hex(`${symbol}:${accountId}:${Date.now()}:${Math.random()}`);
+  if (symbol === "BTC") return `1${hash.substring(0, 33)}`;
+  if (symbol === "ETH" || symbol?.startsWith("USDT-") || symbol === "USDC" || symbol === "MATIC") return `0x${hash.substring(0, 40)}`;
+  if (symbol === "SOL") return hash.substring(0, 44);
+  if (symbol === "BNB") return `0x${hash.substring(0, 40)}`;
+  if (symbol === "USDT") return `T${hash.substring(0, 33)}`;
+  return `0x${hash.substring(0, 40)}`;
+}
+
+async function cryptoCoinsList(ctx) {
+  const { data } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("is_active", true)
+    .order("symbol");
+  return ok({
+    items: (data ?? []).map((c) => ({
+      id: c.id,
+      symbol: c.symbol,
+      name: c.name,
+      network: c.network,
+      contractAddress: c.contract_address,
+      decimals: c.decimals,
+      icon: c.icon,
+      color: c.color,
+      coinConversionRate: Number(c.coin_conversion_rate),
+      minDeposit: Number(c.min_deposit),
+      minWithdraw: Number(c.min_withdraw),
+      withdrawFeePercent: Number(c.withdraw_fee_percent),
+    })),
+  });
+}
+
+async function cryptoWalletsList(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+  return ok({
+    items: (data ?? []).map((w) => ({
+      id: w.id,
+      coinSymbol: w.coin_symbol,
+      network: w.network,
+      walletAddress: w.wallet_address,
+      balance: Number(w.balance),
+      createdAt: w.created_at,
+    })),
+  });
+}
+
+async function cryptoWalletsCreate(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const coinSymbol = text(ctx.body.coinSymbol, 20);
+  if (!coinSymbol) return fail(400, "coin_symbol_required");
+
+  const { data: coin } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("symbol", coinSymbol)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!coin) return fail(400, "unsupported_coin");
+
+  const { data: existing } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("id")
+    .eq("account_id", auth.account.id)
+    .eq("coin_symbol", coinSymbol)
+    .eq("network", coin.network)
+    .maybeSingle();
+  if (existing) return fail(400, "wallet_already_exists");
+
+  const walletAddress = generateWalletAddress(coinSymbol, auth.account.id);
+  const { data: wallet, error } = await ctx.supabase
+    .from("crypto_wallets")
+    .insert({
+      account_id: auth.account.id,
+      coin_symbol: coinSymbol,
+      network: coin.network,
+      wallet_address: walletAddress,
+      balance: 0,
+      is_active: true,
+      created_at: now(),
+      updated_at: now(),
+    })
+    .select()
+    .single();
+  if (error) return fail(400, "failed_to_create_wallet");
+
+  return ok({
+    id: wallet.id,
+    coinSymbol: wallet.coin_symbol,
+    network: wallet.network,
+    walletAddress: wallet.wallet_address,
+    balance: Number(wallet.balance),
+    createdAt: wallet.created_at,
+  });
+}
+
+async function cryptoWalletsGet(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const walletId = text(ctx.body.walletId, 60);
+  if (!walletId) return fail(400, "wallet_id_required");
+
+  const { data: wallet } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("id", walletId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!wallet) return fail(404, "wallet_not_found");
+
+  const { data: txs } = await ctx.supabase
+    .from("crypto_transactions")
+    .select("*")
+    .eq("wallet_id", wallet.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  return ok({
+    wallet: {
+      id: wallet.id,
+      coinSymbol: wallet.coin_symbol,
+      network: wallet.network,
+      walletAddress: wallet.wallet_address,
+      balance: Number(wallet.balance),
+      createdAt: wallet.created_at,
+    },
+    transactions: (txs ?? []).map((t) => ({
+      id: t.id,
+      type: t.type,
+      coinSymbol: t.coin_symbol,
+      amountCrypto: Number(t.amount_crypto),
+      amountCoins: t.amount_coins,
+      txHash: t.tx_hash,
+      fromAddress: t.from_address,
+      toAddress: t.to_address,
+      status: t.status,
+      description: t.description,
+      createdAt: t.created_at,
+      confirmedAt: t.confirmed_at,
+    })),
+  });
+}
+
+async function cryptoDeposit(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const walletId = text(ctx.body.walletId, 60);
+  const amountCrypto = Number(ctx.body.amountCrypto);
+  const txHash = text(ctx.body.txHash, 120);
+  if (!walletId || !amountCrypto || amountCrypto <= 0) return fail(400, "invalid_deposit_params");
+
+  const { data: wallet } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("id", walletId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!wallet) return fail(404, "wallet_not_found");
+
+  const { data: coin } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("symbol", wallet.coin_symbol)
+    .maybeSingle();
+  if (!coin) return fail(400, "coin_not_found");
+  if (amountCrypto < Number(coin.min_deposit)) return fail(400, `minimum_deposit_is_${coin.min_deposit}_${coin.symbol}`);
+
+  const amountCoins = Math.floor(amountCrypto * Number(coin.coin_conversion_rate));
+  const newBalance = Number(wallet.balance) + amountCrypto;
+
+  await ctx.supabase.from("crypto_wallets").update({
+    balance: newBalance,
+    updated_at: now(),
+  }).eq("id", wallet.id);
+
+  await ctx.supabase.from("crypto_transactions").insert({
+    wallet_id: wallet.id,
+    account_id: auth.account.id,
+    type: "deposit",
+    coin_symbol: wallet.coin_symbol,
+    amount_crypto: amountCrypto,
+    amount_coins: amountCoins,
+    tx_hash: txHash || `0x${sha256Hex(`${wallet.id}:${amountCrypto}:${Date.now()}`).substring(0, 64)}`,
+    to_address: wallet.wallet_address,
+    status: "confirmed",
+    description: `Deposit ${amountCrypto} ${wallet.coin_symbol} → ${amountCoins} koin`,
+    confirmed_at: now(),
+    created_at: now(),
+  });
+
+  const { data: coinBal } = await ctx.supabase
+    .from("coin_balances")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  const currentBalance = coinBal?.balance ?? 0;
+  const newCoinBalance = currentBalance + amountCoins;
+
+  await ctx.supabase.from("coin_balances").upsert({
+    account_id: auth.account.id,
+    balance: newCoinBalance,
+    lifetime_purchased: (coinBal?.lifetime_purchased ?? 0) + amountCoins,
+    updated_at: now(),
+  });
+
+  await ctx.supabase.from("coin_transactions").insert({
+    account_id: auth.account.id,
+    type: "purchase",
+    amount: amountCoins,
+    balance_after: newCoinBalance,
+    description: `Konversi deposit ${amountCrypto} ${wallet.coin_symbol}`,
+    reference_id: `crypto_deposit_${wallet.id}`,
+    created_at: now(),
+  });
+
+  return ok({
+    amountCrypto,
+    amountCoins,
+    newWalletBalance: newBalance,
+    newCoinBalance,
+    status: "confirmed",
+  });
+}
+
+async function cryptoWithdraw(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const walletId = text(ctx.body.walletId, 60);
+  const amountCrypto = Number(ctx.body.amountCrypto);
+  const toAddress = text(ctx.body.toAddress, 120);
+  if (!walletId || !amountCrypto || amountCrypto <= 0 || !toAddress) return fail(400, "invalid_withdraw_params");
+
+  const { data: wallet } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("id", walletId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!wallet) return fail(404, "wallet_not_found");
+  if (Number(wallet.balance) < amountCrypto) return fail(400, "insufficient_crypto_balance");
+
+  const { data: coin } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("symbol", wallet.coin_symbol)
+    .maybeSingle();
+  if (!coin) return fail(400, "coin_not_found");
+  if (amountCrypto < Number(coin.min_withdraw)) return fail(400, `minimum_withdraw_is_${coin.min_withdraw}_${coin.symbol}`);
+
+  const fee = amountCrypto * (Number(coin.withdraw_fee_percent) / 100);
+  const netAmount = amountCrypto - fee;
+  const amountCoins = Math.floor(amountCrypto * Number(coin.coin_conversion_rate));
+
+  const { data: coinBal } = await ctx.supabase
+    .from("coin_balances")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!coinBal || coinBal.balance < amountCoins) return fail(400, "insufficient_coin_balance");
+
+  const newCoinBalance = coinBal.balance - amountCoins;
+  const newWalletBalance = Number(wallet.balance) - amountCrypto;
+
+  await ctx.supabase.from("crypto_wallets").update({
+    balance: newWalletBalance,
+    updated_at: now(),
+  }).eq("id", wallet.id);
+
+  await ctx.supabase.from("coin_balances").update({
+    balance: newCoinBalance,
+    lifetime_spent: (coinBal.lifetime_spent ?? 0) + amountCoins,
+    updated_at: now(),
+  }).eq("account_id", auth.account.id);
+
+  await ctx.supabase.from("coin_transactions").insert({
+    account_id: auth.account.id,
+    type: "withdraw",
+    amount: -amountCoins,
+    balance_after: newCoinBalance,
+    description: `Penarikan ${amountCrypto} ${wallet.coin_symbol} ke ${toAddress.substring(0, 10)}...`,
+    reference_id: `crypto_withdraw_${wallet.id}`,
+    created_at: now(),
+  });
+
+  const txHash = `0x${sha256Hex(`${wallet.id}:${amountCrypto}:${toAddress}:${Date.now()}`).substring(0, 64)}`;
+  await ctx.supabase.from("crypto_transactions").insert({
+    wallet_id: wallet.id,
+    account_id: auth.account.id,
+    type: "withdraw",
+    coin_symbol: wallet.coin_symbol,
+    amount_crypto: amountCrypto,
+    amount_coins: amountCoins,
+    tx_hash: txHash,
+    from_address: wallet.wallet_address,
+    to_address: toAddress,
+    status: "pending",
+    description: `Withdraw ${netAmount} ${wallet.coin_symbol} (fee: ${fee})`,
+    gas_fee: fee,
+    created_at: now(),
+  });
+
+  return ok({
+    amountCrypto,
+    fee,
+    netAmount,
+    amountCoins,
+    newWalletBalance,
+    newCoinBalance,
+    txHash,
+    status: "pending",
+  });
+}
+
+async function cryptoSwapToCoins(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const walletId = text(ctx.body.walletId, 60);
+  const amountCrypto = Number(ctx.body.amountCrypto);
+  if (!walletId || !amountCrypto || amountCrypto <= 0) return fail(400, "invalid_swap_params");
+
+  const { data: wallet } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("id", walletId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!wallet) return fail(404, "wallet_not_found");
+  if (Number(wallet.balance) < amountCrypto) return fail(400, "insufficient_crypto_balance");
+
+  const { data: coin } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("symbol", wallet.coin_symbol)
+    .maybeSingle();
+  if (!coin) return fail(400, "coin_not_found");
+
+  const amountCoins = Math.floor(amountCrypto * Number(coin.coin_conversion_rate));
+  const newWalletBalance = Number(wallet.balance) - amountCrypto;
+
+  await ctx.supabase.from("crypto_wallets").update({
+    balance: newWalletBalance,
+    updated_at: now(),
+  }).eq("id", wallet.id);
+
+  const { data: coinBal } = await ctx.supabase
+    .from("coin_balances")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  const currentCoinBalance = coinBal?.balance ?? 0;
+  const newCoinBalance = currentCoinBalance + amountCoins;
+
+  await ctx.supabase.from("coin_balances").upsert({
+    account_id: auth.account.id,
+    balance: newCoinBalance,
+    lifetime_purchased: (coinBal?.lifetime_purchased ?? 0) + amountCoins,
+    updated_at: now(),
+  });
+
+  await ctx.supabase.from("coin_transactions").insert({
+    account_id: auth.account.id,
+    type: "purchase",
+    amount: amountCoins,
+    balance_after: newCoinBalance,
+    description: `Swap ${amountCrypto} ${wallet.coin_symbol} → ${amountCoins} koin`,
+    reference_id: `crypto_swap_${wallet.id}`,
+    created_at: now(),
+  });
+
+  await ctx.supabase.from("crypto_transactions").insert({
+    wallet_id: wallet.id,
+    account_id: auth.account.id,
+    type: "swap_to_coins",
+    coin_symbol: wallet.coin_symbol,
+    amount_crypto: amountCrypto,
+    amount_coins: amountCoins,
+    status: "confirmed",
+    description: `Swap ${amountCrypto} ${wallet.coin_symbol} ke ${amountCoins} koin webapp`,
+    confirmed_at: now(),
+    created_at: now(),
+  });
+
+  return ok({
+    amountCrypto,
+    amountCoins,
+    newWalletBalance,
+    newCoinBalance,
+    conversionRate: Number(coin.coin_conversion_rate),
+  });
+}
+
+async function cryptoSwapFromCoins(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const walletId = text(ctx.body.walletId, 60);
+  const amountCoins = Number(ctx.body.amountCoins);
+  if (!walletId || !amountCoins || amountCoins <= 0) return fail(400, "invalid_swap_params");
+
+  const { data: wallet } = await ctx.supabase
+    .from("crypto_wallets")
+    .select("*")
+    .eq("id", walletId)
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!wallet) return fail(404, "wallet_not_found");
+
+  const { data: coin } = await ctx.supabase
+    .from("crypto_supported_coins")
+    .select("*")
+    .eq("symbol", wallet.coin_symbol)
+    .maybeSingle();
+  if (!coin) return fail(400, "coin_not_found");
+
+  const rate = Number(coin.coin_conversion_rate);
+  if (rate <= 0) return fail(400, "invalid_conversion_rate");
+  const amountCrypto = amountCoins / rate;
+
+  const { data: coinBal } = await ctx.supabase
+    .from("coin_balances")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .maybeSingle();
+  if (!coinBal || coinBal.balance < amountCoins) return fail(400, "insufficient_coin_balance");
+
+  const newCoinBalance = coinBal.balance - amountCoins;
+  const newWalletBalance = Number(wallet.balance) + amountCrypto;
+
+  await ctx.supabase.from("coin_balances").update({
+    balance: newCoinBalance,
+    lifetime_spent: (coinBal.lifetime_spent ?? 0) + amountCoins,
+    updated_at: now(),
+  }).eq("account_id", auth.account.id);
+
+  await ctx.supabase.from("coin_transactions").insert({
+    account_id: auth.account.id,
+    type: "spend",
+    amount: -amountCoins,
+    balance_after: newCoinBalance,
+    description: `Swap ${amountCoins} koin → ${amountCrypto.toFixed(6)} ${wallet.coin_symbol}`,
+    reference_id: `crypto_swap_from_${wallet.id}`,
+    created_at: now(),
+  });
+
+  await ctx.supabase.from("crypto_wallets").update({
+    balance: newWalletBalance,
+    updated_at: now(),
+  }).eq("id", wallet.id);
+
+  await ctx.supabase.from("crypto_transactions").insert({
+    wallet_id: wallet.id,
+    account_id: auth.account.id,
+    type: "swap_from_coins",
+    coin_symbol: wallet.coin_symbol,
+    amount_crypto: amountCrypto,
+    amount_coins: amountCoins,
+    status: "confirmed",
+    description: `Swap ${amountCoins} koin webapp ke ${amountCrypto.toFixed(6)} ${wallet.coin_symbol}`,
+    confirmed_at: now(),
+    created_at: now(),
+  });
+
+  return ok({
+    amountCoins,
+    amountCrypto,
+    newCoinBalance,
+    newWalletBalance,
+    conversionRate: rate,
+  });
+}
+
+async function cryptoTransactionsList(ctx) {
+  const auth = await actor(ctx, 2);
+  if (auth.error) return auth.error;
+  const { data } = await ctx.supabase
+    .from("crypto_transactions")
+    .select("*")
+    .eq("account_id", auth.account.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return ok({
+    items: (data ?? []).map((t) => ({
+      id: t.id,
+      type: t.type,
+      coinSymbol: t.coin_symbol,
+      amountCrypto: Number(t.amount_crypto),
+      amountCoins: t.amount_coins,
+      txHash: t.tx_hash,
+      fromAddress: t.from_address,
+      toAddress: t.to_address,
+      status: t.status,
+      description: t.description,
+      createdAt: t.created_at,
+      confirmedAt: t.confirmed_at,
+    })),
+  });
+}
+
 // ---------- routes ----------
 
 const ROUTES = {
@@ -1572,6 +2091,16 @@ const ROUTES = {
   "coins.spend": coinsSpend,
   "coins.features": coinsFeatures,
   "coins.withdraw": coinsWithdraw,
+
+  "crypto.coins.list": cryptoCoinsList,
+  "crypto.wallets.list": cryptoWalletsList,
+  "crypto.wallets.create": cryptoWalletsCreate,
+  "crypto.wallets.get": cryptoWalletsGet,
+  "crypto.deposit": cryptoDeposit,
+  "crypto.withdraw": cryptoWithdraw,
+  "crypto.swap.to_coins": cryptoSwapToCoins,
+  "crypto.swap.from_coins": cryptoSwapFromCoins,
+  "crypto.transactions.list": cryptoTransactionsList,
 
   "learning.modules.list": learningModulesList,
   "learning.modules.get": learningModulesGet,
@@ -4056,6 +4585,83 @@ const APP_SETTINGS = {
     accountsPerTier: 2,
     password: "trial12345",
   },
+  cryptoSettings: {
+    treasuryWallets: [
+      { id: "tw-usdt-trc20", coinSymbol: "USDT", network: "TRC20", address: "TN9RRaXkNTKEDaydnSNBeMXaBmMoPxXmBd", label: "Treasury USDT TRC20", balance: 50000, enabled: true },
+      { id: "tw-eth-erc20", coinSymbol: "ETH", network: "ERC20", address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18", label: "Treasury ETH ERC20", balance: 12.5, enabled: true },
+      { id: "tw-btc-main", coinSymbol: "BTC", network: "Bitcoin", address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", label: "Treasury BTC", balance: 0.75, enabled: true },
+      { id: "tw-sol-main", coinSymbol: "SOL", network: "Solana", address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", label: "Treasury SOL", balance: 250, enabled: false },
+    ],
+    distribution: {
+      autoCreditOnDeposit: true,
+      minConfirmations: 3,
+      maxDailyWithdrawCrypto: 10000,
+      maxDailySwapCoins: 1000000,
+      enableAutoSwap: false,
+      defaultSwapSlippagePercent: 0.5,
+    },
+    globalFees: {
+      depositFeePercent: 0,
+      withdrawFeePercent: 1.5,
+      swapFeePercent: 0.5,
+      minDepositUsd: 1,
+      minWithdrawUsd: 5,
+    },
+    notifications: {
+      notifyOnLargeDeposit: true,
+      largeDepositThresholdUsd: 1000,
+      notifyOnWithdraw: true,
+      notifyOnLowTreasury: true,
+      lowTreasuryThresholdUsd: 500,
+    },
+  },
+  apiManagement: {
+    apis: [
+      {
+        id: "api_1",
+        name: "CoinGecko Price API",
+        description: "API untuk data harga crypto real-time",
+        apiKey: "cg-demo-key-xxxxxxxxxxxx",
+        apiSecret: "",
+        baseUrl: "https://api.coingecko.com/api/v3",
+        provider: "CoinGecko",
+        category: "price_feed",
+        enabled: true,
+        rateLimit: 30,
+        lastUsed: "2026-10-10T12:00:00Z",
+        createdAt: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "api_2",
+        name: "Binance Exchange API",
+        description: "API untuk trading dan data market Binance",
+        apiKey: "binance-api-key-xxxxxxxxxxxx",
+        apiSecret: "binance-secret-xxxxxxxxxxxx",
+        baseUrl: "https://api.binance.com/api/v3",
+        provider: "Binance",
+        category: "exchange",
+        enabled: true,
+        rateLimit: 60,
+        lastUsed: "2026-10-10T11:30:00Z",
+        createdAt: "2026-09-05T00:00:00Z",
+      },
+      {
+        id: "api_3",
+        name: "OpenAI GPT API",
+        description: "API untuk AI trading agent dan analisis pasar",
+        apiKey: "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+        apiSecret: "",
+        baseUrl: "https://api.openai.com/v1",
+        provider: "OpenAI",
+        category: "ai",
+        enabled: false,
+        rateLimit: 20,
+        lastUsed: null,
+        createdAt: "2026-09-10T00:00:00Z",
+      },
+    ],
+    categories: ["price_feed", "exchange", "ai", "blockchain", "notification", "analytics"],
+  },
 };
 
 async function adminSettingsGet(ctx) {
@@ -4067,7 +4673,7 @@ async function adminSettingsGet(ctx) {
 async function adminSettingsUpdate(ctx) {
   const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
-  const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts } = ctx.body ?? {};
+  const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement } = ctx.body ?? {};
   if (payment) {
     if (typeof payment.midtransServerKey === "string") APP_SETTINGS.payment.midtransServerKey = payment.midtransServerKey;
     if (typeof payment.midtransClientKey === "string") APP_SETTINGS.payment.midtransClientKey = payment.midtransClientKey;
@@ -4249,6 +4855,73 @@ async function adminSettingsUpdate(ctx) {
   if (trialAccounts) {
     if (typeof trialAccounts.accountsPerTier === "number") APP_SETTINGS.trialAccounts.accountsPerTier = Math.max(1, Math.min(10, Math.floor(trialAccounts.accountsPerTier)));
     if (typeof trialAccounts.password === "string" && trialAccounts.password.length >= 8) APP_SETTINGS.trialAccounts.password = trialAccounts.password;
+  }
+  if (cryptoSettings) {
+    if (Array.isArray(cryptoSettings.treasuryWallets)) {
+      APP_SETTINGS.cryptoSettings.treasuryWallets = cryptoSettings.treasuryWallets
+        .filter((w) => w && typeof w.coinSymbol === "string" && typeof w.address === "string")
+        .map((w) => ({
+          id: w.id || `tw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          coinSymbol: String(w.coinSymbol).toUpperCase(),
+          network: String(w.network || ""),
+          address: String(w.address),
+          label: String(w.label || w.coinSymbol),
+          balance: typeof w.balance === "number" ? Math.max(0, w.balance) : 0,
+          enabled: w.enabled !== false,
+        }));
+    }
+    if (cryptoSettings.distribution && typeof cryptoSettings.distribution === "object") {
+      const d = cryptoSettings.distribution;
+      const cur = APP_SETTINGS.cryptoSettings.distribution;
+      if (typeof d.autoCreditOnDeposit === "boolean") cur.autoCreditOnDeposit = d.autoCreditOnDeposit;
+      if (typeof d.minConfirmations === "number") cur.minConfirmations = Math.max(1, Math.min(100, Math.floor(d.minConfirmations)));
+      if (typeof d.maxDailyWithdrawCrypto === "number") cur.maxDailyWithdrawCrypto = Math.max(0, d.maxDailyWithdrawCrypto);
+      if (typeof d.maxDailySwapCoins === "number") cur.maxDailySwapCoins = Math.max(0, d.maxDailySwapCoins);
+      if (typeof d.enableAutoSwap === "boolean") cur.enableAutoSwap = d.enableAutoSwap;
+      if (typeof d.defaultSwapSlippagePercent === "number") cur.defaultSwapSlippagePercent = Math.max(0, Math.min(50, d.defaultSwapSlippagePercent));
+    }
+    if (cryptoSettings.globalFees && typeof cryptoSettings.globalFees === "object") {
+      const f = cryptoSettings.globalFees;
+      const cur = APP_SETTINGS.cryptoSettings.globalFees;
+      if (typeof f.depositFeePercent === "number") cur.depositFeePercent = Math.max(0, Math.min(50, f.depositFeePercent));
+      if (typeof f.withdrawFeePercent === "number") cur.withdrawFeePercent = Math.max(0, Math.min(50, f.withdrawFeePercent));
+      if (typeof f.swapFeePercent === "number") cur.swapFeePercent = Math.max(0, Math.min(50, f.swapFeePercent));
+      if (typeof f.minDepositUsd === "number") cur.minDepositUsd = Math.max(0, f.minDepositUsd);
+      if (typeof f.minWithdrawUsd === "number") cur.minWithdrawUsd = Math.max(0, f.minWithdrawUsd);
+    }
+    if (cryptoSettings.notifications && typeof cryptoSettings.notifications === "object") {
+      const n = cryptoSettings.notifications;
+      const cur = APP_SETTINGS.cryptoSettings.notifications;
+      if (typeof n.notifyOnLargeDeposit === "boolean") cur.notifyOnLargeDeposit = n.notifyOnLargeDeposit;
+      if (typeof n.largeDepositThresholdUsd === "number") cur.largeDepositThresholdUsd = Math.max(0, n.largeDepositThresholdUsd);
+      if (typeof n.notifyOnWithdraw === "boolean") cur.notifyOnWithdraw = n.notifyOnWithdraw;
+      if (typeof n.notifyOnLowTreasury === "boolean") cur.notifyOnLowTreasury = n.notifyOnLowTreasury;
+      if (typeof n.lowTreasuryThresholdUsd === "number") cur.lowTreasuryThresholdUsd = Math.max(0, n.lowTreasuryThresholdUsd);
+    }
+  }
+  if (apiManagement) {
+    if (Array.isArray(apiManagement.apis)) {
+      const validCategories = new Set(APP_SETTINGS.apiManagement.categories);
+      APP_SETTINGS.apiManagement.apis = apiManagement.apis.map((a) => ({
+        id: typeof a.id === "string" && a.id ? a.id : `api_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: typeof a.name === "string" ? a.name.trim().slice(0, 100) : "Untitled API",
+        description: typeof a.description === "string" ? a.description.trim().slice(0, 500) : "",
+        apiKey: typeof a.apiKey === "string" ? a.apiKey.trim().slice(0, 500) : "",
+        apiSecret: typeof a.apiSecret === "string" ? a.apiSecret.trim().slice(0, 500) : "",
+        baseUrl: typeof a.baseUrl === "string" ? a.baseUrl.trim().slice(0, 500) : "",
+        provider: typeof a.provider === "string" ? a.provider.trim().slice(0, 100) : "",
+        category: typeof a.category === "string" && validCategories.has(a.category) ? a.category : "other",
+        enabled: typeof a.enabled === "boolean" ? a.enabled : true,
+        rateLimit: typeof a.rateLimit === "number" ? Math.max(1, Math.min(10000, Math.floor(a.rateLimit))) : 60,
+        lastUsed: typeof a.lastUsed === "string" ? a.lastUsed : null,
+        createdAt: typeof a.createdAt === "string" ? a.createdAt : new Date().toISOString(),
+      }));
+    }
+    if (Array.isArray(apiManagement.categories)) {
+      APP_SETTINGS.apiManagement.categories = apiManagement.categories
+        .filter((c) => typeof c === "string" && c.trim())
+        .map((c) => c.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 50));
+    }
   }
   return ok({ settings: APP_SETTINGS });
 }

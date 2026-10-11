@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorNote, LoadingGrid, SectionHeading, Stat, TierBadge } from "@/components/common";
 import { EventCard, ProfileCard, ProgramCard } from "@/components/cards";
+import { FeedPage } from "@/pages/feed";
 
 const TIER_ICON = { the_ceo: Gem, high_society: Crown, sosialita: Star, wonder_woman: Flower2 } as const;
 
@@ -102,6 +103,10 @@ export function LandingPage() {
   const [loading, setLoading] = useState(true);
   const reducedMotion = usePrefersReducedMotion();
   const [slide, setSlide] = useState(0);
+
+  if (account) {
+    return <FeedPage />;
+  }
 
   useEffect(() => {
     if (reducedMotion) return;

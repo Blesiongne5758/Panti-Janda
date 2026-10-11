@@ -5,29 +5,33 @@ import { useAuth } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageBanner } from "@/components/common";
-import { SUBSCRIPTION_STATUS_LABEL, TIER_META } from "@/lib/constants";
+import { SUBSCRIPTION_STATUS_LABEL, TIER_META, PUBLIC_TIER_META } from "@/lib/constants";
 import type { Subscription } from "@/lib/types";
 
-const TIERS = ["sosialita", "high_society", "the_ceo"] as const;
+const JANDA_TIERS = ["sosialita", "high_society", "the_ceo"] as const;
+const NON_JANDA_TIERS = ["ceo", "sultan"] as const;
 
 function formatRupiah(amount: number) {
   return `Rp${amount.toLocaleString("id-ID")}`;
 }
 
 export default function SubscriptionPage() {
-  const { account } = useAuth();
+  const { account, profile } = useAuth();
   const [active, setActive] = useState<Subscription | null>(null);
   const [items, setItems] = useState<Subscription[]>([]);
-  const [prices, setPrices] = useState<{ sosialita: number; high_society: number; the_ceo: number }>({ sosialita: 100000, high_society: 500000, the_ceo: 1000000 });
+  const [prices, setPrices] = useState<Record<string, number>>({ sosialita: 100000, high_society: 500000, the_ceo: 1000000, ceo: 1000000, sultan: 2000000 });
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+
+  const isJanda = account ? ["wonder_woman", "sosialita", "high_society", "the_ceo"].includes(account.role) : false;
+  const tiers = isJanda ? JANDA_TIERS : NON_JANDA_TIERS;
 
   const load = async () => {
     try {
       const [subsRes, pricesRes] = await Promise.all([
         api<{ items: Subscription[]; active: Subscription | null }>("subscriptions.mine"),
-        api<{ prices: { sosialita: number; high_society: number; the_ceo: number } }>("subscriptions.prices"),
+        api<{ prices: Record<string, number> }>("subscriptions.prices"),
       ]);
       if (subsRes) {
         setItems(subsRes.items);
@@ -95,7 +99,7 @@ export default function SubscriptionPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Crown className="size-5 text-primary" />
-                    Langganan Aktif: {TIER_META[active.tier as keyof typeof TIER_META]?.label ?? active.tier}
+                    Langganan Aktif: {(isJanda ? TIER_META[active.tier as keyof typeof TIER_META]?.label : PUBLIC_TIER_META[active.tier as keyof typeof PUBLIC_TIER_META]?.label) ?? active.tier}
                   </CardTitle>
                   <CardDescription>
                     Berakhir: {new Date(active.expiresAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
@@ -125,7 +129,7 @@ export default function SubscriptionPage() {
                     {items.slice(0, 3).map((sub) => (
                       <div key={sub.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
                         <span className="font-medium">
-                          {TIER_META[sub.tier as keyof typeof TIER_META]?.label ?? sub.tier}
+                          {(isJanda ? TIER_META[sub.tier as keyof typeof TIER_META]?.label : PUBLIC_TIER_META[sub.tier as keyof typeof PUBLIC_TIER_META]?.label) ?? sub.tier}
                         </span>
                         <span className="text-muted-foreground">
                           {SUBSCRIPTION_STATUS_LABEL[sub.status] ?? sub.status}
@@ -138,10 +142,10 @@ export default function SubscriptionPage() {
             )}
 
             <h2 className="mb-4 font-display text-2xl font-semibold">Pilih Tier</h2>
-            <div className="grid gap-6 md:grid-cols-3">
-              {TIERS.map((tier) => {
-                const meta = TIER_META[tier];
-                const price = prices[tier];
+            <div className={`grid gap-6 ${isJanda ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+              {tiers.map((tier) => {
+                const meta = isJanda ? TIER_META[tier as keyof typeof TIER_META] : PUBLIC_TIER_META[tier as keyof typeof PUBLIC_TIER_META];
+                const price = prices[tier] ?? 0;
                 const isCurrent = active?.tier === tier;
                 return (
                   <Card key={tier} className={isCurrent ? "border-primary" : ""}>

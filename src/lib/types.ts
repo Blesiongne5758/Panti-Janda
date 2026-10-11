@@ -1,6 +1,6 @@
-export type Role = "public" | "wonder_woman" | "sosialita" | "high_society" | "the_ceo" | "kades" | "gubernur" | "panglima" | "presiden" | "admin";
+export type Role = "public" | "wonder_woman" | "sosialita" | "high_society" | "the_ceo" | "kades" | "walikota" | "gubernur" | "panglima" | "presiden" | "ceo" | "sultan" | "admin";
 export type WidowRole = "wonder_woman" | "sosialita" | "high_society" | "the_ceo";
-export type PublicRole = "kades" | "gubernur" | "panglima" | "presiden";
+export type PublicRole = "kades" | "walikota" | "gubernur" | "panglima" | "presiden" | "ceo" | "sultan";
 export type VerificationDocType = "ktp" | "pengadilan";
 export type AccountStatus = "active" | "suspended";
 export type ProfileStatus = "pending" | "rejected" | "verified" | "suspended";
@@ -414,6 +414,7 @@ export interface MarketplaceListing {
   description: string | null;
   price: number | null;
   category: string;
+  photos: string[];
   status: ListingStatus;
   createdAt: string;
   updatedAt: string;
@@ -456,11 +457,81 @@ export interface CoinFeature {
   duration: string;
 }
 
+export interface CryptoSupportedCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  network: string;
+  contractAddress: string | null;
+  decimals: number;
+  icon: string;
+  color: string;
+  coinConversionRate: number;
+  minDeposit: number;
+  minWithdraw: number;
+  withdrawFeePercent: number;
+}
+
+export interface CryptoWallet {
+  id: string;
+  coinSymbol: string;
+  network: string;
+  walletAddress: string;
+  balance: number;
+  createdAt: string;
+}
+
+export type CryptoTransactionType = "deposit" | "withdraw" | "swap_to_coins" | "swap_from_coins" | "transfer";
+export type CryptoTransactionStatus = "pending" | "confirmed" | "failed" | "cancelled";
+
+export interface CryptoTransaction {
+  id: string;
+  type: CryptoTransactionType;
+  coinSymbol: string;
+  amountCrypto: number;
+  amountCoins: number;
+  txHash: string | null;
+  fromAddress: string | null;
+  toAddress: string | null;
+  status: CryptoTransactionStatus;
+  description: string;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+
 export interface ShippingProvider {
   id: string;
   name: string;
   enabled: boolean;
   baseRate: number;
+}
+
+export type MediaPostType = "photo" | "video";
+
+export interface MediaComment {
+  id: string;
+  postId: string;
+  accountId: string;
+  authorName: string;
+  authorPhoto: string | null;
+  body: string;
+  createdAt: string;
+}
+
+export interface MediaPost {
+  id: string;
+  accountId: string;
+  authorName: string;
+  authorPhoto: string | null;
+  authorTier: WidowRole;
+  type: MediaPostType;
+  mediaUrl: string;
+  caption: string | null;
+  likes: string[];
+  comments: MediaComment[];
+  shares: number;
+  duration: number | null;
+  createdAt: string;
 }
 
 export interface AppSettings {
@@ -584,5 +655,55 @@ export interface AppSettings {
     enabled: boolean;
     accountsPerTier: number;
     password: string;
+  };
+  cryptoSettings: {
+    treasuryWallets: {
+      id: string;
+      coinSymbol: string;
+      network: string;
+      address: string;
+      label: string;
+      balance: number;
+      enabled: boolean;
+    }[];
+    distribution: {
+      autoCreditOnDeposit: boolean;
+      minConfirmations: number;
+      maxDailyWithdrawCrypto: number;
+      maxDailySwapCoins: number;
+      enableAutoSwap: boolean;
+      defaultSwapSlippagePercent: number;
+    };
+    globalFees: {
+      depositFeePercent: number;
+      withdrawFeePercent: number;
+      swapFeePercent: number;
+      minDepositUsd: number;
+      minWithdrawUsd: number;
+    };
+    notifications: {
+      notifyOnLargeDeposit: boolean;
+      largeDepositThresholdUsd: number;
+      notifyOnWithdraw: boolean;
+      notifyOnLowTreasury: boolean;
+      lowTreasuryThresholdUsd: number;
+    };
+  };
+  apiManagement: {
+    apis: {
+      id: string;
+      name: string;
+      description: string;
+      apiKey: string;
+      apiSecret: string;
+      baseUrl: string;
+      provider: string;
+      category: string;
+      enabled: boolean;
+      rateLimit: number;
+      lastUsed: string | null;
+      createdAt: string;
+    }[];
+    categories: string[];
   };
 }

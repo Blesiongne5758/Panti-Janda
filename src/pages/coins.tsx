@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Coins, Loader2, Wallet, History, Sparkles, ArrowDownCircle, CreditCard, Banknote } from "lucide-react";
+import { Coins, Loader2, Wallet, History, Sparkles, ArrowDownCircle, CreditCard, Banknote, Bitcoin, ArrowLeftRight, Copy, Plus, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { formatRupiah } from "@/lib/format";
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { PageBanner } from "@/components/common";
 import { COIN_PACKAGES, COIN_TRANSACTION_TYPE_LABEL } from "@/lib/constants";
-import type { CoinBalance, CoinTransaction, CoinFeature, AppSettings } from "@/lib/types";
+import type { CoinBalance, CoinTransaction, CoinFeature, AppSettings, CryptoSupportedCoin, CryptoWallet, CryptoTransaction } from "@/lib/types";
 import { toast } from "sonner";
 
 type CoinSettings = AppSettings["coinSettings"];
@@ -33,14 +33,34 @@ export default function CoinsPage() {
   const [withdrawMethod, setWithdrawMethod] = useState<string>("");
   const [withdrawAccount, setWithdrawAccount] = useState("");
   const [withdrawHolder, setWithdrawHolder] = useState("");
+  const [cryptoCoins, setCryptoCoins] = useState<CryptoSupportedCoin[]>([]);
+  const [cryptoWallets, setCryptoWallets] = useState<CryptoWallet[]>([]);
+  const [cryptoTransactions, setCryptoTransactions] = useState<CryptoTransaction[]>([]);
+  const [selectedCryptoCoin, setSelectedCryptoCoin] = useState<string>("");
+  const [creatingWallet, setCreatingWallet] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [depositTxHash, setDepositTxHash] = useState("");
+  const [depositWalletId, setDepositWalletId] = useState<string>("");
+  const [depositing, setDepositing] = useState(false);
+  const [swapWalletId, setSwapWalletId] = useState<string>("");
+  const [swapAmount, setSwapAmount] = useState<string>("");
+  const [swapping, setSwapping] = useState(false);
+  const [swapDirection, setSwapDirection] = useState<"to_coins" | "from_coins">("to_coins");
+  const [cryptoWithdrawing, setCryptoWithdrawing] = useState(false);
+  const [cryptoWithdrawWalletId, setCryptoWithdrawWalletId] = useState<string>("");
+  const [cryptoWithdrawAmount, setCryptoWithdrawAmount] = useState<string>("");
+  const [cryptoWithdrawAddress, setCryptoWithdrawAddress] = useState("");
 
   const load = async () => {
     try {
-      const [balanceRes, txRes, featuresRes, settingsRes] = await Promise.all([
+      const [balanceRes, txRes, featuresRes, settingsRes, cryptoCoinsRes, cryptoWalletsRes, cryptoTxRes] = await Promise.all([
         api<CoinBalance>("coins.balance"),
         api<{ items: CoinTransaction[] }>("coins.transactions"),
         api<{ items: CoinFeature[] }>("coins.features"),
         api<{ coinSettings: CoinSettings }>("coinSettings.settings"),
+        api<{ items: CryptoSupportedCoin[] }>("crypto.coins.list"),
+        api<{ items: CryptoWallet[] }>("crypto.wallets.list"),
+        api<{ items: CryptoTransaction[] }>("crypto.transactions.list"),
       ]);
       if (balanceRes) setBalance(balanceRes);
       if (txRes) setTransactions(txRes.items);
@@ -52,6 +72,9 @@ export default function CoinsPage() {
         const firstWithdraw = settingsRes.coinSettings.withdrawMethods.find((m) => m.enabled);
         if (firstWithdraw) setWithdrawMethod(firstWithdraw.id);
       }
+      if (cryptoCoinsRes) setCryptoCoins(cryptoCoinsRes.items);
+      if (cryptoWalletsRes) setCryptoWallets(cryptoWalletsRes.items);
+      if (cryptoTxRes) setCryptoTransactions(cryptoTxRes.items);
     } catch {
       // ignore
     } finally {
@@ -156,6 +179,141 @@ export default function CoinsPage() {
     return { grossRupiah: Math.floor(grossRupiah), adminFee: Math.floor(adminFee), withdrawFee: Math.floor(withdrawFee), netRupiah };
   };
 
+  const handleCreateWallet = async () => {
+    if (!selectedCryptoCoin) {
+      toast.error("Pilih cryptocurrency terlebih dahulu.");
+      return;
+    }
+    setCreatingWallet(true);
+    try {
+      const res = await api<{ success: boolean; message: string }>("crypto.wallets.create", { coinId: selectedCryptoCoin });
+      if (res?.success) {
+        toast.success(res.message);
+        setSelectedCryptoCoin("");
+        await load();
+      }
+    } catch {
+      toast.error("Gagal membuat wallet.");
+    } finally {
+      setCreatingWallet(false);
+    }
+  };
+
+  const handleCryptoDeposit = async () => {
+    if (!depositWalletId) {
+      toast.error("Pilih wallet terlebih dahulu.");
+      return;
+    }
+    const amount = Number(depositAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Masukkan jumlah deposit yang valid.");
+      return;
+    }
+    if (!depositTxHash.trim()) {
+      toast.error("Masukkan hash transaksi blockchain.");
+      return;
+    }
+    setDepositing(true);
+    try {
+      const res = await api<{ success: boolean; coinsCredited: number; message: string }>("crypto.deposit", {
+        walletId: depositWalletId,
+        amountCrypto: amount,
+        txHash: depositTxHash.trim(),
+      });
+      if (res?.success) {
+        toast.success(res.message);
+        setDepositAmount("");
+        setDepositTxHash("");
+        setDepositWalletId("");
+        await load();
+      }
+    } catch {
+      toast.error("Gagal memproses deposit.");
+    } finally {
+      setDepositing(false);
+    }
+  };
+
+  const handleCryptoWithdraw = async () => {
+    if (!cryptoWithdrawWalletId) {
+      toast.error("Pilih wallet terlebih dahulu.");
+      return;
+    }
+    const amount = Number(cryptoWithdrawAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Masukkan jumlah penarikan yang valid.");
+      return;
+    }
+    if (!cryptoWithdrawAddress.trim()) {
+      toast.error("Masukkan alamat wallet tujuan.");
+      return;
+    }
+    setCryptoWithdrawing(true);
+    try {
+      const res = await api<{ success: boolean; message: string }>("crypto.withdraw", {
+        walletId: cryptoWithdrawWalletId,
+        amountCrypto: amount,
+        toAddress: cryptoWithdrawAddress.trim(),
+      });
+      if (res?.success) {
+        toast.success(res.message);
+        setCryptoWithdrawAmount("");
+        setCryptoWithdrawAddress("");
+        setCryptoWithdrawWalletId("");
+        await load();
+      }
+    } catch {
+      toast.error("Gagal memproses penarikan crypto.");
+    } finally {
+      setCryptoWithdrawing(false);
+    }
+  };
+
+  const handleCryptoSwap = async () => {
+    if (!swapWalletId) {
+      toast.error("Pilih wallet terlebih dahulu.");
+      return;
+    }
+    const amount = Number(swapAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Masukkan jumlah yang valid.");
+      return;
+    }
+    setSwapping(true);
+    try {
+      const endpoint = swapDirection === "to_coins" ? "crypto.swap.to_coins" : "crypto.swap.from_coins";
+      const res = await api<{ success: boolean; message: string }>(endpoint, {
+        walletId: swapWalletId,
+        amountCrypto: amount,
+      });
+      if (res?.success) {
+        toast.success(res.message);
+        setSwapAmount("");
+        setSwapWalletId("");
+        await load();
+      }
+    } catch {
+      toast.error("Gagal melakukan swap.");
+    } finally {
+      setSwapping(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Alamat wallet disalin.");
+  };
+
+  const getWalletCoin = (wallet: CryptoWallet) => cryptoCoins.find((c) => c.symbol === wallet.coinSymbol && c.network === wallet.network);
+
+  const CRYPTO_TX_TYPE_LABEL: Record<string, string> = {
+    deposit: "Deposit",
+    withdraw: "Penarikan",
+    swap_to_coins: "Swap ke Koin",
+    swap_from_coins: "Swap dari Koin",
+    transfer: "Transfer",
+  };
+
   const withdrawCalc = calcWithdraw();
   const enabledPurchaseMethods = coinSettings?.purchaseMethods.filter((m) => m.enabled) ?? [];
   const enabledWithdrawMethods = coinSettings?.withdrawMethods.filter((m) => m.enabled) ?? [];
@@ -227,6 +385,10 @@ export default function CoinsPage() {
                 <TabsTrigger value="history">
                   <History className="mr-2 size-4" />
                   Riwayat
+                </TabsTrigger>
+                <TabsTrigger value="crypto">
+                  <Bitcoin className="mr-2 size-4" />
+                  Crypto Wallet
                 </TabsTrigger>
               </TabsList>
 
@@ -535,6 +697,373 @@ export default function CoinsPage() {
                     </CardContent>
                   </Card>
                 )}
+              </TabsContent>
+
+              <TabsContent value="crypto">
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Bitcoin className="size-5 text-primary" />
+                        Wallet Crypto Anda
+                      </CardTitle>
+                      <CardDescription>Kelola wallet crypto terintegrasi dengan koin webapp.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {cryptoWallets.length === 0 ? (
+                        <div className="py-6 text-center">
+                          <p className="mb-4 text-muted-foreground">Anda belum memiliki wallet crypto.</p>
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {cryptoWallets.map((wallet) => {
+                            const coin = getWalletCoin(wallet);
+                            const coinsEquivalent = wallet.balance * (coin?.coinConversionRate ?? 0);
+                            return (
+                              <Card key={wallet.id} className="border-primary/20">
+                                <CardContent className="space-y-3 pt-5">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: coin?.color ?? "#666" }}>
+                                        {wallet.coinSymbol.slice(0, 2)}
+                                      </div>
+                                      <div>
+                                        <p className="font-semibold">{coin?.name ?? wallet.coinSymbol}</p>
+                                        <p className="text-xs text-muted-foreground">{wallet.network}</p>
+                                      </div>
+                                    </div>
+                                    <Badge variant="secondary">{wallet.coinSymbol}</Badge>
+                                  </div>
+                                  <div>
+                                    <p className="text-2xl font-bold">{wallet.balance.toLocaleString("id-ID", { maximumFractionDigits: 8 })}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      ≈ {coinsEquivalent.toLocaleString("id-ID", { maximumFractionDigits: 0 })} koin
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1 rounded bg-muted px-2 py-1.5">
+                                    <code className="flex-1 truncate text-xs">{wallet.walletAddress}</code>
+                                    <button type="button" onClick={() => copyToClipboard(wallet.walletAddress)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                                      <Copy className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {cryptoWallets.length < cryptoCoins.length && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Plus className="size-4" />
+                          Buat Wallet Baru
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div className="min-w-[200px] flex-1 space-y-1">
+                            <Label>Pilih Cryptocurrency</Label>
+                            <Select value={selectedCryptoCoin} onValueChange={setSelectedCryptoCoin}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih coin..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {cryptoCoins
+                                  .filter((c) => !cryptoWallets.some((w) => w.coinSymbol === c.symbol && w.network === c.network))
+                                  .map((coin) => (
+                                    <SelectItem key={coin.id} value={coin.id}>
+                                      {coin.symbol} — {coin.name} ({coin.network})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button onClick={handleCreateWallet} disabled={creatingWallet || !selectedCryptoCoin || !account}>
+                            {creatingWallet ? (
+                              <>
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                Membuat...
+                              </>
+                            ) : (
+                              "Buat Wallet"
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {cryptoWallets.length > 0 && (
+                    <>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <ArrowDownLeft className="size-4 text-green-600" />
+                            Deposit Crypto
+                          </CardTitle>
+                          <CardDescription>Kirim crypto ke alamat wallet Anda, lalu masukkan hash transaksi untuk mengkonversi ke koin webapp.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-1">
+                            <Label>Pilih Wallet</Label>
+                            <Select value={depositWalletId} onValueChange={setDepositWalletId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih wallet tujuan..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {cryptoWallets.map((w) => (
+                                  <SelectItem key={w.id} value={w.id}>
+                                    {w.coinSymbol} ({w.network}) — {w.walletAddress.slice(0, 12)}...
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label>Jumlah Crypto</Label>
+                              <Input type="number" min={0} step="any" placeholder="Contoh: 10.5" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Hash Transaksi Blockchain</Label>
+                              <Input placeholder="Contoh: 0xabc123..." value={depositTxHash} onChange={(e) => setDepositTxHash(e.target.value)} />
+                            </div>
+                          </div>
+                          {depositWalletId && depositAmount && Number(depositAmount) > 0 && (() => {
+                            const wallet = cryptoWallets.find((w) => w.id === depositWalletId);
+                            const coin = wallet ? getWalletCoin(wallet) : null;
+                            if (!coin) return null;
+                            const coinsEquiv = Number(depositAmount) * coin.coinConversionRate;
+                            return (
+                              <div className="rounded-lg border border-border p-3 text-sm">
+                                <span className="text-muted-foreground">Estimasi koin diterima: </span>
+                                <span className="font-bold text-primary">{coinsEquiv.toLocaleString("id-ID", { maximumFractionDigits: 0 })} koin</span>
+                                <span className="text-muted-foreground"> (1 {coin.symbol} = {coin.coinConversionRate.toLocaleString("id-ID")} koin)</span>
+                              </div>
+                            );
+                          })()}
+                          <Button onClick={handleCryptoDeposit} disabled={depositing || !account || !depositWalletId || !depositAmount || !depositTxHash.trim()}>
+                            {depositing ? (
+                              <>
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                Memproses deposit...
+                              </>
+                            ) : (
+                              "Konfirmasi Deposit"
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <ArrowLeftRight className="size-4 text-primary" />
+                            Swap Crypto ↔ Koin
+                          </CardTitle>
+                          <CardDescription>Tukar saldo crypto menjadi koin webapp atau sebaliknya.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${swapDirection === "to_coins" ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}
+                              onClick={() => setSwapDirection("to_coins")}
+                            >
+                              <ArrowDownLeft className="mr-1.5 inline size-4" />
+                              Crypto → Koin
+                            </button>
+                            <button
+                              type="button"
+                              className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${swapDirection === "from_coins" ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}
+                              onClick={() => setSwapDirection("from_coins")}
+                            >
+                              <ArrowUpRight className="mr-1.5 inline size-4" />
+                              Koin → Crypto
+                            </button>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label>Pilih Wallet</Label>
+                              <Select value={swapWalletId} onValueChange={setSwapWalletId}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Pilih wallet..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {cryptoWallets.map((w) => (
+                                    <SelectItem key={w.id} value={w.id}>
+                                      {w.coinSymbol} ({w.network}) — Saldo: {w.balance}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Jumlah Crypto</Label>
+                              <Input type="number" min={0} step="any" placeholder="Contoh: 5.0" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} />
+                            </div>
+                          </div>
+                          {swapWalletId && swapAmount && Number(swapAmount) > 0 && (() => {
+                            const wallet = cryptoWallets.find((w) => w.id === swapWalletId);
+                            const coin = wallet ? getWalletCoin(wallet) : null;
+                            if (!coin) return null;
+                            const coinsEquiv = Number(swapAmount) * coin.coinConversionRate;
+                            return (
+                              <div className="rounded-lg border border-border p-3 text-sm">
+                                {swapDirection === "to_coins" ? (
+                                  <>
+                                    <span className="text-muted-foreground">Koin diterima: </span>
+                                    <span className="font-bold text-green-600">+{coinsEquiv.toLocaleString("id-ID", { maximumFractionDigits: 0 })} koin</span>
+                                    <span className="text-muted-foreground"> (dikurangi dari saldo crypto)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-muted-foreground">Crypto diterima: </span>
+                                    <span className="font-bold text-green-600">+{Number(swapAmount).toLocaleString("id-ID", { maximumFractionDigits: 8 })} {coin.symbol}</span>
+                                    <span className="text-muted-foreground"> (dikurangi {coinsEquiv.toLocaleString("id-ID", { maximumFractionDigits: 0 })} koin dari saldo)</span>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
+                          <Button onClick={handleCryptoSwap} disabled={swapping || !account || !swapWalletId || !swapAmount || Number(swapAmount) <= 0}>
+                            {swapping ? (
+                              <>
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                Memproses swap...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="mr-2 size-4" />
+                                {swapDirection === "to_coins" ? "Swap ke Koin" : "Swap ke Crypto"}
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            <ArrowUpRight className="size-4 text-orange-600" />
+                            Tarik Crypto ke Blockchain
+                          </CardTitle>
+                          <CardDescription>Kirim crypto dari wallet Anda ke alamat blockchain eksternal.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-1">
+                            <Label>Pilih Wallet</Label>
+                            <Select value={cryptoWithdrawWalletId} onValueChange={setCryptoWithdrawWalletId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih wallet sumber..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {cryptoWallets.map((w) => (
+                                  <SelectItem key={w.id} value={w.id}>
+                                    {w.coinSymbol} ({w.network}) — Saldo: {w.balance}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label>Jumlah Crypto</Label>
+                              <Input type="number" min={0} step="any" placeholder="Contoh: 5.0" value={cryptoWithdrawAmount} onChange={(e) => setCryptoWithdrawAmount(e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Alamat Tujuan</Label>
+                              <Input placeholder="Alamat wallet blockchain tujuan" value={cryptoWithdrawAddress} onChange={(e) => setCryptoWithdrawAddress(e.target.value)} />
+                            </div>
+                          </div>
+                          {cryptoWithdrawWalletId && cryptoWithdrawAmount && (() => {
+                            const wallet = cryptoWallets.find((w) => w.id === cryptoWithdrawWalletId);
+                            const coin = wallet ? getWalletCoin(wallet) : null;
+                            if (!coin) return null;
+                            const amount = Number(cryptoWithdrawAmount) || 0;
+                            const fee = amount * (coin.withdrawFeePercent / 100);
+                            const net = amount - fee;
+                            return amount > 0 ? (
+                              <div className="rounded-lg border border-border p-3 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Jumlah kirim</span>
+                                  <span>{amount} {coin.symbol}</span>
+                                </div>
+                                <div className="flex justify-between text-red-600">
+                                  <span>Biaya ({coin.withdrawFeePercent}%)</span>
+                                  <span>-{fee.toLocaleString("id-ID", { maximumFractionDigits: 8 })} {coin.symbol}</span>
+                                </div>
+                                <Separator className="my-1.5" />
+                                <div className="flex justify-between font-bold">
+                                  <span>Diterima</span>
+                                  <span className="text-green-600">{net.toLocaleString("id-ID", { maximumFractionDigits: 8 })} {coin.symbol}</span>
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                          <Button onClick={handleCryptoWithdraw} disabled={cryptoWithdrawing || !account || !cryptoWithdrawWalletId || !cryptoWithdrawAmount || !cryptoWithdrawAddress.trim()}>
+                            {cryptoWithdrawing ? (
+                              <>
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                Memproses penarikan...
+                              </>
+                            ) : (
+                              "Tarik Crypto"
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <History className="size-4" />
+                        Riwayat Transaksi Crypto
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {cryptoTransactions.length === 0 ? (
+                        <p className="py-6 text-center text-muted-foreground">Belum ada transaksi crypto.</p>
+                      ) : (
+                        <div className="divide-y">
+                          {cryptoTransactions.map((tx) => (
+                            <div key={tx.id} className="flex items-center justify-between py-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={tx.status === "confirmed" ? "default" : tx.status === "pending" ? "secondary" : "destructive"} className="text-xs">
+                                    {tx.status}
+                                  </Badge>
+                                  <span className="text-sm font-medium">{CRYPTO_TX_TYPE_LABEL[tx.type] ?? tx.type}</span>
+                                  <span className="text-xs text-muted-foreground">{tx.coinSymbol}</span>
+                                </div>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{tx.description}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(tx.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-sm font-bold ${tx.amountCrypto > 0 ? "text-green-600" : "text-red-600"}`}>
+                                  {tx.amountCrypto > 0 ? "+" : ""}{tx.amountCrypto.toLocaleString("id-ID", { maximumFractionDigits: 8 })} {tx.coinSymbol}
+                                </p>
+                                {tx.amountCoins !== 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {tx.amountCoins > 0 ? "+" : ""}{tx.amountCoins.toLocaleString("id-ID")} koin
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
             </Tabs>
           </>

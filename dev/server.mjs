@@ -742,6 +742,38 @@ async function seed() {
     },
   ];
 
+  const cryptoSupportedCoins = [
+    { id: id(), symbol: "USDT", name: "Tether USD", network: "TRC20", contract_address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", decimals: 6, icon: "DollarSign", color: "#26A17B", is_active: true, coin_conversion_rate: 100, min_deposit: 1.0, min_withdraw: 5.0, withdraw_fee_percent: 1.5, created_at: days(-30) },
+    { id: id(), symbol: "USDT-ERC20", name: "Tether USD", network: "ERC20", contract_address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6, icon: "DollarSign", color: "#26A17B", is_active: true, coin_conversion_rate: 95, min_deposit: 5.0, min_withdraw: 10.0, withdraw_fee_percent: 2.5, created_at: days(-30) },
+    { id: id(), symbol: "USDC", name: "USD Coin", network: "ERC20", contract_address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6, icon: "DollarSign", color: "#2775CA", is_active: true, coin_conversion_rate: 98, min_deposit: 5.0, min_withdraw: 10.0, withdraw_fee_percent: 2.0, created_at: days(-30) },
+    { id: id(), symbol: "ETH", name: "Ethereum", network: "ERC20", contract_address: null, decimals: 18, icon: "Eth", color: "#627EEA", is_active: true, coin_conversion_rate: 350000, min_deposit: 0.001, min_withdraw: 0.01, withdraw_fee_percent: 1.0, created_at: days(-30) },
+    { id: id(), symbol: "BNB", name: "Binance Coin", network: "BEP20", contract_address: null, decimals: 18, icon: "Coins", color: "#F3BA2F", is_active: true, coin_conversion_rate: 600000, min_deposit: 0.005, min_withdraw: 0.05, withdraw_fee_percent: 1.0, created_at: days(-30) },
+    { id: id(), symbol: "BTC", name: "Bitcoin", network: "Bitcoin", contract_address: null, decimals: 8, icon: "Bitcoin", color: "#F7931A", is_active: true, coin_conversion_rate: 50000000, min_deposit: 0.0001, min_withdraw: 0.001, withdraw_fee_percent: 0.5, created_at: days(-30) },
+    { id: id(), symbol: "SOL", name: "Solana", network: "Solana", contract_address: null, decimals: 9, icon: "Zap", color: "#9945FF", is_active: true, coin_conversion_rate: 15000, min_deposit: 0.01, min_withdraw: 0.1, withdraw_fee_percent: 1.0, created_at: days(-30) },
+    { id: id(), symbol: "MATIC", name: "Polygon", network: "ERC20", contract_address: "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0", decimals: 18, icon: "Hexagon", color: "#8247E5", is_active: true, coin_conversion_rate: 10000, min_deposit: 1.0, min_withdraw: 10.0, withdraw_fee_percent: 1.5, created_at: days(-30) },
+  ];
+
+  const walletUsdtWulan = id();
+  const walletEthWulan = id();
+  const walletUsdtRina = id();
+  const walletBtcBudi = id();
+
+  const cryptoWallets = [
+    { id: walletUsdtWulan, account_id: wulan.id, coin_symbol: "USDT", network: "TRC20", wallet_address: "TTx9KsQZmJZvGpHaE8x1M6P3cW7YR2nU4a", balance: 15.5, is_active: true, created_at: days(-10), updated_at: days(-2) },
+    { id: walletEthWulan, account_id: wulan.id, coin_symbol: "ETH", network: "ERC20", wallet_address: "0x7a3b1c4d5e6f7890abcdef1234567890abcdef12", balance: 0.025, is_active: true, created_at: days(-8), updated_at: days(-3) },
+    { id: walletUsdtRina, account_id: rina.id, coin_symbol: "USDT", network: "TRC20", wallet_address: "TRmN8KjY2v5HaE9x1ZvGpQW3cL6S8R4tU7", balance: 50.0, is_active: true, created_at: days(-7), updated_at: days(-1) },
+    { id: walletBtcBudi, account_id: budi.id, coin_symbol: "BTC", network: "Bitcoin", wallet_address: "1HaE8x1M6P3cW7YR2nU4aTx9KsQZmJZvGp", balance: 0.0015, is_active: true, created_at: days(-5), updated_at: days(-4) },
+  ];
+
+  const cryptoTransactions = [
+    { id: id(), wallet_id: walletUsdtWulan, account_id: wulan.id, type: "deposit", coin_symbol: "USDT", amount_crypto: 20, amount_coins: 2000, tx_hash: "0xabc123def456789012345678901234567890abcdef1234567890abcdef123456", from_address: null, to_address: "TTx9KsQZmJZvGpHaE8x1M6P3cW7YR2nU4a", status: "confirmed", description: "Deposit 20 USDT → 2000 koin", block_number: 12345678, gas_fee: 1.0, created_at: days(-10), confirmed_at: days(-10) },
+    { id: id(), wallet_id: walletUsdtWulan, account_id: wulan.id, type: "swap_to_coins", coin_symbol: "USDT", amount_crypto: 4.5, amount_coins: 450, tx_hash: null, from_address: null, to_address: null, status: "confirmed", description: "Swap 4.5 USDT ke 450 koin webapp", block_number: null, gas_fee: null, created_at: days(-5), confirmed_at: days(-5) },
+    { id: id(), wallet_id: walletEthWulan, account_id: wulan.id, type: "deposit", coin_symbol: "ETH", amount_crypto: 0.025, amount_coins: 8750, tx_hash: "0xdef789012345678901234567890abcdef1234567890abcdef1234567890abcd", from_address: null, to_address: "0x7a3b1c4d5e6f7890abcdef1234567890abcdef12", status: "confirmed", description: "Deposit 0.025 ETH → 8750 koin", block_number: 18234567, gas_fee: 0.002, created_at: days(-8), confirmed_at: days(-8) },
+    { id: id(), wallet_id: walletUsdtRina, account_id: rina.id, type: "deposit", coin_symbol: "USDT", amount_crypto: 50, amount_coins: 5000, tx_hash: "0x789012345678901234567890abcdef1234567890abcdef1234567890abcdef12", from_address: null, to_address: "TRmN8KjY2v5HaE9x1ZvGpQW3cL6S8R4tU7", status: "confirmed", description: "Deposit 50 USDT → 5000 koin", block_number: 12345700, gas_fee: 1.0, created_at: days(-7), confirmed_at: days(-7) },
+    { id: id(), wallet_id: walletBtcBudi, account_id: budi.id, type: "deposit", coin_symbol: "BTC", amount_crypto: 0.002, amount_coins: 100000, tx_hash: "abc123def456789012345678901234567890abcdef1234567890abcdef12345678", from_address: null, to_address: "1HaE8x1M6P3cW7YR2nU4aTx9KsQZmJZvGp", status: "confirmed", description: "Deposit 0.002 BTC → 100000 koin", block_number: 800123, gas_fee: 0.0001, created_at: days(-5), confirmed_at: days(-5) },
+    { id: id(), wallet_id: walletBtcBudi, account_id: budi.id, type: "swap_to_coins", coin_symbol: "BTC", amount_crypto: 0.0005, amount_coins: 25000, tx_hash: null, from_address: null, to_address: null, status: "confirmed", description: "Swap 0.0005 BTC ke 25000 koin webapp", block_number: null, gas_fee: null, created_at: days(-4), confirmed_at: days(-4) },
+  ];
+
   const learningModules = [
     {
       id: id(),
@@ -1368,6 +1400,9 @@ async function seed() {
     badges,
     coin_balances: coinBalances,
     coin_transactions: coinTransactions,
+    crypto_supported_coins: cryptoSupportedCoins,
+    crypto_wallets: cryptoWallets,
+    crypto_transactions: cryptoTransactions,
     learning_modules: learningModules,
     learning_lessons: learningLessons,
     learning_progress: learningProgress,

@@ -39,62 +39,98 @@ export const TIER_META: Record<
 };
 
 export const PUBLIC_TIER_META: Record<
-  PublicRole,
+  "ceo" | "sultan",
   { label: string; tagline: string; description: string; accent: string; soft: string }
 > = {
-  presiden: {
-    label: "Presiden",
+  ceo: {
+    label: "CEO",
     tagline: "Mitra puncak non-janda",
     description:
-      "Level 46–50. Mitra tertinggi non-janda dengan akses penuh ke program dan hak istimewa komunitas.",
+      "Tier eksklusif untuk mitra non-janda dengan akses penuh ke semua program dan hak istimewa komunitas.",
     accent: "#1B4D3E",
     soft: "#E8F5E9",
   },
-  panglima: {
-    label: "Panglima",
-    tagline: "Mitra senior non-janda",
+  sultan: {
+    label: "Sultan",
+    tagline: "Mitra premium non-janda",
     description:
-      "Level 36–45. Mitra senior non-janda dengan akses prioritas ke event dan program eksklusif.",
+      "Tier premium untuk mitra non-janda dengan akses prioritas ke event dan program eksklusif.",
     accent: "#B98A2F",
     soft: "#F7EDD8",
   },
-  gubernur: {
-    label: "Gubernur",
-    tagline: "Mitra menengah non-janda",
-    description:
-      "Level 21–35. Mitra aktif non-janda yang rutin berpartisipasi dan mendukung kegiatan komunitas.",
-    accent: "#5B2A4E",
-    soft: "#F1E4EE",
-  },
+};
+
+export const PUBLIC_BADGE_META: Record<
+  "kades" | "walikota" | "gubernur" | "panglima" | "presiden",
+  { label: string; tagline: string; description: string; accent: string; soft: string; minLevel: number }
+> = {
   kades: {
     label: "Kades",
     tagline: "Mitra pemula non-janda",
-    description:
-      "Level 1–20. Pengunjung dan mitra non-janda yang mulai mendukung komunitas.",
+    description: "Badge untuk mitra non-janda yang mencapai level 15.",
     accent: "#C2603E",
     soft: "#FBEAE1",
+    minLevel: 15,
+  },
+  walikota: {
+    label: "Walikota",
+    tagline: "Mitra menengah non-janda",
+    description: "Badge untuk mitra non-janda yang mencapai level 25.",
+    accent: "#5B2A4E",
+    soft: "#F1E4EE",
+    minLevel: 25,
+  },
+  gubernur: {
+    label: "Gubernur",
+    tagline: "Mitra senior non-janda",
+    description: "Badge untuk mitra non-janda yang mencapai level 35.",
+    accent: "#8B4513",
+    soft: "#F5E6D3",
+    minLevel: 35,
+  },
+  panglima: {
+    label: "Panglima",
+    tagline: "Mitra elit non-janda",
+    description: "Badge untuk mitra non-janda yang mencapai level 45.",
+    accent: "#B98A2F",
+    soft: "#F7EDD8",
+    minLevel: 45,
+  },
+  presiden: {
+    label: "Presiden",
+    tagline: "Mitra puncak non-janda",
+    description: "Badge tertinggi untuk mitra non-janda yang mencapai level 50.",
+    accent: "#1B4D3E",
+    soft: "#E8F5E9",
+    minLevel: 50,
   },
 };
 
 export const WIDOW_ROLES: WidowRole[] = ["wonder_woman", "sosialita", "high_society", "the_ceo"];
-export const PUBLIC_ROLES: PublicRole[] = ["kades", "gubernur", "panglima", "presiden"];
+export const PUBLIC_ROLES: PublicRole[] = ["kades", "walikota", "gubernur", "panglima", "presiden", "ceo", "sultan"];
+export const PUBLIC_BADGES: Array<"kades" | "walikota" | "gubernur" | "panglima" | "presiden"> = ["kades", "walikota", "gubernur", "panglima", "presiden"];
+export const PUBLIC_SUBSCRIPTION_TIERS: Array<"ceo" | "sultan"> = ["ceo", "sultan"];
 
 export const ROLE_RANK: Record<Role, number> = {
   public: 1,
   kades: 2,
+  walikota: 3,
   wonder_woman: 2,
-  gubernur: 3,
+  gubernur: 4,
   sosialita: 3,
-  panglima: 4,
+  panglima: 5,
   high_society: 4,
-  presiden: 5,
+  presiden: 6,
   the_ceo: 5,
-  admin: 6,
+  ceo: 7,
+  sultan: 6,
+  admin: 8,
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
   public: "Non Janda",
   kades: "Kades",
+  walikota: "Walikota",
   wonder_woman: "Wonder Woman",
   gubernur: "Gubernur",
   sosialita: "Sosialita",
@@ -102,15 +138,26 @@ export const ROLE_LABEL: Record<Role, string> = {
   high_society: "High Society",
   presiden: "Presiden",
   the_ceo: "The CEO",
+  ceo: "CEO",
+  sultan: "Sultan",
   admin: "Admin",
 };
 
 export function roleFromLevel(level: number, isJanda: boolean): Role {
-  if (level >= 46) return isJanda ? "the_ceo" : "presiden";
-  if (level >= 36) return isJanda ? "high_society" : "panglima";
-  if (level >= 21) return isJanda ? "sosialita" : "gubernur";
-  if (level >= 1) return isJanda ? "wonder_woman" : "kades";
-  return "public";
+  if (isJanda) {
+    if (level >= 46) return "the_ceo";
+    if (level >= 36) return "high_society";
+    if (level >= 21) return "sosialita";
+    if (level >= 1) return "wonder_woman";
+    return "public";
+  } else {
+    if (level >= 50) return "presiden";
+    if (level >= 45) return "panglima";
+    if (level >= 35) return "gubernur";
+    if (level >= 25) return "walikota";
+    if (level >= 15) return "kades";
+    return "public";
+  }
 }
 
 export function tierFromLevel(level: number): WidowRole | PublicRole {
@@ -120,11 +167,13 @@ export function tierFromLevel(level: number): WidowRole | PublicRole {
   return "wonder_woman";
 }
 
-export function publicTierFromLevel(level: number): PublicRole {
-  if (level >= 46) return "presiden";
-  if (level >= 36) return "panglima";
-  if (level >= 21) return "gubernur";
-  return "kades";
+export function publicBadgeFromLevel(level: number): "kades" | "walikota" | "gubernur" | "panglima" | "presiden" | null {
+  if (level >= 50) return "presiden";
+  if (level >= 45) return "panglima";
+  if (level >= 35) return "gubernur";
+  if (level >= 25) return "walikota";
+  if (level >= 15) return "kades";
+  return null;
 }
 
 export const MAX_LEVEL = 50;
@@ -282,11 +331,14 @@ export const BUSINESS_TYPE_OPTIONS: readonly string[] = [
 ];
 
 export const SUBSCRIPTION_TIERS: readonly string[] = ["sosialita", "high_society", "the_ceo"];
+export const PUBLIC_SUBSCRIPTION_TIERS_LIST: readonly string[] = ["ceo", "sultan"];
 
 export const SUBSCRIPTION_PRICES: Record<string, number> = {
   sosialita: 100000,
   high_society: 500000,
   the_ceo: 1000000,
+  ceo: 1000000,
+  sultan: 2000000,
 };
 
 export const COIN_PACKAGES = [

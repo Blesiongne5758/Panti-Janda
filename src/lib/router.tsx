@@ -123,6 +123,8 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "ai-agent", params: {} };
     case "learning-center":
       return { name: "learning-center", params: {} };
+    case "feed":
+      return { name: "feed", params: {} };
     default:
       return { name: "notfound", params: {} };
   }

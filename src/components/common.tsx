@@ -10,14 +10,24 @@ import {
   PLEDGE_STATUS_LABEL,
   PROFILE_STATUS_META,
   TIER_META,
+  PUBLIC_BADGE_META,
+  PUBLIC_TIER_META,
 } from "@/lib/constants";
-import type { WidowRole } from "@/lib/types";
+import type { WidowRole, PublicRole } from "@/lib/types";
 
 const TIER_ICON: Record<WidowRole, typeof Crown> = {
   the_ceo: Gem,
   high_society: Crown,
   sosialita: Star,
   wonder_woman: Flower2,
+};
+
+const PUBLIC_BADGE_ICON: Record<"kades" | "walikota" | "gubernur" | "panglima" | "presiden", typeof Crown> = {
+  presiden: Gem,
+  panglima: Crown,
+  gubernur: Star,
+  walikota: Flower2,
+  kades: CircleAlert,
 };
 
 export function TierBadge({
@@ -48,6 +58,70 @@ export function TierBadge({
   );
 }
 
+export function PublicBadge({
+  badge,
+  size = "md",
+  className,
+}: {
+  badge: "kades" | "walikota" | "gubernur" | "panglima" | "presiden";
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const meta = PUBLIC_BADGE_META[badge];
+  const Icon = PUBLIC_BADGE_ICON[badge];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border font-semibold",
+        size === "sm" && "px-2 py-0.5 text-[11px]",
+        size === "md" && "px-2.5 py-1 text-xs",
+        size === "lg" && "px-3 py-1.5 text-sm",
+        className,
+      )}
+      style={{ borderColor: `${meta.accent}55`, backgroundColor: meta.soft, color: meta.accent }}
+    >
+      <Icon className={cn(size === "lg" ? "size-4" : "size-3.5")} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+export function PublicTierBadge({
+  tier,
+  size = "md",
+  className,
+}: {
+  tier: "ceo" | "sultan";
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const meta = PUBLIC_TIER_META[tier];
+  const Icon = tier === "ceo" ? Gem : Crown;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border font-semibold",
+        size === "sm" && "px-2 py-0.5 text-[11px]",
+        size === "md" && "px-2.5 py-1 text-xs",
+        size === "lg" && "px-3 py-1.5 text-sm",
+        className,
+      )}
+      style={{ borderColor: `${meta.accent}55`, backgroundColor: meta.soft, color: meta.accent }}
+    >
+      <Icon className={cn(size === "lg" ? "size-4" : "size-3.5")} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+function getTierAccent(tier: WidowRole | PublicRole | null | undefined): string {
+  if (!tier) return "#5B2A4E";
+  if (tier in TIER_META) return TIER_META[tier as WidowRole].accent;
+  if (tier in PUBLIC_BADGE_META) return PUBLIC_BADGE_META[tier as keyof typeof PUBLIC_BADGE_META].accent;
+  if (tier in PUBLIC_TIER_META) return PUBLIC_TIER_META[tier as keyof typeof PUBLIC_TIER_META].accent;
+  return "#5B2A4E";
+}
+
 export function MemberAvatar({
   name,
   tier,
@@ -56,7 +130,7 @@ export function MemberAvatar({
   className,
 }: {
   name: string;
-  tier?: WidowRole | null;
+  tier?: WidowRole | PublicRole | null;
   size?: number;
   photoData?: string | null;
   className?: string;
@@ -66,7 +140,7 @@ export function MemberAvatar({
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-  const accent = tier ? TIER_META[tier].accent : "#5B2A4E";
+  const accent = getTierAccent(tier);
   if (photoData) {
     return (
       <img

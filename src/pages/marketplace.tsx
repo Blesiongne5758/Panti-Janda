@@ -105,8 +105,18 @@ export default function MarketplacePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => (
               <Link key={item.id} to={`/marketplace/${item.id}`}>
-                <Card className="h-full transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
+                  {item.photos && item.photos.length > 0 && (
+                    <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                      <img
+                        src={item.photos[0]}
+                        alt={item.title}
+                        className="size-full object-cover transition-transform hover:scale-105"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <CardContent className={item.photos && item.photos.length > 0 ? "pt-4" : "pt-6"}>
                     <div className="flex items-start justify-between">
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                         {LISTING_KIND_LABEL[item.kind] ?? item.kind}

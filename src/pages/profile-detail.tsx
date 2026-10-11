@@ -10,6 +10,7 @@ import {
   GraduationCap,
   HandCoins,
   HandHeart,
+  Image as ImageIcon,
   LoaderCircle,
   MapPin,
   MessageCircle,
@@ -20,6 +21,7 @@ import {
   UserPlus,
   UserRound,
   Users,
+  Video,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -38,6 +40,89 @@ import { Separator } from "@/components/ui/separator";
 import { Chip, EmptyState, ErrorNote, LoadingGrid, MemberAvatar, TierBadge } from "@/components/common";
 import { ReportDialog, UpdatesSection } from "@/components/updates";
 import { toast } from "sonner";
+import type { MediaPost } from "@/lib/types";
+
+function GallerySection({ accountId }: { accountId: string }) {
+  const [posts, setPosts] = useState<MediaPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPosts();
+  }, [accountId]);
+
+  async function loadPosts() {
+    try {
+      const res = await api<{ items: MediaPost[] }>("media.userPosts", { accountId });
+      setPosts(res.items || []);
+    } catch (error) {
+      console.error("Failed to load gallery:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="space-y-4">
+        <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-foreground">
+          <ImageIcon className="size-5 text-primary" aria-hidden />
+          Galeri Media
+        </h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-lg bg-secondary" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (posts.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-4">
+      <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-foreground">
+        <ImageIcon className="size-5 text-primary" aria-hidden />
+        Galeri Media
+      </h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        {posts.map((post) => (
+          <div
+            key={post.id}
+            className="group relative aspect-square overflow-hidden rounded-lg bg-secondary"
+          >
+            {post.type === "photo" ? (
+              <img
+                src={post.mediaUrl}
+                alt={post.caption || "Photo"}
+                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+              />
+            ) : (
+              <>
+                <video
+                  src={post.mediaUrl}
+                  className="h-full w-full object-cover"
+                  muted
+                  playsInline
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <Video className="size-8 text-white" />
+                </div>
+              </>
+            )}
+            {post.caption && (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                <p className="line-clamp-2 text-xs text-white">{post.caption}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const PRESET_AMOUNTS = [50000, 100000, 250000, 500000];
 
@@ -637,6 +722,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
             </h2>
             <UpdatesSection profileId={profile.id} canComment={canComment} refreshKey={refreshKey} />
           </section>
+
+          <GallerySection accountId={profile.accountId} />
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">

@@ -99,6 +99,35 @@ export default function MarketplaceDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {listing.photos && listing.photos.length > 0 && (
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <img
+                    src={listing.photos[0]}
+                    alt={listing.title}
+                    className="aspect-[16/9] w-full object-cover"
+                  />
+                </div>
+                {listing.photos.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto">
+                    {listing.photos.slice(1).map((photo, index) => (
+                      <div
+                        key={index}
+                        className="size-20 shrink-0 overflow-hidden rounded-lg border border-border"
+                      >
+                        <img
+                          src={photo}
+                          alt={`${listing.title} ${index + 2}`}
+                          className="size-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {listing.description && (
               <div>
                 <h3 className="mb-2 font-medium">Deskripsi</h3>

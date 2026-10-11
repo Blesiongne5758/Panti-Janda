@@ -3,6 +3,7 @@ import {
   Activity,
   BadgeCheck,
   BarChart3,
+  Bitcoin,
   BookOpen,
   Bot,
   Coins,
@@ -11,9 +12,13 @@ import {
   ExternalLink,
   Flag,
   Globe,
+  Key,
   Loader2,
+  Pencil,
   Plus,
+  Power,
   RefreshCw,
+  Save,
   ShieldCheck,
   Trash2,
   TrendingUp,
@@ -30,6 +35,7 @@ import { ROLE_LABEL, TIER_META, WIDOW_ROLES } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS } from "@/lib/verify-doc";
 import type { AdminAccount, AdminStats, AppSettings, DonationItem, Profile, ReportItem, WidowRole } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -185,6 +191,32 @@ export default function AdminPage() {
   const [trialDirty, setTrialDirty] = useState(false);
   const [trialStatus, setTrialStatus] = useState<{ total: number; byTier: Record<string, { id: string; email: string; display_name: string }[]> } | null>(null);
   const [trialBusy, setTrialBusy] = useState(false);
+  const [cryptoSettingsForm, setCryptoSettingsForm] = useState<AppSettings["cryptoSettings"]>({
+    treasuryWallets: [],
+    distribution: { autoCreditOnDeposit: true, minConfirmations: 3, maxDailyWithdrawCrypto: 10000, maxDailySwapCoins: 1000000, enableAutoSwap: false, defaultSwapSlippagePercent: 0.5 },
+    globalFees: { depositFeePercent: 0, withdrawFeePercent: 1.5, swapFeePercent: 0.5, minDepositUsd: 1, minWithdrawUsd: 5 },
+    notifications: { notifyOnLargeDeposit: true, largeDepositThresholdUsd: 1000, notifyOnWithdraw: true, notifyOnLowTreasury: true, lowTreasuryThresholdUsd: 500 },
+  });
+  const [cryptoSettingsDirty, setCryptoSettingsDirty] = useState(false);
+  const [newTreasuryWallet, setNewTreasuryWallet] = useState({ coinSymbol: "", network: "", address: "", label: "" });
+
+  const [apiManagementForm, setApiManagementForm] = useState<AppSettings["apiManagement"]>({
+    apis: [],
+    categories: [],
+  });
+  const [apiManagementDirty, setApiManagementDirty] = useState(false);
+  const [editingApiId, setEditingApiId] = useState<string | null>(null);
+  const [newApiForm, setNewApiForm] = useState({
+    name: "",
+    description: "",
+    apiKey: "",
+    apiSecret: "",
+    baseUrl: "",
+    provider: "",
+    category: "",
+    rateLimit: 60,
+  });
+  const [showAddApi, setShowAddApi] = useState(false);
 
   const isAdmin = account?.role === "admin";
 
@@ -289,6 +321,24 @@ export default function AdminPage() {
       const ta = settingsData.settings.trialAccounts;
       setTrialForm({ accountsPerTier: ta.accountsPerTier, password: ta.password });
       setTrialDirty(false);
+      const crypto = settingsData.settings.cryptoSettings;
+      if (crypto) {
+        setCryptoSettingsForm({
+          treasuryWallets: crypto.treasuryWallets ?? [],
+          distribution: crypto.distribution ?? { autoCreditOnDeposit: true, minConfirmations: 3, maxDailyWithdrawCrypto: 10000, maxDailySwapCoins: 1000000, enableAutoSwap: false, defaultSwapSlippagePercent: 0.5 },
+          globalFees: crypto.globalFees ?? { depositFeePercent: 0, withdrawFeePercent: 1.5, swapFeePercent: 0.5, minDepositUsd: 1, minWithdrawUsd: 5 },
+          notifications: crypto.notifications ?? { notifyOnLargeDeposit: true, largeDepositThresholdUsd: 1000, notifyOnWithdraw: true, notifyOnLowTreasury: true, lowTreasuryThresholdUsd: 500 },
+        });
+        setCryptoSettingsDirty(false);
+      }
+      const am = settingsData.settings.apiManagement;
+      if (am) {
+        setApiManagementForm({
+          apis: am.apis ?? [],
+          categories: am.categories ?? [],
+        });
+        setApiManagementDirty(false);
+      }
       try {
         const trialData = await api<{ total: number; byTier: Record<string, { id: string; email: string; display_name: string }[]> }>("admin.trial.status");
         setTrialStatus(trialData);
@@ -500,6 +550,24 @@ export default function AdminPage() {
         setTrialForm({ accountsPerTier: ta.accountsPerTier, password: ta.password });
         setTrialDirty(false);
       }
+      if (newSettings.cryptoSettings) {
+        const crypto = res.settings.cryptoSettings;
+        setCryptoSettingsForm({
+          treasuryWallets: crypto.treasuryWallets ?? [],
+          distribution: crypto.distribution ?? cryptoSettingsForm.distribution,
+          globalFees: crypto.globalFees ?? cryptoSettingsForm.globalFees,
+          notifications: crypto.notifications ?? cryptoSettingsForm.notifications,
+        });
+        setCryptoSettingsDirty(false);
+      }
+      if (newSettings.apiManagement) {
+        const am = res.settings.apiManagement;
+        setApiManagementForm({
+          apis: am.apis ?? [],
+          categories: am.categories ?? [],
+        });
+        setApiManagementDirty(false);
+      }
       toast.success("Pengaturan berhasil disimpan.");
     } catch (err) {
       toast.error(errorText(err));
@@ -555,7 +623,9 @@ export default function AdminPage() {
           <TabsTrigger value="aiAgent">AI Trading Agent</TabsTrigger>
           <TabsTrigger value="coinSettings">Pengaturan Koin</TabsTrigger>
           <TabsTrigger value="blockchainApi">API Blockchain</TabsTrigger>
+          <TabsTrigger value="cryptoSettings">Crypto Wallet</TabsTrigger>
           <TabsTrigger value="trialAccounts">Akun Uji Coba</TabsTrigger>
+          <TabsTrigger value="apiManagement">Manajemen API</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ringkasan" className="mt-4">
@@ -2939,6 +3009,445 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="cryptoSettings" className="mt-4">
+          <div className="flex flex-col gap-4 sm:gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Bitcoin className="size-5 text-primary" />
+                  Treasury Wallet Utama
+                </CardTitle>
+                <CardDescription>Wallet utama platform untuk menyimpan token/crypto yang akan didistribusikan ke pengguna.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {cryptoSettingsForm.treasuryWallets.length > 0 && (
+                  <div className="space-y-3">
+                    {cryptoSettingsForm.treasuryWallets.map((tw, idx) => (
+                      <div key={tw.id} className="rounded-lg border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                              {tw.coinSymbol.slice(0, 2)}
+                            </div>
+                            <div>
+                              <p className="font-semibold">{tw.label}</p>
+                              <p className="text-xs text-muted-foreground">{tw.coinSymbol} — {tw.network}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={tw.enabled ? "default" : "secondary"}>{tw.enabled ? "Aktif" : "Nonaktif"}</Badge>
+                            <button
+                              type="button"
+                              className="text-xs text-red-600 hover:underline"
+                              onClick={() => {
+                                setCryptoSettingsForm((prev) => ({ ...prev, treasuryWallets: prev.treasuryWallets.filter((_, i) => i !== idx) }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Alamat Wallet</Label>
+                            <Input
+                              value={tw.address}
+                              onChange={(e) => {
+                                setCryptoSettingsForm((prev) => ({
+                                  ...prev,
+                                  treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, address: e.target.value } : w),
+                                }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Label</Label>
+                            <Input
+                              value={tw.label}
+                              onChange={(e) => {
+                                setCryptoSettingsForm((prev) => ({
+                                  ...prev,
+                                  treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, label: e.target.value } : w),
+                                }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Symbol</Label>
+                            <Input
+                              value={tw.coinSymbol}
+                              onChange={(e) => {
+                                setCryptoSettingsForm((prev) => ({
+                                  ...prev,
+                                  treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, coinSymbol: e.target.value.toUpperCase() } : w),
+                                }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Network</Label>
+                            <Input
+                              value={tw.network}
+                              onChange={(e) => {
+                                setCryptoSettingsForm((prev) => ({
+                                  ...prev,
+                                  treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, network: e.target.value } : w),
+                                }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Saldo</Label>
+                            <Input
+                              type="number"
+                              value={tw.balance}
+                              onChange={(e) => {
+                                setCryptoSettingsForm((prev) => ({
+                                  ...prev,
+                                  treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, balance: Number(e.target.value) } : w),
+                                }));
+                                setCryptoSettingsDirty(true);
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={tw.enabled}
+                                onChange={(e) => {
+                                  setCryptoSettingsForm((prev) => ({
+                                    ...prev,
+                                    treasuryWallets: prev.treasuryWallets.map((w, i) => i === idx ? { ...w, enabled: e.target.checked } : w),
+                                  }));
+                                  setCryptoSettingsDirty(true);
+                                }}
+                              />
+                              Aktifkan wallet ini
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-dashed p-4">
+                  <p className="mb-3 text-sm font-medium">Tambah Treasury Wallet Baru</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Symbol</Label>
+                      <Input placeholder="USDT" value={newTreasuryWallet.coinSymbol} onChange={(e) => setNewTreasuryWallet((p) => ({ ...p, coinSymbol: e.target.value.toUpperCase() }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Network</Label>
+                      <Input placeholder="TRC20" value={newTreasuryWallet.network} onChange={(e) => setNewTreasuryWallet((p) => ({ ...p, network: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Alamat Wallet</Label>
+                      <Input placeholder="Alamat wallet blockchain" value={newTreasuryWallet.address} onChange={(e) => setNewTreasuryWallet((p) => ({ ...p, address: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Label</Label>
+                      <Input placeholder="Contoh: Treasury USDT TRC20" value={newTreasuryWallet.label} onChange={(e) => setNewTreasuryWallet((p) => ({ ...p, label: e.target.value }))} />
+                    </div>
+                  </div>
+                  <Button
+                    className="mt-3"
+                    variant="outline"
+                    size="sm"
+                    disabled={!newTreasuryWallet.coinSymbol || !newTreasuryWallet.address}
+                    onClick={() => {
+                      setCryptoSettingsForm((prev) => ({
+                        ...prev,
+                        treasuryWallets: [...prev.treasuryWallets, {
+                          id: `tw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                          coinSymbol: newTreasuryWallet.coinSymbol,
+                          network: newTreasuryWallet.network,
+                          address: newTreasuryWallet.address,
+                          label: newTreasuryWallet.label || newTreasuryWallet.coinSymbol,
+                          balance: 0,
+                          enabled: true,
+                        }],
+                      }));
+                      setNewTreasuryWallet({ coinSymbol: "", network: "", address: "", label: "" });
+                      setCryptoSettingsDirty(true);
+                    }}
+                  >
+                    <Plus className="mr-1 size-4" />
+                    Tambah Wallet
+                  </Button>
+                </div>
+
+                <Button
+                  onClick={() => updateSettings({ cryptoSettings: cryptoSettingsForm })}
+                  disabled={savingSettings || !cryptoSettingsDirty}
+                >
+                  {savingSettings ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Simpan Treasury Wallet
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Distribusi Token</CardTitle>
+                <CardDescription>Pengaturan distribusi otomatis token/crypto ke pengguna.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cryptoSettingsForm.distribution.autoCreditOnDeposit}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, autoCreditOnDeposit: e.target.checked } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                    Otomatis kredit koin saat deposit
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cryptoSettingsForm.distribution.enableAutoSwap}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, enableAutoSwap: e.target.checked } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                    Aktifkan auto-swap crypto ↔ koin
+                  </label>
+                  <div className="space-y-1">
+                    <Label>Min. konfirmasi blockchain</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={cryptoSettingsForm.distribution.minConfirmations}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, minConfirmations: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Default slippage swap (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={50}
+                      step={0.1}
+                      value={cryptoSettingsForm.distribution.defaultSwapSlippagePercent}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, defaultSwapSlippagePercent: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Maks. penarikan crypto/hari (USD)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={cryptoSettingsForm.distribution.maxDailyWithdrawCrypto}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, maxDailyWithdrawCrypto: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Maks. swap koin/hari</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={cryptoSettingsForm.distribution.maxDailySwapCoins}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, distribution: { ...prev.distribution, maxDailySwapCoins: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => updateSettings({ cryptoSettings: cryptoSettingsForm })}
+                  disabled={savingSettings || !cryptoSettingsDirty}
+                >
+                  {savingSettings ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Simpan Distribusi
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Biaya Global Crypto</CardTitle>
+                <CardDescription>Pengaturan biaya default untuk semua transaksi crypto.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label>Biaya deposit (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={50}
+                      step={0.1}
+                      value={cryptoSettingsForm.globalFees.depositFeePercent}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, globalFees: { ...prev.globalFees, depositFeePercent: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Biaya penarikan (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={50}
+                      step={0.1}
+                      value={cryptoSettingsForm.globalFees.withdrawFeePercent}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, globalFees: { ...prev.globalFees, withdrawFeePercent: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Biaya swap (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={50}
+                      step={0.1}
+                      value={cryptoSettingsForm.globalFees.swapFeePercent}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, globalFees: { ...prev.globalFees, swapFeePercent: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Min. deposit (USD)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={cryptoSettingsForm.globalFees.minDepositUsd}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, globalFees: { ...prev.globalFees, minDepositUsd: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Min. penarikan (USD)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={cryptoSettingsForm.globalFees.minWithdrawUsd}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, globalFees: { ...prev.globalFees, minWithdrawUsd: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => updateSettings({ cryptoSettings: cryptoSettingsForm })}
+                  disabled={savingSettings || !cryptoSettingsDirty}
+                >
+                  {savingSettings ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Simpan Biaya
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Notifikasi Crypto</CardTitle>
+                <CardDescription>Pengaturan notifikasi untuk aktivitas crypto penting.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cryptoSettingsForm.notifications.notifyOnLargeDeposit}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, notifications: { ...prev.notifications, notifyOnLargeDeposit: e.target.checked } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                    Notifikasi deposit besar
+                  </label>
+                  <div className="space-y-1">
+                    <Label>Threshold deposit besar (USD)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={cryptoSettingsForm.notifications.largeDepositThresholdUsd}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, notifications: { ...prev.notifications, largeDepositThresholdUsd: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cryptoSettingsForm.notifications.notifyOnWithdraw}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, notifications: { ...prev.notifications, notifyOnWithdraw: e.target.checked } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                    Notifikasi setiap penarikan
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cryptoSettingsForm.notifications.notifyOnLowTreasury}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, notifications: { ...prev.notifications, notifyOnLowTreasury: e.target.checked } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                    Notifikasi saldo treasury rendah
+                  </label>
+                  <div className="space-y-1">
+                    <Label>Threshold treasury rendah (USD)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={cryptoSettingsForm.notifications.lowTreasuryThresholdUsd}
+                      onChange={(e) => {
+                        setCryptoSettingsForm((prev) => ({ ...prev, notifications: { ...prev.notifications, lowTreasuryThresholdUsd: Number(e.target.value) } }));
+                        setCryptoSettingsDirty(true);
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => updateSettings({ cryptoSettings: cryptoSettingsForm })}
+                  disabled={savingSettings || !cryptoSettingsDirty}
+                >
+                  {savingSettings ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Simpan Notifikasi
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
         <TabsContent value="trialAccounts" className="mt-4">
           <Card>
             <CardHeader>
@@ -3058,6 +3567,420 @@ export default function AdminPage() {
                 >
                   {trialBusy ? <Loader2 className="size-4 animate-spin" /> : null}
                   Hapus semua akun uji coba
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="apiManagement" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-display text-lg">
+                <Key className="size-4" aria-hidden />
+                Manajemen API
+              </CardTitle>
+              <CardDescription>Kelola API key untuk integrasi layanan eksternal seperti price feed, exchange, dan AI.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Total API Terdaftar</p>
+                  <p className="text-2xl font-bold">{apiManagementForm.apis.length}</p>
+                </div>
+                <Button onClick={() => setShowAddApi(!showAddApi)} variant="outline">
+                  <Plus className="mr-2 size-4" />
+                  Tambah API
+                </Button>
+              </div>
+
+              {showAddApi && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <p className="mb-3 text-sm font-semibold">Tambah API Baru</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nama API</Label>
+                      <Input
+                        placeholder="Contoh: CoinGecko Price API"
+                        value={newApiForm.name}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Provider</Label>
+                      <Input
+                        placeholder="Contoh: CoinGecko, Binance, OpenAI"
+                        value={newApiForm.provider}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, provider: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-xs">Deskripsi</Label>
+                      <Input
+                        placeholder="Deskripsi singkat fungsi API ini"
+                        value={newApiForm.description}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, description: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">API Key</Label>
+                      <Input
+                        placeholder="Masukkan API key"
+                        value={newApiForm.apiKey}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, apiKey: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">API Secret (opsional)</Label>
+                      <Input
+                        type="password"
+                        placeholder="Masukkan API secret jika ada"
+                        value={newApiForm.apiSecret}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, apiSecret: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-xs">Base URL</Label>
+                      <Input
+                        placeholder="https://api.example.com/v1"
+                        value={newApiForm.baseUrl}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Kategori</Label>
+                      <Select
+                        value={newApiForm.category}
+                        onValueChange={(v) => setNewApiForm((prev) => ({ ...prev, category: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih kategori..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {apiManagementForm.categories.map((cat) => (
+                            <SelectItem key={cat} value={cat}>
+                              {cat}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Rate Limit (req/menit)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={newApiForm.rateLimit}
+                        onChange={(e) => setNewApiForm((prev) => ({ ...prev, rateLimit: Number(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      onClick={() => {
+                        if (!newApiForm.name.trim() || !newApiForm.apiKey.trim()) {
+                          toast.error("Nama dan API Key wajib diisi");
+                          return;
+                        }
+                        const newApi = {
+                          id: `api_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                          name: newApiForm.name.trim(),
+                          description: newApiForm.description.trim(),
+                          apiKey: newApiForm.apiKey.trim(),
+                          apiSecret: newApiForm.apiSecret.trim(),
+                          baseUrl: newApiForm.baseUrl.trim(),
+                          provider: newApiForm.provider.trim(),
+                          category: newApiForm.category || "other",
+                          enabled: true,
+                          rateLimit: newApiForm.rateLimit,
+                          lastUsed: null,
+                          createdAt: new Date().toISOString(),
+                        };
+                        const updated = [...apiManagementForm.apis, newApi];
+                        setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                        setApiManagementDirty(true);
+                        setNewApiForm({
+                          name: "",
+                          description: "",
+                          apiKey: "",
+                          apiSecret: "",
+                          baseUrl: "",
+                          provider: "",
+                          category: "",
+                          rateLimit: 60,
+                        });
+                        setShowAddApi(false);
+                        toast.success("API baru ditambahkan. Klik Simpan untuk menyimpan perubahan.");
+                      }}
+                    >
+                      Tambah
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowAddApi(false)}>
+                      Batal
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {apiManagementForm.apis.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Key className="mx-auto mb-3 size-12 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Belum ada API terdaftar</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Klik "Tambah API" untuk menambahkan integrasi baru</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {apiManagementForm.apis.map((apiItem) => (
+                    <div
+                      key={apiItem.id}
+                      className={`rounded-lg border p-4 transition-colors ${
+                        apiItem.enabled ? "border-green-500/30 bg-green-500/5" : "border-border bg-muted/30"
+                      }`}
+                    >
+                      {editingApiId === apiItem.id ? (
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Nama API</Label>
+                              <Input
+                                value={apiItem.name}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, name: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Provider</Label>
+                              <Input
+                                value={apiItem.provider}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, provider: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Deskripsi</Label>
+                              <Input
+                                value={apiItem.description}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, description: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">API Key</Label>
+                              <Input
+                                value={apiItem.apiKey}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, apiKey: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">API Secret</Label>
+                              <Input
+                                type="password"
+                                value={apiItem.apiSecret}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, apiSecret: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Base URL</Label>
+                              <Input
+                                value={apiItem.baseUrl}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, baseUrl: e.target.value } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Kategori</Label>
+                              <Select
+                                value={apiItem.category}
+                                onValueChange={(v) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, category: v } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {apiManagementForm.categories.map((cat) => (
+                                    <SelectItem key={cat} value={cat}>
+                                      {cat}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Rate Limit</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10000}
+                                value={apiItem.rateLimit}
+                                onChange={(e) => {
+                                  const updated = apiManagementForm.apis.map((a) =>
+                                    a.id === apiItem.id ? { ...a, rateLimit: Number(e.target.value) } : a,
+                                  );
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setEditingApiId(null);
+                                toast.success("Perubahan disimpan. Klik Simpan Pengaturan untuk menyimpan permanen.");
+                              }}
+                            >
+                              Selesai Edit
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold">{apiItem.name}</p>
+                              <Badge variant={apiItem.enabled ? "default" : "secondary"}>
+                                {apiItem.enabled ? "Aktif" : "Nonaktif"}
+                              </Badge>
+                              <Badge variant="outline">{apiItem.category}</Badge>
+                            </div>
+                            {apiItem.description && (
+                              <p className="text-sm text-muted-foreground">{apiItem.description}</p>
+                            )}
+                            <div className="grid gap-1 text-xs sm:grid-cols-2">
+                              <div>
+                                <span className="text-muted-foreground">Provider: </span>
+                                <span className="font-medium">{apiItem.provider || "-"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Rate Limit: </span>
+                                <span className="font-medium">{apiItem.rateLimit} req/menit</span>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <span className="text-muted-foreground">Base URL: </span>
+                                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{apiItem.baseUrl || "-"}</code>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <span className="text-muted-foreground">API Key: </span>
+                                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                                  {apiItem.apiKey.slice(0, 8)}...{apiItem.apiKey.slice(-4)}
+                                </code>
+                              </div>
+                              {apiItem.lastUsed && (
+                                <div className="sm:col-span-2">
+                                  <span className="text-muted-foreground">Terakhir digunakan: </span>
+                                  <span className="text-xs">
+                                    {new Date(apiItem.lastUsed).toLocaleString("id-ID", {
+                                      dateStyle: "medium",
+                                      timeStyle: "short",
+                                    })}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-col gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const updated = apiManagementForm.apis.map((a) =>
+                                  a.id === apiItem.id ? { ...a, enabled: !a.enabled } : a,
+                                );
+                                setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                setApiManagementDirty(true);
+                                toast.success(
+                                  `API ${apiItem.enabled ? "dinonaktifkan" : "diaktifkan"}. Klik Simpan untuk menyimpan.`,
+                                );
+                              }}
+                            >
+                              <Power className="mr-1 size-3" />
+                              {apiItem.enabled ? "Nonaktifkan" : "Aktifkan"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingApiId(apiItem.id)}
+                            >
+                              <Pencil className="mr-1 size-3" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm(`Hapus API "${apiItem.name}"?`)) {
+                                  const updated = apiManagementForm.apis.filter((a) => a.id !== apiItem.id);
+                                  setApiManagementForm((prev) => ({ ...prev, apis: updated }));
+                                  setApiManagementDirty(true);
+                                  toast.success("API dihapus. Klik Simpan untuk menyimpan perubahan.");
+                                }
+                              }}
+                            >
+                              <Trash2 className="mr-1 size-3" />
+                              Hapus
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  disabled={savingSettings || !apiManagementDirty}
+                  onClick={() =>
+                    updateSettings({
+                      apiManagement: {
+                        apis: apiManagementForm.apis,
+                        categories: apiManagementForm.categories,
+                      },
+                    })
+                  }
+                >
+                  {savingSettings ? <Loader2 className="size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
+                  Simpan Pengaturan API
                 </Button>
               </div>
             </CardContent>

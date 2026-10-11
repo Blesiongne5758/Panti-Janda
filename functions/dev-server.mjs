@@ -32,6 +32,86 @@ const accounts = [
 // Mock sessions
 const sessions = new Map();
 
+// Mock media posts
+const mediaPosts = [
+  {
+    id: "media_1",
+    account_id: "00000000-0000-0000-0000-000000000002",
+    author_name: "User Test",
+    author_photo: null,
+    author_tier: "wonder_woman",
+    type: "photo",
+    media_url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
+    caption: "Pemandangan indah saat perjalanan ke pantai",
+    likes: [],
+    comments: [],
+    shares: 0,
+    duration: null,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "media_2",
+    account_id: "00000000-0000-0000-0000-000000000001",
+    author_name: "Admin Panti",
+    author_photo: null,
+    author_tier: "high_society",
+    type: "video",
+    media_url: "https://www.w3schools.com/html/mov_bbb.mp4",
+    caption: "Video pendek kegiatan komunitas hari ini",
+    likes: ["00000000-0000-0000-0000-000000000002"],
+    comments: [
+      {
+        id: "comment_1",
+        post_id: "media_2",
+        account_id: "00000000-0000-0000-0000-000000000002",
+        author_name: "User Test",
+        author_photo: null,
+        body: "Kegiatan yang sangat bermanfaat!",
+        created_at: new Date(Date.now() - 1800000).toISOString(),
+      },
+    ],
+    shares: 2,
+    duration: 6,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+];
+
+// Mock marketplace listings
+const marketplaceListings = [
+  {
+    id: "listing_1",
+    seller_profile_id: "00000000-0000-0000-0000-000000000002",
+    seller_name: "User Test",
+    seller_photo: null,
+    seller_city: "Jakarta",
+    kind: "barang",
+    title: "Kue Kering Homemade",
+    description: "Kue kering buatan rumah, cocok untuk hadiah dan acara keluarga. Tersedia berbagai rasa.",
+    price: 85000,
+    category: "makanan",
+    photos: ["https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600"],
+    status: "active",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "listing_2",
+    seller_profile_id: "00000000-0000-0000-0000-000000000001",
+    seller_name: "Admin Panti",
+    seller_photo: null,
+    seller_city: "Bandung",
+    kind: "jasa",
+    title: "Jasa Desain Grafis",
+    description: "Menerima jasa desain logo, banner, dan materi promosi untuk UMKM.",
+    price: 250000,
+    category: "jasa",
+    photos: ["https://images.unsplash.com/photo-1626785774573-4b799315345d?w=600"],
+    status: "active",
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    updated_at: new Date(Date.now() - 172800000).toISOString(),
+  },
+];
+
 // Mock APP_SETTINGS
 const APP_SETTINGS = {
   payment: {
@@ -514,6 +594,402 @@ const server = createServer(async (req, res) => {
           }
           APP_SETTINGS.trialAccounts.enabled = false;
           response = { ok: true, data: { deleted: trialIds.length } };
+          break;
+        }
+
+        case "media.feed": {
+          const sorted = [...mediaPosts].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          response = {
+            ok: true,
+            data: {
+              items: sorted.map((p) => ({
+                id: p.id,
+                accountId: p.account_id,
+                authorName: p.author_name,
+                authorPhoto: p.author_photo,
+                authorTier: p.author_tier,
+                type: p.type,
+                mediaUrl: p.media_url,
+                caption: p.caption,
+                likes: p.likes,
+                comments: p.comments,
+                shares: p.shares,
+                duration: p.duration,
+                createdAt: p.created_at,
+              })),
+            },
+          };
+          break;
+        }
+
+        case "media.userPosts": {
+          const { accountId } = data;
+          if (!accountId) {
+            response = { ok: false, error: "invalid_input" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const userPosts = mediaPosts
+            .filter((p) => p.account_id === accountId)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .map((p) => ({
+              id: p.id,
+              accountId: p.account_id,
+              authorName: p.author_name,
+              authorPhoto: p.author_photo,
+              authorTier: p.author_tier,
+              type: p.type,
+              mediaUrl: p.media_url,
+              caption: p.caption,
+              likes: p.likes,
+              comments: p.comments,
+              shares: p.shares,
+              duration: p.duration,
+              createdAt: p.created_at,
+            }));
+          response = { ok: true, data: { items: userPosts } };
+          break;
+        }
+
+        case "media.create": {
+          if (!token) {
+            response = { ok: false, error: "not_authenticated" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const session = getSession(token);
+          if (!session) {
+            response = { ok: false, error: "access_denied" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const account = accounts.find((a) => a.id === session.account_id);
+          if (!account) {
+            response = { ok: false, error: "account_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const { type, mediaUrl, caption, duration } = data;
+          if (!type || !mediaUrl || (type !== "photo" && type !== "video")) {
+            response = { ok: false, error: "invalid_input" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          if (type === "video" && duration && duration > 6) {
+            response = { ok: false, error: "video_too_long" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const newPost = {
+            id: `media_${Date.now()}`,
+            account_id: account.id,
+            author_name: account.name,
+            author_photo: null,
+            author_tier: "wonder_woman",
+            type,
+            media_url: mediaUrl,
+            caption: caption || null,
+            likes: [],
+            comments: [],
+            shares: 0,
+            duration: type === "video" ? duration || 6 : null,
+            created_at: new Date().toISOString(),
+          };
+          mediaPosts.push(newPost);
+          response = {
+            ok: true,
+            data: {
+              post: {
+                id: newPost.id,
+                accountId: newPost.account_id,
+                authorName: newPost.author_name,
+                authorPhoto: newPost.author_photo,
+                authorTier: newPost.author_tier,
+                type: newPost.type,
+                mediaUrl: newPost.media_url,
+                caption: newPost.caption,
+                likes: newPost.likes,
+                comments: newPost.comments,
+                shares: newPost.shares,
+                duration: newPost.duration,
+                createdAt: newPost.created_at,
+              },
+            },
+          };
+          break;
+        }
+
+        case "media.like": {
+          if (!token) {
+            response = { ok: false, error: "not_authenticated" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const session = getSession(token);
+          if (!session) {
+            response = { ok: false, error: "access_denied" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const { postId } = data;
+          const post = mediaPosts.find((p) => p.id === postId);
+          if (!post) {
+            response = { ok: false, error: "post_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const likeIndex = post.likes.indexOf(session.account_id);
+          if (likeIndex >= 0) {
+            post.likes.splice(likeIndex, 1);
+          } else {
+            post.likes.push(session.account_id);
+          }
+          response = { ok: true, data: { likes: post.likes } };
+          break;
+        }
+
+        case "media.comment": {
+          if (!token) {
+            response = { ok: false, error: "not_authenticated" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const session = getSession(token);
+          if (!session) {
+            response = { ok: false, error: "access_denied" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const account = accounts.find((a) => a.id === session.account_id);
+          if (!account) {
+            response = { ok: false, error: "account_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const { postId, body } = data;
+          if (!postId || !body) {
+            response = { ok: false, error: "invalid_input" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const post = mediaPosts.find((p) => p.id === postId);
+          if (!post) {
+            response = { ok: false, error: "post_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const newComment = {
+            id: `comment_${Date.now()}`,
+            post_id: postId,
+            account_id: account.id,
+            author_name: account.name,
+            author_photo: null,
+            body,
+            created_at: new Date().toISOString(),
+          };
+          post.comments.push(newComment);
+          response = {
+            ok: true,
+            data: {
+              comment: {
+                id: newComment.id,
+                postId: newComment.post_id,
+                accountId: newComment.account_id,
+                authorName: newComment.author_name,
+                authorPhoto: newComment.author_photo,
+                body: newComment.body,
+                createdAt: newComment.created_at,
+              },
+            },
+          };
+          break;
+        }
+
+        case "media.share": {
+          const { postId } = data;
+          const post = mediaPosts.find((p) => p.id === postId);
+          if (!post) {
+            response = { ok: false, error: "post_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          post.shares += 1;
+          response = { ok: true, data: { shares: post.shares } };
+          break;
+        }
+
+        case "media.delete": {
+          if (!token) {
+            response = { ok: false, error: "not_authenticated" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const session = getSession(token);
+          if (!session) {
+            response = { ok: false, error: "access_denied" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const { postId } = data;
+          const postIndex = mediaPosts.findIndex((p) => p.id === postId && p.account_id === session.account_id);
+          if (postIndex < 0) {
+            response = { ok: false, error: "post_not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          mediaPosts.splice(postIndex, 1);
+          response = { ok: true, data: { deleted: true } };
+          break;
+        }
+
+        case "marketplace.list": {
+          const { kind, category } = data;
+          let filtered = [...marketplaceListings];
+          if (kind) filtered = filtered.filter((l) => l.kind === kind);
+          if (category) filtered = filtered.filter((l) => l.category === category);
+          const sorted = filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          response = {
+            ok: true,
+            data: {
+              items: sorted.map((l) => ({
+                id: l.id,
+                sellerProfileId: l.seller_profile_id,
+                sellerName: l.seller_name,
+                sellerPhoto: l.seller_photo,
+                sellerCity: l.seller_city,
+                kind: l.kind,
+                title: l.title,
+                description: l.description,
+                price: l.price,
+                category: l.category,
+                photos: l.photos,
+                status: l.status,
+                createdAt: l.created_at,
+                updatedAt: l.updated_at,
+              })),
+            },
+          };
+          break;
+        }
+
+        case "marketplace.get": {
+          const { id } = data;
+          if (!id) {
+            response = { ok: false, error: "invalid_input" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const listing = marketplaceListings.find((l) => l.id === id);
+          if (!listing) {
+            response = { ok: false, error: "not_found" };
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          response = {
+            ok: true,
+            data: {
+              listing: {
+                id: listing.id,
+                sellerProfileId: listing.seller_profile_id,
+                sellerName: listing.seller_name,
+                sellerPhoto: listing.seller_photo,
+                sellerCity: listing.seller_city,
+                kind: listing.kind,
+                title: listing.title,
+                description: listing.description,
+                price: listing.price,
+                category: listing.category,
+                photos: listing.photos,
+                status: listing.status,
+                createdAt: listing.created_at,
+                updatedAt: listing.updated_at,
+              },
+              sellerWhatsapp: null,
+            },
+          };
+          break;
+        }
+
+        case "marketplace.create": {
+          if (!token) {
+            response = { ok: false, error: "not_authenticated" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const session = getSession(token);
+          if (!session) {
+            response = { ok: false, error: "access_denied" };
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const { kind, category, title, description, price, photos } = data;
+          if (!kind || !category || !title) {
+            response = { ok: false, error: "invalid_input" };
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(response));
+            return;
+          }
+          const account = accounts.find((a) => a.id === session.account_id);
+          const newListing = {
+            id: `listing_${Date.now()}`,
+            seller_profile_id: session.account_id,
+            seller_name: account?.display_name || account?.nickname || "Anggota",
+            seller_photo: account?.photo_data || null,
+            seller_city: account?.city || null,
+            kind,
+            title,
+            description: description || null,
+            price: price || null,
+            category,
+            photos: Array.isArray(photos) ? photos : [],
+            status: "active",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          marketplaceListings.push(newListing);
+          response = {
+            ok: true,
+            data: {
+              listing: {
+                id: newListing.id,
+                sellerProfileId: newListing.seller_profile_id,
+                sellerName: newListing.seller_name,
+                sellerPhoto: newListing.seller_photo,
+                sellerCity: newListing.seller_city,
+                kind: newListing.kind,
+                title: newListing.title,
+                description: newListing.description,
+                price: newListing.price,
+                category: newListing.category,
+                photos: newListing.photos,
+                status: newListing.status,
+                createdAt: newListing.created_at,
+                updatedAt: newListing.updated_at,
+              },
+            },
+          };
           break;
         }
 

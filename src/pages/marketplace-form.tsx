@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { ArrowLeft, Loader2, ImagePlus, X } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useRoute, Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,51 @@ export default function MarketplaceFormPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    setError("");
+
+    try {
+      const newPhotos: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith("image/")) {
+          setError("Hanya file gambar yang diperbolehkan.");
+          continue;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          setError("Ukuran file maksimal 5 MB.");
+          continue;
+        }
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        newPhotos.push(dataUrl);
+      }
+      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 5));
+    } catch (err) {
+      setError("Gagal mengunggah foto.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +78,7 @@ export default function MarketplaceFormPage() {
         title: title.trim(),
         description: description.trim() || null,
         price: price.trim() ? Number(price.trim()) : null,
+        photos,
       });
       if (res?.listing?.id) {
         navigate(`/marketplace/${res.listing.id}`);
@@ -157,6 +201,48 @@ export default function MarketplaceFormPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Kosongkan jika ingin pembeli menghubungi Anda untuk harga.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Foto Produk (Maksimal 5)</Label>
+                <div className="flex flex-wrap gap-3">
+                  {photos.map((photo, index) => (
+                    <div key={index} className="group relative size-24 overflow-hidden rounded-lg border border-border">
+                      <img src={photo} alt={`Foto ${index + 1}`} className="size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(index)}
+                        className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-destructive text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < 5 && (
+                    <label className="flex size-24 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        disabled={uploading}
+                      />
+                      <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                        {uploading ? (
+                          <Loader2 className="size-6 animate-spin" />
+                        ) : (
+                          <ImagePlus className="size-6" />
+                        )}
+                        <span className="text-[10px]">Upload</span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tambahkan foto produk/jasa Anda. Format: JPG, PNG, atau WebP. Maksimal 5 MB per file.
                 </p>
               </div>
 
