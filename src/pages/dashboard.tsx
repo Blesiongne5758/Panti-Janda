@@ -11,11 +11,13 @@ import {
   Heart,
   LayoutDashboard,
   Loader2,
+  MessageCircle,
   Pencil,
   Settings,
   ShieldAlert,
   Sparkles,
   UserRoundCheck,
+  Users,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -978,6 +980,57 @@ export default function DashboardPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="hover-lift">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <Coins className="size-4 text-yellow-600" aria-hidden />
+              Koin
+            </CardTitle>
+            <CardDescription>Beli koin, tarik tunai, dan gunakan untuk fitur premium seperti boost profil atau highlight posting.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild size="sm">
+              <Link to="/koin">Kelola Koin</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {rank >= 2 ? (
+          <>
+            <Card className="hover-lift">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-display text-lg">
+                  <Users className="size-4 text-purple-600" aria-hidden />
+                  Grup
+                </CardTitle>
+                <CardDescription>Bergabung dengan kelompok minat, diskusi, dan kegiatan komunitas bersama anggota lain.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild size="sm">
+                  <Link to="/grup">Buka Grup</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-display text-lg">
+                  <MessageCircle className="size-4 text-green-600" aria-hidden />
+                  Pesan
+                </CardTitle>
+                <CardDescription>Kirim dan terima pesan pribadi dari anggota komunitas lainnya.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild size="sm">
+                  <Link to="/pesan">Buka Pesan</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
+      </div>
 
       {rank >= 2 ? (
         <div className="grid gap-6 lg:grid-cols-2">

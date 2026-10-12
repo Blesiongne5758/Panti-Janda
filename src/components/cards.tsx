@@ -30,7 +30,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
   ].filter(Boolean) as { icon: typeof MapPin; text: string }[];
 
   return (
-    <Card className="flex h-full flex-col gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md">
+    <Card className="hover-lift flex h-full flex-col gap-0 overflow-hidden py-0">
       <div className="h-1.5 w-full" style={{ backgroundColor: TIER_META[profile.tier].accent }} aria-hidden />
       <CardHeader className="gap-3 pt-5">
         <div className="flex items-start gap-3">
@@ -97,7 +97,7 @@ export function ProgramCard({
 }) {
   const meta = CATEGORY_META[program.category];
   return (
-    <Card className="flex h-full flex-col gap-0 py-0">
+    <Card className="hover-lift flex h-full flex-col gap-0 py-0">
       <CardHeader className="gap-2 pt-5 pb-3">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
@@ -177,7 +177,7 @@ export function EventCard({
   const cancelled = event.status === "cancelled";
   const isPast = new Date(event.startsAt).getTime() < Date.now();
   return (
-    <Card className={cn("flex h-full flex-col gap-0 py-0", cancelled && "opacity-70")}>
+    <Card className={cn("hover-lift flex h-full flex-col gap-0 py-0", cancelled && "opacity-70")}>
       <CardHeader className="gap-2 pt-5 pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -284,7 +284,7 @@ export function GroupCard({
   onOpen?: (group: GroupItem) => void;
 }) {
   return (
-    <Card className="flex h-full flex-col gap-0 py-0">
+    <Card className="hover-lift flex h-full flex-col gap-0 py-0">
       <CardHeader className="gap-2 pt-5 pb-3">
         <div className="flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
@@ -348,7 +348,7 @@ export function UpdateCard({
   children?: React.ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-border bg-card p-5">
+    <article className="hover-lift rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-semibold text-foreground">{title}</h3>
         <span className="text-xs text-muted-foreground">{timeAgo(createdAt)}</span>

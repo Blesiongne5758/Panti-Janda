@@ -7,7 +7,7 @@ import { ROLE_LABEL, ROLE_RANK, PLATFORM_NAME, PLATFORM_TAGLINE } from "@/lib/co
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { MemberAvatar, TierBadge } from "@/components/common";
+import { MemberAvatar, TierBadge, PjLogo } from "@/components/common";
 import { Separator } from "@/components/ui/separator";
 import type { NotificationItem } from "@/lib/types";
 
@@ -18,16 +18,12 @@ const NAV = [
   { to: "/event", label: "Event" },
   { to: "/galang-dana", label: "Galang Dana" },
   { to: "/marketplace", label: "Marketplace" },
-  { to: "/learning-center", label: "Learning" },
-  { to: "/koin", label: "Koin" },
 ];
 
 function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberOnly: boolean }) {
   const { path } = useRoute();
   const clean = path.split("?")[0];
-  const items = memberOnly
-    ? [...NAV, { to: "/grup", label: "Grup" }, { to: "/pesan", label: "Pesan" }]
-    : NAV;
+  const items = NAV;
   return (
     <>
       {items.map((item) => {
@@ -192,23 +188,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="absolute -bottom-40 left-1/4 size-[30rem] rounded-full bg-[#5B2A4E]/10 blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-2 px-3 sm:gap-3 sm:px-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <HandHeart className="size-5" aria-hidden />
+      <header className="glass sticky top-0 z-40 border-b border-border/60">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6">
+          <Link to="/" className="flex shrink-0 items-center gap-2 transition-transform duration-200 hover:scale-[1.02]">
+            <span className="neu-round flex size-8 shrink-0 items-center justify-center bg-primary text-primary-foreground sm:size-9 sm:rounded-xl">
+              <PjLogo size={24} />
             </span>
             <span className="leading-tight">
-              <span className="block font-display text-lg font-semibold text-foreground">{PLATFORM_NAME}</span>
-              <span className="hidden text-[11px] text-muted-foreground sm:block">Komunitas & ruang tumbuh</span>
+              <span className="block font-display text-base font-semibold text-foreground sm:text-lg">{PLATFORM_NAME}</span>
+              <span className="hidden text-[10px] text-muted-foreground lg:block">Komunitas & ruang tumbuh</span>
             </span>
           </Link>
 
-          <nav className="ml-4 hidden items-center gap-1 md:flex" aria-label="Navigasi utama">
+          <nav className="ml-3 hidden flex-1 items-center gap-1 md:flex" aria-label="Navigasi utama">
             <NavLinks memberOnly={member} />
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             {!ready ? (
               <div className="h-9 w-24 animate-pulse rounded-full bg-secondary" aria-hidden />
             ) : account ? (
@@ -230,7 +226,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <NotificationBell />
                 <Link
                   to="/dasbor"
-                  className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pr-3 pl-1 transition-colors hover:bg-secondary"
+                  className="flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pr-2 pl-0.5 transition-colors hover:bg-secondary sm:gap-2 sm:py-1 sm:pr-3 sm:pl-1"
                 >
                   <MemberAvatar
                     name={profile?.nickname ?? account.displayName ?? "Anggota"}
@@ -238,7 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     photoData={profile?.photoData}
                     size={28}
                   />
-                  <span className="hidden max-w-28 truncate text-xs font-medium sm:block">
+                  <span className="hidden max-w-24 truncate text-xs font-medium sm:block lg:max-w-32">
                     {profile?.nickname ?? account.displayName ?? ROLE_LABEL[account.role]}
                   </span>
                 </Link>

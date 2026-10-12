@@ -11,6 +11,7 @@ import {
   Crown,
   ExternalLink,
   Flag,
+  Gem,
   Globe,
   Key,
   Loader2,
@@ -31,7 +32,7 @@ import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { formatRupiah, timeAgo } from "@/lib/format";
-import { ROLE_LABEL, TIER_META, WIDOW_ROLES } from "@/lib/constants";
+import { ROLE_LABEL, TIER_META, PUBLIC_TIER_META, WIDOW_ROLES } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS } from "@/lib/verify-doc";
 import type { AdminAccount, AdminStats, AppSettings, DonationItem, Profile, ReportItem, WidowRole } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,7 @@ export default function AdminPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [paymentForm, setPaymentForm] = useState<{ serverKey: string; clientKey: string; environment: "sandbox" | "production"; enabled: boolean }>({ serverKey: "", clientKey: "", environment: "sandbox", enabled: true });
   const [shippingForm, setShippingForm] = useState<{ enabled: boolean; providers: { id: string; name: string; enabled: boolean; baseRate: number }[] }>({ enabled: false, providers: [] });
-  const [subscriptionForm, setSubscriptionForm] = useState<{ sosialita: number; high_society: number; the_ceo: number }>({ sosialita: 100000, high_society: 500000, the_ceo: 1000000 });
+  const [subscriptionForm, setSubscriptionForm] = useState<{ sosialita: number; high_society: number; the_ceo: number; ceo: number; sultan: number }>({ sosialita: 100000, high_society: 500000, the_ceo: 1000000, ceo: 1000000, sultan: 2000000 });
   const [academyForm, setAcademyForm] = useState<{ enabled: boolean; title: string; description: string; schedule: string; location: string; modules: { id: string; title: string; duration: string; enabled: boolean }[] }>({ enabled: true, title: "", description: "", schedule: "", location: "", modules: [] });
   const [tradingForm, setTradingForm] = useState<{ enabled: boolean; title: string; description: string; schedule: string; location: string; modules: { id: string; title: string; duration: string; enabled: boolean }[] }>({ enabled: true, title: "", description: "", schedule: "", location: "", modules: [] });
   const [linksForm, setLinksForm] = useState<{ enabled: boolean; items: { id: string; title: string; url: string; enabled: boolean }[] }>({ enabled: true, items: [] });
@@ -251,6 +252,8 @@ export default function AdminPage() {
         sosialita: settingsData.settings.subscription.prices.sosialita,
         high_society: settingsData.settings.subscription.prices.high_society,
         the_ceo: settingsData.settings.subscription.prices.the_ceo,
+        ceo: settingsData.settings.subscription.prices.ceo ?? 1000000,
+        sultan: settingsData.settings.subscription.prices.sultan ?? 2000000,
       });
       setAcademyForm({
         enabled: settingsData.settings.academy.enabled,
@@ -463,6 +466,8 @@ export default function AdminPage() {
           sosialita: res.settings.subscription.prices.sosialita,
           high_society: res.settings.subscription.prices.high_society,
           the_ceo: res.settings.subscription.prices.the_ceo,
+          ceo: res.settings.subscription.prices.ceo ?? 1000000,
+          sultan: res.settings.subscription.prices.sultan ?? 2000000,
         });
         setSubscriptionDirty(false);
       }
@@ -1227,33 +1232,69 @@ export default function AdminPage() {
               </CardTitle>
               <CardDescription>Atur harga bulanan untuk masing-masing tier badge.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {(["sosialita", "high_society", "the_ceo"] as const).map((tier) => {
-                const meta = TIER_META[tier];
-                return (
-                  <div key={tier} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
-                    <Crown className="size-5" style={{ color: meta.accent }} aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{meta.label}</p>
-                      <p className="text-xs text-muted-foreground">{meta.tagline}</p>
-                    </div>
-                    <div className="w-40 space-y-1">
-                      <Label htmlFor={`price-${tier}`} className="text-xs">Harga (Rp/bulan)</Label>
-                      <Input
-                        id={`price-${tier}`}
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={subscriptionForm[tier]}
-                        onChange={(e) => {
-                          setSubscriptionForm((prev) => ({ ...prev, [tier]: Number(e.target.value) || 0 }));
-                          setSubscriptionDirty(true);
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <CardContent className="space-y-6">
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tier Janda</p>
+                <div className="space-y-3">
+                  {(["sosialita", "high_society", "the_ceo"] as const).map((tier) => {
+                    const meta = TIER_META[tier];
+                    return (
+                      <div key={tier} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                        <Crown className="size-5" style={{ color: meta.accent }} aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{meta.label}</p>
+                          <p className="text-xs text-muted-foreground">{meta.tagline}</p>
+                        </div>
+                        <div className="w-40 space-y-1">
+                          <Label htmlFor={`price-${tier}`} className="text-xs">Harga (Rp/bulan)</Label>
+                          <Input
+                            id={`price-${tier}`}
+                            type="number"
+                            min={0}
+                            step={1000}
+                            value={subscriptionForm[tier]}
+                            onChange={(e) => {
+                              setSubscriptionForm((prev) => ({ ...prev, [tier]: Number(e.target.value) || 0 }));
+                              setSubscriptionDirty(true);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tier Non-Janda</p>
+                <div className="space-y-3">
+                  {(["ceo", "sultan"] as const).map((tier) => {
+                    const meta = PUBLIC_TIER_META[tier];
+                    return (
+                      <div key={tier} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                        <Gem className="size-5" style={{ color: meta.accent }} aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{meta.label}</p>
+                        </div>
+                        <div className="w-40 space-y-1">
+                          <Label htmlFor={`price-${tier}`} className="text-xs">Harga (Rp/bulan)</Label>
+                          <Input
+                            id={`price-${tier}`}
+                            type="number"
+                            min={0}
+                            step={1000}
+                            value={subscriptionForm[tier]}
+                            onChange={(e) => {
+                              setSubscriptionForm((prev) => ({ ...prev, [tier]: Number(e.target.value) || 0 }));
+                              setSubscriptionDirty(true);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               <Button
                 disabled={savingSettings || !subscriptionDirty}
@@ -1264,6 +1305,8 @@ export default function AdminPage() {
                         sosialita: subscriptionForm.sosialita,
                         high_society: subscriptionForm.high_society,
                         the_ceo: subscriptionForm.the_ceo,
+                        ceo: subscriptionForm.ceo,
+                        sultan: subscriptionForm.sultan,
                       },
                     },
                   })

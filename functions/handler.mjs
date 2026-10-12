@@ -4453,6 +4453,8 @@ const APP_SETTINGS = {
       sosialita: 100000,
       high_society: 500000,
       the_ceo: 1000000,
+      ceo: 1000000,
+      sultan: 2000000,
     },
   },
   academy: {
@@ -4695,7 +4697,7 @@ async function adminSettingsUpdate(ctx) {
   }
   if (subscription && subscription.prices) {
     const prices = subscription.prices;
-    for (const tier of ["sosialita", "high_society", "the_ceo"]) {
+    for (const tier of ["sosialita", "high_society", "the_ceo", "ceo", "sultan"]) {
       if (typeof prices[tier] === "number" && prices[tier] >= 0) {
         APP_SETTINGS.subscription.prices[tier] = Math.floor(prices[tier]);
       }

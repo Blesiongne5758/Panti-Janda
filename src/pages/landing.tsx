@@ -143,7 +143,7 @@ export function LandingPage() {
 
         <div className="relative mx-auto grid w-full max-w-6xl gap-6 px-3 py-12 sm:gap-10 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:py-24">
           <div className="space-y-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
+            <span className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
               <Sparkles className="size-3.5 text-accent-foreground" aria-hidden />
               Komunitas janda Indonesia yang bertumbuh bersama
             </span>
@@ -196,7 +196,7 @@ export function LandingPage() {
                   {WIDOW_ROLES.map((tier) => (
                     <li
                       key={tier}
-                      className="flex items-start gap-3 rounded-xl border border-border bg-background/70 px-3.5 py-3"
+                      className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/50 px-3.5 py-3 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-sm"
                     >
                       <span
                         className="flex size-9 shrink-0 items-center justify-center rounded-lg"
@@ -252,12 +252,12 @@ export function LandingPage() {
           title="Berjenjang, terarah, dan saling menguatkan"
           description="Setiap tingkatan punya peran jelas — dari perencanaan sampai pendampingan langsung bagi anggota."
         />
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="stagger mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FLOW.map((step, index) => (
-            <Card key={step.title} className="h-full gap-0 py-0">
+            <Card key={step.title} className="hover-lift h-full gap-0 py-0">
               <CardContent className="space-y-3 px-5 py-6">
                 <div className="flex items-center justify-between">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <span className="neu-round flex size-10 items-center justify-center bg-primary/10 text-primary">
                     <step.icon className="size-5" aria-hidden />
                   </span>
                   <span className="font-display text-3xl font-semibold text-border">{index + 1}</span>
@@ -352,7 +352,7 @@ export function LandingPage() {
           ) : data && data.programs.length > 0 ? (
             <div className="grid gap-4">
               {data.programs.map((program) => (
-                <Card key={program.id} className="gap-0 py-0">
+                <Card key={program.id} className="hover-lift gap-0 py-0">
                   <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-5">
                     <span className="text-2xl" aria-hidden>
                       {CATEGORY_META[program.category].emoji}

@@ -550,6 +550,8 @@ export interface AppSettings {
       sosialita: number;
       high_society: number;
       the_ceo: number;
+      ceo: number;
+      sultan: number;
     };
   };
   academy: {
