@@ -419,11 +419,23 @@ const server = createServer(async (req, res) => {
             data: {
               liveTrading: {
                 enabled: true,
+                provider: "twelvedata",
+                tradingViewWidgetId: "",
+                tradingViewSymbol: "IDX:IHSG",
+                tradingViewInterval: "15",
+                tradingViewTheme: "light",
+                apiKey: "39cdbd541ed04eda9475e517d01ff3d6",
+                apiBaseUrl: "https://api.twelvedata.com",
                 symbols: [
-                  { symbol: "IDX:IHSG", label: "IHSG", enabled: true },
-                  { symbol: "IDX:BBCA", label: "BBCA", enabled: true },
-                  { symbol: "IDX:BBRI", label: "BBRI", enabled: true },
+                  { id: "sym1", symbol: "AAPL", label: "Apple", enabled: true },
+                  { id: "sym2", symbol: "GOOGL", label: "Google", enabled: true },
+                  { id: "sym3", symbol: "MSFT", label: "Microsoft", enabled: true },
+                  { id: "sym4", symbol: "BTC/USD", label: "Bitcoin", enabled: true },
+                  { id: "sym5", symbol: "ETH/USD", label: "Ethereum", enabled: true },
+                  { id: "sym6", symbol: "EUR/USD", label: "EUR/USD", enabled: true },
+                  { id: "sym7", symbol: "XAU/USD", label: "Emas", enabled: true },
                 ],
+                refreshInterval: 10,
               },
             },
           };

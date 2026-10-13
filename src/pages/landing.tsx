@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ErrorNote, LoadingGrid, SectionHeading, Stat, TierBadge } from "@/components/common";
 import { EventCard, ProfileCard, ProgramCard } from "@/components/cards";
 import { FeedPage } from "@/pages/feed";
+import { useTranslation } from "@/lib/i18n-context";
 
 const TIER_ICON = { the_ceo: Gem, high_society: Crown, sosialita: Star, wonder_woman: Flower2 } as const;
 
@@ -98,6 +99,7 @@ const FLOW = [
 
 export function LandingPage() {
   const { account } = useAuth();
+  const { t } = useTranslation();
   const [data, setData] = useState<HomeSummary | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,53 +147,52 @@ export function LandingPage() {
           <div className="space-y-6">
             <span className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium text-muted-foreground">
               <Sparkles className="size-3.5 text-accent-foreground" aria-hidden />
-              Komunitas janda Indonesia yang bertumbuh bersama
+              {t("landing.badge")}
             </span>
             <h1 className="font-display text-4xl leading-[1.1] font-semibold text-foreground sm:text-5xl lg:text-6xl">
-              Ruang tumbuh yang hangat dan bermartabat.
+              {t("landing.heroTitle")}
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Panti Janda menghubungkan anggota dengan akademi, pelatihan, seminar, dan penempatan kerja — dikelola
-              berjenjang oleh High Society, Sosialita, dan Wonder Woman, dengan dukungan terbuka dari masyarakat.
+              {t("landing.heroDesc")}
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <Link to="/jelajah">
-                  Jelajahi profil anggota
+                  {t("landing.exploreProfiles")}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
               {account ? (
                 <Button asChild size="lg" variant="outline">
-                  <Link to="/dasbor">Buka dasbor saya</Link>
+                  <Link to="/dasbor">{t("landing.openDashboard")}</Link>
                 </Button>
               ) : (
                 <Button asChild size="lg" variant="outline">
-                  <Link to="/daftar">Daftar jadi anggota</Link>
+                  <Link to="/daftar">{t("landing.registerMember")}</Link>
                 </Button>
               )}
             </div>
             <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <BadgeCheck className="size-4 text-emerald-600" aria-hidden />
-                Profil terverifikasi admin
+                {t("landing.verifiedProfiles")}
               </li>
               <li className="flex items-center gap-2">
                 <Users className="size-4 text-primary" aria-hidden />
-                Hanya nama panggilan yang tampil
+                {t("landing.nicknameOnly")}
               </li>
             </ul>
           </div>
 
           <div className="grid content-start gap-4">
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <Stat label="Anggota" value={data ? data.stats.members : "—"} />
-              <Stat label="Profil terverifikasi" value={data ? data.stats.verifiedMembers : "—"} />
-              <Stat label="Program aktif" value={data ? data.stats.programs : "—"} />
+              <Stat label={t("landing.members")} value={data ? data.stats.members : "—"} />
+              <Stat label={t("landing.verifiedMembers")} value={data ? data.stats.verifiedMembers : "—"} />
+              <Stat label={t("landing.activePrograms")} value={data ? data.stats.programs : "—"} />
             </div>
             <Card className="panel-glass border-primary/15">
               <CardContent className="space-y-3 pt-6">
-                <p className="font-display text-lg font-semibold text-foreground">Tiga tingkatan anggota</p>
+                <p className="font-display text-lg font-semibold text-foreground">{t("landing.tierTitle")}</p>
                 <ul className="space-y-2.5">
                   {WIDOW_ROLES.map((tier) => (
                     <li
@@ -248,9 +249,9 @@ export function LandingPage() {
 
       <section className="mx-auto w-full max-w-6xl px-3 py-10 sm:px-6">
         <SectionHeading
-          eyebrow="Cara komunitas bekerja"
-          title="Berjenjang, terarah, dan saling menguatkan"
-          description="Setiap tingkatan punya peran jelas — dari perencanaan sampai pendampingan langsung bagi anggota."
+          eyebrow={t("landing.howItWorks")}
+          title={t("landing.howTitle")}
+          description={t("landing.howDesc")}
         />
         <div className="stagger mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FLOW.map((step, index) => (
@@ -273,9 +274,9 @@ export function LandingPage() {
       <section className="relative overflow-hidden border-b border-border bg-card/70">
         <div className="relative mx-auto w-full max-w-6xl px-3 py-10 sm:px-6">
           <SectionHeading
-            eyebrow="Lima wajah komunitas"
-            title="Pengusaha, sosialita, pekerja, pemilik UMKM, dan wanita tradisional"
-            description="Mereka adalah wajah Panti Janda — perempuan yang membangun usaha, menggerakkan komunitas, bekerja profesional, menopang ekonomi kecil, dan menjaga akar tradisi."
+            eyebrow={t("landing.facesTitle")}
+            title={t("landing.facesSubtitle")}
+            description={t("landing.facesDesc")}
           />
           <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {WAJAH.map((item, index) => (
@@ -310,13 +311,13 @@ export function LandingPage() {
         />
         <div className="relative mx-auto w-full max-w-6xl px-3 py-10 sm:px-6">
           <SectionHeading
-            eyebrow="Kabar komunitas"
-            title="Anggota yang siap didukung"
-            description="Profil Wonder Woman terverifikasi — lengkap dengan keahlian, target kebutuhan, dan cita-cita mereka."
+            eyebrow={t("landing.communityNews")}
+            title={t("landing.readyMembers")}
+            description={t("landing.readyDesc")}
             action={
               <Button asChild variant="outline">
                 <Link to="/jelajah">
-                  Lihat semua profil
+                  {t("landing.viewAllProfiles")}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
@@ -334,7 +335,7 @@ export function LandingPage() {
             </div>
           ) : (
             <p className="mt-8 rounded-2xl border border-dashed border-border bg-card/60 px-6 py-10 text-center text-sm text-muted-foreground">
-              Belum ada profil terverifikasi. Anggota baru akan tampil setelah diverifikasi admin.
+              {t("landing.noProfiles")}
             </p>
           )}
         </div>
@@ -343,9 +344,9 @@ export function LandingPage() {
       <section className="mx-auto grid w-full max-w-6xl gap-6 px-3 py-10 sm:gap-10 sm:px-6 lg:grid-cols-2">
         <div className="space-y-6">
           <SectionHeading
-            eyebrow="Akademi & pelatihan"
-            title="Program untuk naik kelas"
-            description="Akademi berjenjang, pelatihan keterampilan, seminar pengembangan diri, dan penempatan kerja."
+            eyebrow={t("landing.academyTitle")}
+            title={t("landing.academySubtitle")}
+            description={t("landing.academyDesc")}
           />
           {loading ? (
             <LoadingGrid count={2} className="lg:grid-cols-1" />
@@ -365,48 +366,48 @@ export function LandingPage() {
                       </p>
                     </div>
                     <Button asChild size="sm" variant="outline">
-                      <Link to="/program">Detail</Link>
+                      <Link to="/program">{t("landing.detail")}</Link>
                     </Button>
                   </CardContent>
                 </Card>
               ))}
               <Button asChild variant="ghost" className="self-start">
                 <Link to="/program">
-                  Semua program
+                  {t("landing.allPrograms")}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
             </div>
           ) : (
             <p className="rounded-2xl border border-dashed border-border bg-card/60 px-6 py-8 text-sm text-muted-foreground">
-              Program baru akan segera dibuka. Nantikan kelas perdana dari para penggerak komunitas.
+              {t("landing.noPrograms")}
             </p>
           )}
         </div>
 
         <div className="space-y-6">
           <SectionHeading
-            eyebrow="Agenda terbuka"
-            title="Event yang bisa Anda hadiri"
-            description="Event umum terbuka untuk siapa saja. Event anggota dan undangan tampil sesuai peran Anda."
+            eyebrow={t("landing.eventsTitle")}
+            title={t("landing.eventsSubtitle")}
+            description={t("landing.eventsDesc")}
           />
           {loading ? (
             <LoadingGrid count={2} className="lg:grid-cols-1" />
           ) : data && data.events.length > 0 ? (
             <div className="grid gap-4">
               {data.events.map((event) => (
-                <EventCard key={event.id} event={event} canRsvp={false} guestHint="Masuk untuk menyatakan kehadiran." />
+                <EventCard key={event.id} event={event} canRsvp={false} guestHint={t("landing.guestHint")} />
               ))}
               <Button asChild variant="ghost" className="self-start">
                 <Link to="/event">
-                  Semua event
+                  {t("landing.allEvents")}
                   <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </Button>
             </div>
           ) : (
             <p className="rounded-2xl border border-dashed border-border bg-card/60 px-6 py-8 text-sm text-muted-foreground">
-              Belum ada event umum yang dijadwalkan.
+              {t("landing.noEvents")}
             </p>
           )}
         </div>
@@ -426,20 +427,18 @@ export function LandingPage() {
             <div className="max-w-2xl space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-[#f7edd8] backdrop-blur-sm">
                 <Megaphone className="size-3.5" aria-hidden />
-                Untuk pengunjung & mitra
+                {t("landing.forVisitors")}
               </span>
               <h2 className="font-display text-2xl font-semibold text-[#fdf7f0] sm:text-3xl">
-                Dukungan Anda membuat target mereka tercapai
+                {t("landing.ctaTitle")}
               </h2>
               <p className="text-sm leading-relaxed text-[#efe1d6]/90 sm:text-base">
-                Buka profil anggota, lihat target kebutuhan dan keahlian mereka, lalu kirim komitmen dukungan — dana,
-                jasa, atau barang. Formulir komitmen terbuka tanpa akun, dan bersifat rahasia antar Anda dan tim
-                komunitas.
+                {t("landing.ctaDesc")}
               </p>
             </div>
             <Button asChild size="lg" className="shrink-0 bg-[#f7edd8] text-[#3c1f33] hover:bg-white">
               <Link to="/jelajah">
-                Mulai dari profil anggota
+                {t("landing.ctaButton")}
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             </Button>

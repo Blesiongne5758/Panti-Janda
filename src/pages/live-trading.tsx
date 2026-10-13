@@ -19,7 +19,7 @@ import { Link } from "@/lib/router";
 import { formatRupiah } from "@/lib/format";
 import { ROLE_RANK } from "@/lib/constants";
 import type { AppSettings } from "@/lib/types";
-import { useRealtimePrices, useStableCandles } from "@/lib/price-stream";
+import { useRealtimePrices, useTwelveDataPrices, useStableCandles } from "@/lib/price-stream";
 import type { Candle } from "@/lib/price-stream";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -97,6 +97,51 @@ const DEMO_FOREX = [
 ];
 
 type MarketKind = "saham" | "crypto" | "komoditas" | "forex";
+
+const LIVE_SYMBOLS: Record<MarketKind, { symbol: string; label: string; apiSymbol: string }[]> = {
+  saham: [
+    { symbol: "AAPL", label: "Apple", apiSymbol: "AAPL" },
+    { symbol: "GOOGL", label: "Google", apiSymbol: "GOOGL" },
+    { symbol: "MSFT", label: "Microsoft", apiSymbol: "MSFT" },
+    { symbol: "AMZN", label: "Amazon", apiSymbol: "AMZN" },
+    { symbol: "TSLA", label: "Tesla", apiSymbol: "TSLA" },
+    { symbol: "META", label: "Meta", apiSymbol: "META" },
+    { symbol: "NVDA", label: "NVIDIA", apiSymbol: "NVDA" },
+    { symbol: "JPM", label: "JPMorgan", apiSymbol: "JPM" },
+  ],
+  crypto: [
+    { symbol: "BTC/USD", label: "Bitcoin", apiSymbol: "BTC/USD" },
+    { symbol: "ETH/USD", label: "Ethereum", apiSymbol: "ETH/USD" },
+    { symbol: "SOL/USD", label: "Solana", apiSymbol: "SOL/USD" },
+    { symbol: "XRP/USD", label: "XRP", apiSymbol: "XRP/USD" },
+    { symbol: "DOGE/USD", label: "Dogecoin", apiSymbol: "DOGE/USD" },
+    { symbol: "ADA/USD", label: "Cardano", apiSymbol: "ADA/USD" },
+    { symbol: "AVAX/USD", label: "Avalanche", apiSymbol: "AVAX/USD" },
+    { symbol: "BNB/USD", label: "BNB", apiSymbol: "BNB/USD" },
+  ],
+  komoditas: [
+    { symbol: "XAU/USD", label: "Emas", apiSymbol: "XAU/USD" },
+    { symbol: "XAG/USD", label: "Perak", apiSymbol: "XAG/USD" },
+    { symbol: "USO", label: "Minyak (USO)", apiSymbol: "USO" },
+    { symbol: "UNG", label: "Gas Alam (UNG)", apiSymbol: "UNG" },
+    { symbol: "PPLT", label: "Platinum", apiSymbol: "PPLT" },
+    { symbol: "XLE", label: "Energi (XLE)", apiSymbol: "XLE" },
+    { symbol: "DBA", label: "Pertanian (DBA)", apiSymbol: "DBA" },
+  ],
+  forex: [
+    { symbol: "EUR/USD", label: "EUR/USD", apiSymbol: "EUR/USD" },
+    { symbol: "GBP/USD", label: "GBP/USD", apiSymbol: "GBP/USD" },
+    { symbol: "USD/JPY", label: "USD/JPY", apiSymbol: "USD/JPY" },
+    { symbol: "USD/CHF", label: "USD/CHF", apiSymbol: "USD/CHF" },
+    { symbol: "AUD/USD", label: "AUD/USD", apiSymbol: "AUD/USD" },
+    { symbol: "USD/CAD", label: "USD/CAD", apiSymbol: "USD/CAD" },
+    { symbol: "NZD/USD", label: "NZD/USD", apiSymbol: "NZD/USD" },
+  ],
+};
+
+function getLiveSymbols(market: MarketKind) {
+  return LIVE_SYMBOLS[market];
+}
 
 const DEMO_BALANCE = 100_000_000;
 
@@ -265,7 +310,7 @@ export default function LiveTradingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [market, setMarket] = useState<MarketKind>("saham");
-  const [selectedSymbol, setSelectedSymbol] = useState("IDX:IHSG");
+  const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [demoBalance, setDemoBalance] = useState(DEMO_BALANCE);
   const [demoPositions, setDemoPositions] = useState<DemoPosition[]>([]);
   const [demoTrades, setDemoTrades] = useState<DemoTrade[]>([]);
@@ -278,11 +323,15 @@ export default function LiveTradingPage() {
   const [slPrice, setSlPrice] = useState("");
   const [tpPrice, setTpPrice] = useState("");
 
-  const streamSymbols = (isDemo
-    ? getDemoSymbols(market).map((s) => ({ symbol: s.symbol, base: s.basePrice }))
-    : (settings?.symbols ?? []).filter((s) => s.enabled).map((s) => ({ symbol: s.symbol, base: 7000 })));
+  const demoStreamSymbols = getDemoSymbols(market).map((s) => ({ symbol: s.symbol, base: s.basePrice }));
+  const liveStreamSymbols = getLiveSymbols(market).map((s) => s.apiSymbol);
+  const apiKey = settings?.apiKey ?? "";
 
-  const { prices, status: priceStatus } = useRealtimePrices(streamSymbols);
+  const demoData = useRealtimePrices(isDemo ? demoStreamSymbols : []);
+  const LiveData = useTwelveDataPrices(!isDemo ? liveStreamSymbols : [], apiKey, selectedSymbol);
+  const activeData = isDemo ? demoData : LiveData;
+  const prices = activeData.prices;
+  const priceStatus = activeData.status;
   const stableCandles = useStableCandles(prices, selectedSymbol);
 
   const loadSettings = useCallback(async () => {
@@ -304,8 +353,12 @@ export default function LiveTradingPage() {
   }, []);
 
   useEffect(() => {
-    setSelectedSymbol(getDemoSymbols(market)[0].symbol);
-  }, [market]);
+    if (isDemo) {
+      setSelectedSymbol(getDemoSymbols(market)[0].symbol);
+    } else {
+      setSelectedSymbol(getLiveSymbols(market)[0].apiSymbol);
+    }
+  }, [market, isDemo]);
 
   useEffect(() => {
     if (!isDemo) return;
@@ -412,7 +465,10 @@ export default function LiveTradingPage() {
 
   const currentPrice = prices[selectedSymbol];
   const allDemoSym = getDemoSymbols(market);
-  const symInfo = allDemoSym.find((s) => s.symbol === selectedSymbol) ?? { label: selectedSymbol, basePrice: 0 };
+  const allLiveSym = getLiveSymbols(market);
+  const symInfo = isDemo
+    ? (allDemoSym.find((s) => s.symbol === selectedSymbol) ?? { label: selectedSymbol, basePrice: 0 })
+    : (allLiveSym.find((s) => s.apiSymbol === selectedSymbol) ?? { label: selectedSymbol, basePrice: 0 });
   const openPositions = demoPositions.filter((p) => p.status === "open");
   const closedPositions = demoPositions.filter((p) => p.status === "closed");
   const totalPnl = openPositions.reduce((sum, p) => sum + p.pnl, 0) + closedPositions.reduce((sum, p) => sum + p.pnl, 0);
@@ -495,7 +551,7 @@ export default function LiveTradingPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="border-gray-600 bg-gray-700">
-                  {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : (settings?.symbols ?? []).filter((s) => s.enabled).map((s) => ({ symbol: s.symbol, label: s.label }))).map((s) => (
+                  {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : allLiveSym.map((s) => ({ symbol: s.apiSymbol, label: s.label }))).map((s) => (
                     <SelectItem key={s.symbol} value={s.symbol} className="text-white focus:bg-gray-600 focus:text-white">
                       {s.label}
                     </SelectItem>
@@ -691,7 +747,7 @@ export default function LiveTradingPage() {
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Watchlist</h3>
             </div>
             <div className="divide-y divide-gray-700/50">
-              {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : (settings?.symbols ?? []).filter((s) => s.enabled).map((s) => ({ symbol: s.symbol, label: s.label }))).map((s) => {
+              {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : allLiveSym.map((s) => ({ symbol: s.apiSymbol, label: s.label }))).map((s) => {
                 const p = prices[s.symbol];
                 if (!p) return null;
                 const isSelected = selectedSymbol === s.symbol;
@@ -859,7 +915,7 @@ export default function LiveTradingPage() {
               </button>
               <div>
                 <h2 className="font-display text-lg font-semibold text-white">
-                  {isDemo ? symInfo.label : (settings?.symbols.find((s) => s.symbol === selectedSymbol)?.label ?? selectedSymbol)}
+                  {isDemo ? symInfo.label : (allLiveSym.find((s) => s.apiSymbol === selectedSymbol)?.label ?? selectedSymbol)}
                 </h2>
                 <p className="text-sm text-gray-400">
                   {formatPrice(midPrice, market)}

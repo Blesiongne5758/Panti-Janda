@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { useTranslation } from "@/lib/i18n-context";
 import { Link } from "@/lib/router";
 import { formatDate, formatRupiah, timeAgo } from "@/lib/format";
 import {
@@ -675,6 +676,7 @@ function SettingsDialog({ profile, onSaved }: { profile: Profile; onSaved: (next
 
 export default function DashboardPage() {
   const { ready, account, profile, setProfile, refresh } = useAuth();
+  const { t } = useTranslation();
   const [pledges, setPledges] = useState<PledgeItem[] | null>(null);
   const [donations, setDonations] = useState<DonationItem[] | null>(null);
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
@@ -939,24 +941,22 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {rank >= 3 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-display text-lg">
-              <Bot className="size-4 text-violet-600" aria-hidden />
-              AI Trading Agent
-            </CardTitle>
-            <CardDescription>
-              Agent trading otomatis berbasis AI yang menganalisis pasar dan mengeksekusi strategi sesuai parameter Anda.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild size="sm">
-              <Link to="/ai-agent">Kelola Agent</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
+            <Bot className="size-4 text-violet-600" aria-hidden />
+            {t("ai.title")}
+          </CardTitle>
+          <CardDescription>
+            {t("ai.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link to="/ai-agent">{t("ai.openCommand")}</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

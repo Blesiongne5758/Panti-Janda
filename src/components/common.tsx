@@ -32,30 +32,13 @@ const PUBLIC_BADGE_ICON: Record<"kades" | "walikota" | "gubernur" | "panglima" |
 
 export function PjLogo({ size = 36, className }: { size?: number; className?: string }) {
   return (
-    <svg
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <img
+      src="/images/logo-pj.png"
+      alt="Panti Janda"
       aria-hidden
       className={className}
-      style={{ width: size, height: size }}
-    >
-      <path d="M32 6L6 28h6v26h40V28h6L32 6z" fill="currentColor" />
-      <text
-        x="32"
-        y="47"
-        textAnchor="middle"
-        style={{
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
-          fontWeight: 800,
-          fontSize: 15,
-          letterSpacing: "0.5px",
-          fill: "var(--primary, #5b2a4e)",
-        }}
-      >
-        PJ
-      </text>
-    </svg>
+      style={{ width: size, height: size, objectFit: "contain" }}
+    />
   );
 }
 

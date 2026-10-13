@@ -11,6 +11,8 @@ import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
 import { TIER_META } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareVerificationDoc } from "@/lib/verify-doc";
+import { PjLogo } from "@/components/common";
+import { useTranslation } from "@/lib/i18n-context";
 import type { VerificationDocType } from "@/lib/types";
 
 const toList = (value: string) =>
@@ -25,6 +27,7 @@ type Kind = "member" | "public";
 export default function RegisterPage() {
   const { register } = useAuth();
   const { navigate } = useRoute();
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,7 +103,7 @@ export default function RegisterPage() {
     setNotice(null);
     if (!kind) return;
     if (kind === "member" && !doc) {
-      setError("Dokumen verifikasi wajib diunggah: foto KTP terbaru atau dokumen resmi pengadilan.");
+      setError(t("auth.docRequired"));
       return;
     }
     setBusy(true);
@@ -131,7 +134,7 @@ export default function RegisterPage() {
           : { kind, email: email.trim(), password, displayName: displayName.trim() };
       const result = await register(payload);
       if (result.bootstrap) {
-        setNotice("Akun ini terdaftar sebagai admin pertama platform. Kelola verifikasi anggota dari dasbor.");
+        setNotice(t("auth.adminNoticeFull"));
         navigate("/admin");
         return;
       }
@@ -144,24 +147,25 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-14">
-      <div className="text-center">
-        <h1 className="font-display text-3xl font-semibold">Bergabung dengan Panti Janda</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-4 py-14">
+      <PjLogo size={72} className="text-primary" />
+      <div className="w-full text-center">
+        <h1 className="font-display text-3xl font-semibold">{t("auth.registerTitle")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Pendaftaran dalam tiga langkah sederhana: buat akun, jawab pertanyaan, dan lengkapi data.
+          {t("auth.registerDesc")}
         </p>
       </div>
 
       {step === "account" && (
         <Card className="border-border/70">
           <CardHeader className="gap-1.5">
-            <CardTitle className="font-display text-xl">Langkah 1: Buat akun</CardTitle>
-            <CardDescription>Masukkan email dan kata sandi untuk memulai pendaftaran.</CardDescription>
+            <CardTitle className="font-display text-xl">{t("auth.stepAccount")}</CardTitle>
+            <CardDescription>{t("auth.stepAccountDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="flex flex-col gap-4" onSubmit={handleAccountSubmit}>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">{t("auth.email")} *</Label>
                 <Input
                   id="email"
                   type="email"
@@ -172,7 +176,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="password">Kata sandi * (minimal 8 karakter)</Label>
+                <Label htmlFor="password">{t("auth.passwordMin")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -193,7 +197,7 @@ export default function RegisterPage() {
               ) : null}
               <Button type="submit" className="w-full">
                 <ArrowRight className="size-4" />
-                Lanjut
+                {t("common.next")}
               </Button>
             </form>
           </CardContent>
@@ -203,13 +207,13 @@ export default function RegisterPage() {
       {step === "question" && (
         <Card className="border-border/70">
           <CardHeader className="gap-1.5">
-            <CardTitle className="font-display text-xl">Langkah 2: Status janda</CardTitle>
+            <CardTitle className="font-display text-xl">{t("auth.stepQuestion")}</CardTitle>
             <CardDescription>
-              Pertanyaan ini membantu kami menentukan jalur pendaftaran yang tepat untukmu.
+              {t("auth.stepQuestionDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <p className="text-sm font-medium">Apakah kamu saat ini berstatus janda?</p>
+            <p className="text-sm font-medium">{t("auth.widowQuestion")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Button
                 type="button"
@@ -219,9 +223,9 @@ export default function RegisterPage() {
               >
                 <Flower2 className="size-5 text-primary" />
                 <div>
-                  <p className="font-semibold">Ya, saya janda</p>
+                  <p className="font-semibold">{t("auth.yesWidow")}</p>
                   <p className="text-xs text-muted-foreground">
-                    Daftar sebagai anggota untuk tampil di komunitas dan menerima dukungan
+                    {t("auth.yesWidowDesc")}
                   </p>
                 </div>
               </Button>
@@ -233,9 +237,9 @@ export default function RegisterPage() {
               >
                 <UserPlus className="size-5 text-primary" />
                 <div>
-                  <p className="font-semibold">Tidak, saya bukan janda</p>
+                  <p className="font-semibold">{t("auth.noWidow")}</p>
                   <p className="text-xs text-muted-foreground">
-                    Daftar sebagai pendukung untuk menjelajahi profil dan menyalurkan bantuan
+                    {t("auth.noWidowDesc")}
                   </p>
                 </div>
               </Button>
@@ -247,7 +251,7 @@ export default function RegisterPage() {
             ) : null}
             <Button type="button" variant="ghost" onClick={goBack} className="w-fit">
               <ArrowLeft className="size-4" />
-              Kembali
+              {t("common.back")}
             </Button>
           </CardContent>
         </Card>
@@ -257,18 +261,16 @@ export default function RegisterPage() {
         <Card className="border-border/70">
           <CardHeader className="gap-1.5">
             <CardTitle className="font-display text-xl">
-              Langkah 3: Profil anggota — tier {TIER_META.wonder_woman.label}
+              {t("auth.stepMember")} — tier {TIER_META.wonder_woman.label}
             </CardTitle>
             <CardDescription>
-              Isi data dengan jujur. Nama lengkap dan dokumen hanya untuk verifikasi admin — yang tampil
-              publik hanya nama panggilan. Setelah mendaftar, profil berstatus menunggu dan diverifikasi
-              admin sebelum tampil di jelajah.
+              {t("auth.stepMemberDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
               <div className="flex flex-col gap-2 sm:col-span-2">
-                <Label htmlFor="m-fullname">Nama lengkap *</Label>
+                <Label htmlFor="m-fullname">{t("auth.fullName")}</Label>
                 <Input
                   id="m-fullname"
                   required
@@ -277,15 +279,14 @@ export default function RegisterPage() {
                   autoComplete="name"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Sesuai identitas resmi"
+                  placeholder={t("auth.fullNamePlaceholder")}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Hanya untuk verifikasi admin, tidak pernah tampil publik. Nama panggilan di bawah ini
-                  yang menjadi nama pengguna publikmu.
+                  {t("auth.fullNameNote")}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:col-span-2">
-                <Label htmlFor="m-nickname">Nama panggilan (nama pengguna) *</Label>
+                <Label htmlFor="m-nickname">{t("auth.nickname")}</Label>
                 <Input
                   id="m-nickname"
                   required
@@ -293,16 +294,16 @@ export default function RegisterPage() {
                   maxLength={40}
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
-                  placeholder="Contoh: Ibu Sari"
+                  placeholder={t("auth.nicknamePlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-city">Kota</Label>
+                <Label htmlFor="m-city">{t("auth.city")}</Label>
                 <Input id="m-city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Bandung" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="m-age">Umur</Label>
+                  <Label htmlFor="m-age">{t("auth.age")}</Label>
                   <Input
                     id="m-age"
                     type="number"
@@ -313,7 +314,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="m-dependents">Tanggungan</Label>
+                  <Label htmlFor="m-dependents">{t("auth.dependents")}</Label>
                   <Input
                     id="m-dependents"
                     type="number"
@@ -325,92 +326,90 @@ export default function RegisterPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-job">Status pekerjaan</Label>
+                <Label htmlFor="m-job">{t("auth.employmentStatus")}</Label>
                 <Input
                   id="m-job"
                   value={employmentStatus}
                   onChange={(event) => setEmploymentStatus(event.target.value)}
-                  placeholder="Ibu rumah tangga / wirausaha / serabutan"
+                  placeholder={t("auth.employmentPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-skills">Skill (pisahkan dengan koma)</Label>
+                <Label htmlFor="m-skills">{t("auth.skills")}</Label>
                 <Input
                   id="m-skills"
                   value={skills}
                   onChange={(event) => setSkills(event.target.value)}
-                  placeholder="menjahit, memasak, merangkai bunga"
+                  placeholder={t("auth.skillsPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-trainings">Pelatihan yang pernah diikuti</Label>
+                <Label htmlFor="m-trainings">{t("auth.trainings")}</Label>
                 <Input
                   id="m-trainings"
                   value={trainings}
                   onChange={(event) => setTrainings(event.target.value)}
-                  placeholder="kursus tata boga, pelatihan UMKM"
+                  placeholder={t("auth.trainingsPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-interests">Minat pekerjaan/usaha</Label>
+                <Label htmlFor="m-interests">{t("auth.interests")}</Label>
                 <Input
                   id="m-interests"
                   value={interests}
                   onChange={(event) => setInterests(event.target.value)}
-                  placeholder="kuliner rumahan, butik kecil"
+                  placeholder={t("auth.interestsPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-needs">Target kebutuhan</Label>
+                <Label htmlFor="m-needs">{t("auth.needsTarget")}</Label>
                 <Input
                   id="m-needs"
                   value={needsTarget}
                   onChange={(event) => setNeedsTarget(event.target.value)}
-                  placeholder="modal usaha Rp5 juta"
+                  placeholder={t("auth.needsPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-main">Target utama</Label>
+                <Label htmlFor="m-main">{t("auth.mainTarget")}</Label>
                 <Input
                   id="m-main"
                   value={mainTarget}
                   onChange={(event) => setMainTarget(event.target.value)}
-                  placeholder="membuka warung sendiri"
+                  placeholder={t("auth.mainTargetPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="m-funding">Info pendanaan</Label>
+                <Label htmlFor="m-funding">{t("auth.fundingInfo")}</Label>
                 <Input
                   id="m-funding"
                   value={fundingInfo}
                   onChange={(event) => setFundingInfo(event.target.value)}
-                  placeholder="rekening penampung / kontak pendukung"
+                  placeholder={t("auth.fundingPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-2 sm:col-span-2">
-                <Label htmlFor="m-bio">Cerita singkat</Label>
+                <Label htmlFor="m-bio">{t("auth.bio")}</Label>
                 <Textarea
                   id="m-bio"
                   rows={3}
                   maxLength={1200}
                   value={bio}
                   onChange={(event) => setBio(event.target.value)}
-                  placeholder="Ceritakan kondisi dan harapanmu — akan tampil di profil publik dengan nama panggilan."
+                  placeholder={t("auth.bioPlaceholder")}
                 />
               </div>
               <div className="flex flex-col gap-3 rounded-2xl border border-border bg-secondary/40 p-4 sm:col-span-2">
                 <div>
-                  <Label>Dokumen verifikasi *</Label>
+                  <Label>{t("auth.verificationDoc")}</Label>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Unggah foto KTP terbaru atau dokumen resmi status janda dari pengadilan. Berkas
-                    dipadatkan di perangkatmu dan hanya dilihat admin untuk verifikasi — tidak pernah
-                    tampil di profil publik.
+                    {t("auth.verificationDocDesc")}
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="sm:w-64">
                     <Select value={docType} onValueChange={(value) => setDocType(value as VerificationDocType)}>
-                      <SelectTrigger aria-label="Jenis dokumen">
+                      <SelectTrigger aria-label={t("auth.docTypeLabel")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -428,7 +427,7 @@ export default function RegisterPage() {
                     ) : (
                       <FileUp className="size-4" aria-hidden />
                     )}
-                    {doc ? "Ganti gambar" : "Pilih gambar (maks 8 MB)"}
+                    {doc ? t("auth.changeImage") : t("auth.chooseImage")}
                     <input
                       type="file"
                       accept="image/*"
@@ -442,17 +441,17 @@ export default function RegisterPage() {
                   <div className="flex items-center gap-3 rounded-xl border border-border bg-background p-2">
                     <img
                       src={doc.dataUrl}
-                      alt="Pratinjau dokumen verifikasi"
+                      alt={t("auth.docPreview")}
                       className="size-14 rounded-lg border border-border object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{doc.fileName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {docKb(doc.dataUrl)} KB · siap diunggah
+                        {docKb(doc.dataUrl)} KB · {t("auth.readyToUpload")}
                       </p>
                     </div>
                     <Button type="button" variant="ghost" size="sm" onClick={() => setDoc(null)} disabled={docBusy}>
-                      Hapus
+                      {t("common.delete")}
                     </Button>
                   </div>
                 ) : null}
@@ -473,11 +472,11 @@ export default function RegisterPage() {
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="button" variant="outline" onClick={goBack} disabled={busy}>
                   <ArrowLeft className="size-4" />
-                  Kembali
+                  {t("common.back")}
                 </Button>
                 <Button type="submit" disabled={busy} className="flex-1">
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-                  Daftar & ajukan verifikasi
+                  {t("auth.submitVerify")}
                 </Button>
               </div>
             </form>
@@ -488,17 +487,15 @@ export default function RegisterPage() {
       {step === "form" && kind === "public" && (
         <Card className="border-border/70">
           <CardHeader className="gap-1.5">
-            <CardTitle className="font-display text-xl">Langkah 3: Akun non janda</CardTitle>
+            <CardTitle className="font-display text-xl">{t("auth.stepPublic")}</CardTitle>
             <CardDescription>
-              Untuk pendukung: jelajahi profil {TIER_META.wonder_woman.label}, ikut program terbuka, berkomentar,
-              melaporkan konten, dan menyalurkan dukungan. Komentar serta pendaftaran program terbuka untuk
-              akun non janda.
+              {t("auth.stepPublicDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="flex flex-col gap-4" onSubmit={submit}>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="p-name">Nama tampilan *</Label>
+                <Label htmlFor="p-name">{t("auth.displayName")}</Label>
                 <Input
                   id="p-name"
                   required
@@ -506,7 +503,7 @@ export default function RegisterPage() {
                   maxLength={60}
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="Nama atau panggilanmu"
+                  placeholder={t("auth.displayNamePlaceholder")}
                 />
               </div>
               {error ? (
@@ -520,11 +517,11 @@ export default function RegisterPage() {
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={goBack} disabled={busy}>
                   <ArrowLeft className="size-4" />
-                  Kembali
+                  {t("common.back")}
                 </Button>
                 <Button type="submit" disabled={busy} className="flex-1">
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
-                  Daftar akun non janda
+                  {t("auth.submitPublic")}
                 </Button>
               </div>
             </form>
@@ -533,9 +530,9 @@ export default function RegisterPage() {
       )}
 
       <p className="text-center text-sm text-muted-foreground">
-        Sudah punya akun?{" "}
+        {t("auth.hasAccount")}{" "}
         <Link to="/masuk" className="font-medium text-primary underline-offset-4 hover:underline">
-          Masuk di sini
+          {t("auth.loginLink")}
         </Link>
       </p>
     </div>

@@ -1,106 +1,124 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUpRight,
-  ArrowDownRight,
-  Bitcoin,
   Bot,
-  Globe,
-  Info,
   Loader2,
-  Package,
-  Play,
+  Volume2,
+  VolumeX,
+  Mic,
+  Speaker,
   Settings,
-  Square,
-  TrendingUp,
-  Zap,
+  Plus,
+  Edit2,
+  Trash2,
+  BookOpen,
+  Server,
+  Cpu,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { useTranslation } from "@/lib/i18n-context";
 import { Link } from "@/lib/router";
-import { formatRupiah } from "@/lib/format";
-import { ROLE_RANK } from "@/lib/constants";
-import type { AppSettings } from "@/lib/types";
+import type { AppSettings, SubAgentConfig, TradingServerConfig, AiPromptTemplate } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { AccountGate, Chip } from "@/components/common";
+import { AccountGate } from "@/components/common";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { toast } from "sonner";
 
-interface AgentSignal {
-  id: string;
-  symbol: string;
-  action: "buy" | "sell" | "hold";
-  confidence: number;
-  reason: string;
-  timestamp: string;
-  executed: boolean;
+interface LogEntry {
+  time: string;
+  kind: "info" | "ok" | "warn";
+  agent: string;
+  msg: string;
 }
 
-const MOCK_SIGNALS: AgentSignal[] = [
-  { id: "s1", symbol: "IDX:IHSG", action: "buy", confidence: 0.82, reason: "Momentum bullish terdeteksi, volume meningkat 40%", timestamp: new Date(Date.now() - 300000).toISOString(), executed: true },
-  { id: "s2", symbol: "IDX:BBCA", action: "hold", confidence: 0.65, reason: "Konsolidasi di area support, tunggu breakout", timestamp: new Date(Date.now() - 600000).toISOString(), executed: false },
-  { id: "s3", symbol: "IDX:BBRI", action: "sell", confidence: 0.74, reason: "RSI overbought, potensi koreksi jangka pendek", timestamp: new Date(Date.now() - 900000).toISOString(), executed: true },
-  { id: "s4", symbol: "IDX:TLKM", action: "buy", confidence: 0.71, reason: "Pola double bottom terkonfirmasi", timestamp: new Date(Date.now() - 1200000).toISOString(), executed: false },
-  { id: "s5", symbol: "IDX:BMRI", action: "buy", confidence: 0.88, reason: "Breakout resistance dengan volume tinggi", timestamp: new Date(Date.now() - 1500000).toISOString(), executed: true },
-  { id: "s6", symbol: "IDX:GOTO", action: "sell", confidence: 0.69, reason: "Trend bearish, MA crossover terdeteksi", timestamp: new Date(Date.now() - 1800000).toISOString(), executed: false },
+interface ChatMessage {
+  id: string;
+  text: string;
+  isUser: boolean;
+  timestamp: number;
+}
+
+const LOG_MESSAGES: Array<["info" | "ok" | "warn", string, string]> = [
+  ["info", "Market Scanner", "Memindai perubahan volatilitas aset demo"],
+  ["ok", "Risk Manager", "Semua batas risiko simulasi dalam rentang aman"],
+  ["info", "News Analyzer", "Memproses sentimen berita contoh"],
+  ["ok", "Data Aggregator", "Feed simulasi berhasil disinkronkan"],
+  ["info", "Watchdog", "Health check seluruh modul selesai"],
+  ["warn", "Sniffer", "Lonjakan volume contoh terdeteksi; ditandai untuk review"],
+  ["ok", "Backtester", "Batch pengujian historis demo selesai"],
+  ["info", "Portfolio Manager", "Memperbarui alokasi portofolio virtual"],
+  ["ok", "Server Monitor", "Endpoint demo merespons normal"],
+  ["info", "Trading Executor", "Menunggu persetujuan; tidak ada order nyata"],
+  ["info", "Wallet Monitor", "Memindai pergerakan whale wallet"],
+  ["ok", "Social Sentinel", "Sentimen Telegram dan X/Twitter terkumpul"],
+  ["warn", "Copy Trader", "Sinyal copy trading terdeteksi dari trader top"],
 ];
 
-const MOCK_CRYPTO_SIGNALS: AgentSignal[] = [
-  { id: "c1", symbol: "BTC:USDT", action: "buy", confidence: 0.85, reason: "Breakout di atas resistance $68K, volume meningkat", timestamp: new Date(Date.now() - 250000).toISOString(), executed: true },
-  { id: "c2", symbol: "ETH:USDT", action: "buy", confidence: 0.78, reason: "Pola bull flag terkonfirmasi di timeframe 4H", timestamp: new Date(Date.now() - 500000).toISOString(), executed: true },
-  { id: "c3", symbol: "SOL:USDT", action: "sell", confidence: 0.72, reason: "RSI overbought di H4, potensi koreksi jangka pendek", timestamp: new Date(Date.now() - 750000).toISOString(), executed: false },
-  { id: "c4", symbol: "BNB:USDT", action: "hold", confidence: 0.61, reason: "Konsolidasi di area $575-$585, tunggu breakout", timestamp: new Date(Date.now() - 1000000).toISOString(), executed: false },
-  { id: "c5", symbol: "XRP:USDT", action: "buy", confidence: 0.67, reason: "Pola ascending triangle, target $0.65", timestamp: new Date(Date.now() - 1300000).toISOString(), executed: true },
-  { id: "c6", symbol: "DOGE:USDT", action: "sell", confidence: 0.70, reason: "Death cross pada MA20/MA50, momentum bearish", timestamp: new Date(Date.now() - 1600000).toISOString(), executed: false },
+const FEATURES = [
+  { key: "chat", label: "CHAT", desc: "Perintah dan respons berbasis teks.", defaultOn: true },
+  { key: "voice", label: "VOICE", desc: "Input suara dan text-to-speech browser.", defaultOn: false },
+  { key: "analysis", label: "ANALYSIS", desc: "Grafik dan indikator demo bergerak.", defaultOn: true },
+  { key: "sniffer", label: "SNIFFER", desc: "Memantau event simulasi dan anomali.", defaultOn: true },
+  { key: "watchdog", label: "WATCHDOG", desc: "Health check dan peringatan simulasi.", defaultOn: true },
 ];
 
-const MOCK_COMMODITY_SIGNALS: AgentSignal[] = [
-  { id: "k1", symbol: "COM:GOLD", action: "buy", confidence: 0.84, reason: "Emas menembus resistance $2.350, permintaan safe-haven meningkat", timestamp: new Date(Date.now() - 280000).toISOString(), executed: true },
-  { id: "k2", symbol: "COM:OIL", action: "sell", confidence: 0.73, reason: "Stok minyak naik, tekanan bearish pada harga", timestamp: new Date(Date.now() - 520000).toISOString(), executed: true },
-  { id: "k3", symbol: "COM:SILVER", action: "buy", confidence: 0.76, reason: "Pola double bottom di timeframe daily, potensi rally", timestamp: new Date(Date.now() - 780000).toISOString(), executed: false },
-  { id: "k4", symbol: "COM:CPO", action: "hold", confidence: 0.62, reason: "Konsolidasi di area support, tunggu data ekspor", timestamp: new Date(Date.now() - 1050000).toISOString(), executed: false },
-  { id: "k5", symbol: "COM:COPPER", action: "buy", confidence: 0.79, reason: "Permintaan industri meningkat, stok menipis", timestamp: new Date(Date.now() - 1350000).toISOString(), executed: true },
-  { id: "k6", symbol: "COM:GAS", action: "sell", confidence: 0.68, reason: "Musim hangat mengurangi permintaan, tren bearish", timestamp: new Date(Date.now() - 1650000).toISOString(), executed: false },
-];
-
-const MOCK_FOREX_SIGNALS: AgentSignal[] = [
-  { id: "f1", symbol: "FX:EURUSD", action: "buy", confidence: 0.83, reason: "EUR menguat setelah data inflasi zona euro di atas ekspektasi", timestamp: new Date(Date.now() - 260000).toISOString(), executed: true },
-  { id: "f2", symbol: "FX:GBPUSD", action: "buy", confidence: 0.77, reason: "Pola head and shoulders terkonfirmasi, target 1.2800", timestamp: new Date(Date.now() - 510000).toISOString(), executed: true },
-  { id: "f3", symbol: "FX:USDJPY", action: "sell", confidence: 0.75, reason: "BOJ sinyal hawkish, yen berpotensi menguat", timestamp: new Date(Date.now() - 770000).toISOString(), executed: false },
-  { id: "f4", symbol: "FX:AUDUSD", action: "hold", confidence: 0.60, reason: "Konsolidasi di area 0.6500-0.6600, tunggu data RBA", timestamp: new Date(Date.now() - 1020000).toISOString(), executed: false },
-  { id: "f5", symbol: "FX:USDIDR", action: "sell", confidence: 0.71, reason: "BI intervensi memperkuat Rupiah, tren bearish USD/IDR", timestamp: new Date(Date.now() - 1320000).toISOString(), executed: true },
-  { id: "f6", symbol: "FX:USDCAD", action: "buy", confidence: 0.69, reason: "Minyak turun melemahkan CAD, USD/CAD berpotensi naik", timestamp: new Date(Date.now() - 1620000).toISOString(), executed: false },
-];
-
-type MarketKind = "saham" | "crypto" | "komoditas" | "forex";
-
-const ACTION_META: Record<string, { label: string; color: string; bg: string }> = {
-  buy: { label: "BUY", color: "text-emerald-700", bg: "bg-emerald-100" },
-  sell: { label: "SELL", color: "text-rose-700", bg: "bg-rose-100" },
-  hold: { label: "HOLD", color: "text-amber-700", bg: "bg-amber-100" },
-};
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "baru saja";
-  if (mins < 60) return `${mins} menit lalu`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} jam lalu`;
-  return `${Math.floor(hours / 24)} hari lalu`;
+function formatTime(): string {
+  return new Date().toLocaleTimeString("id-ID", { hour12: false });
 }
 
 export default function AiAgentPage() {
   const { ready, account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<AppSettings["aiTradingAgent"] | null>(null);
-  const [market, setMarket] = useState<MarketKind>("saham");
-  const [signals, setSignals] = useState<AgentSignal[]>(MOCK_SIGNALS);
   const [error, setError] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logFilter, setLogFilter] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      text: "Sistem visual aktif. Coba perintah status, analisis, risiko, atau bantuan.",
+      isUser: false,
+      timestamp: Date.now(),
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [features, setFeatures] = useState<Record<string, boolean>>(
+    Object.fromEntries(FEATURES.map((f) => [f.key, f.defaultOn]))
+  );
+  const [signals, setSignals] = useState(1284);
+  const [signalDelta, setSignalDelta] = useState(8.4);
+  const [marketValue, setMarketValue] = useState(68420.8);
+  const [riskLevel, setRiskLevel] = useState<"LOW" | "ELEVATED">("LOW");
+  const [uptime, setUptime] = useState(99.98);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const chartDataRef = useRef<number[]>([]);
+  const signalDataRef = useRef<number[]>([]);
+  const tickRef = useRef(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const [subAgents, setSubAgents] = useState<SubAgentConfig[]>([]);
+  const [tradingServers, setTradingServers] = useState<TradingServerConfig[]>([]);
+  const [promptLibrary, setPromptLibrary] = useState<AiPromptTemplate[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showPrompts, setShowPrompts] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<AiPromptTemplate | null>(null);
 
   const loadSettings = useCallback(async () => {
     try {
-      const res = await api<{ aiTradingAgent: AppSettings["aiTradingAgent"] }>("aiTradingAgent.settings");
-      setSettings(res.aiTradingAgent);
+      const [settingsRes, agentsRes, serversRes, promptsRes] = await Promise.all([
+        api<{ aiTradingAgent: AppSettings["aiTradingAgent"] }>("aiTradingAgent.settings"),
+        api<{ subAgents: SubAgentConfig[] }>("aiTradingAgent.subAgents.list"),
+        api<{ tradingServers: TradingServerConfig[] }>("aiTradingAgent.servers.list"),
+        api<{ prompts: AiPromptTemplate[] }>("aiTradingAgent.prompts.list"),
+      ]);
+      setSettings(settingsRes.aiTradingAgent);
+      setSubAgents(agentsRes.subAgents);
+      setTradingServers(serversRes.tradingServers);
+      setPromptLibrary(promptsRes.prompts);
     } catch (err) {
       setError(errorText(err));
     }
@@ -110,81 +128,315 @@ export default function AiAgentPage() {
     void loadSettings();
   }, [loadSettings]);
 
+  const addLog = useCallback((kind: "info" | "ok" | "warn", agent: string, msg: string) => {
+    setLogs((prev) => {
+      const newLog: LogEntry = { time: formatTime(), kind, agent, msg };
+      return [newLog, ...prev].slice(0, 70);
+    });
+    if (soundOn) {
+      try {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = audioCtxRef.current;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = kind === "warn" ? 660 : 440;
+        osc.type = "sine";
+        gain.gain.value = 0.025;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.045);
+        osc.stop(ctx.currentTime + 0.045);
+      } catch (e) {
+        // Audio not supported
+      }
+    }
+  }, [soundOn]);
+
+  const handleCommand = useCallback((query: string) => {
+    const q = query.toLowerCase();
+    const userMsg: ChatMessage = {
+      id: `user_${Date.now()}`,
+      text: query,
+      isUser: true,
+      timestamp: Date.now(),
+    };
+    let reply: string;
+
+    if (/bantuan|help|perintah/.test(q)) {
+      reply = 'Perintah tersedia: status, analisis, risiko, server, sniffer, watchdog, pause, resume. Ini antarmuka demo, bukan sistem eksekusi order.';
+    } else if (/risiko|risk/.test(q)) {
+      reply = 'Risk Manager demo aktif. Gunakan batas posisi, stop-loss, dan validasi sebelum menghubungkan sistem nyata; angka risiko di sini bukan hasil analisis pasar live.';
+    } else if (/analisis|analysis|market|btc|eth/.test(q)) {
+      reply = 'Analisis demo: grafik bergerak dari data sintetis. Belum ada harga live, sinyal investasi, atau rekomendasi transaksi.';
+    } else if (/server|exchange|binance|bybit|okx|bitget/.test(q)) {
+      reply = 'Lima kartu server adalah placeholder visual. Untuk koneksi sungguhan, siapkan backend aman, API resmi, penyimpanan secret, serta monitoring koneksi.';
+    } else if (/sniffer|watchdog|monitor/.test(q)) {
+      reply = 'Sniffer dan Watchdog sedang menghasilkan event simulasi lokal. Tidak membaca jaringan, akun, atau proses eksternal.';
+    } else if (/pause|berhenti|stop/.test(q)) {
+      setPaused(true);
+      reply = 'Animasi data dihentikan sementara. Klik Resume simulation untuk melanjutkan.';
+    } else if (/resume|lanjut|mulai/.test(q)) {
+      setPaused(false);
+      reply = 'Simulasi visual dilanjutkan.';
+    } else if (/status/.test(q)) {
+      const activeFeatures = Object.values(features).filter(Boolean).length;
+      reply = `Status demo: 7 sub-agent visual aktif, 5 server placeholder, fitur inti ${activeFeatures}/5 aktif. Tidak ada broker yang terhubung.`;
+    } else {
+      reply = 'Perintah diterima dalam mode demo. Ketik "bantuan" untuk melihat daftar perintah yang tersedia.';
+    }
+
+    const botMsg: ChatMessage = {
+      id: `bot_${Date.now()}`,
+      text: reply,
+      isUser: false,
+      timestamp: Date.now(),
+    };
+
+    setChatMessages((prev) => [...prev, userMsg, botMsg]);
+    addLog("info", "Chat", `Perintah diterima: ${query.slice(0, 70)}`);
+  }, [features, addLog]);
+
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (chatInput.trim()) {
+      handleCommand(chatInput.trim());
+      setChatInput("");
+    }
+  };
+
+  const handleVoiceInput = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      toast.error("Voice input tidak didukung. Coba Chrome dan izinkan mikrofon.");
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = "id-ID";
+    recognition.onstart = () => toast.info("Mendengarkan...");
+    recognition.onerror = () => toast.error("Voice input gagal atau izin mikrofon ditolak");
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setChatInput(transcript);
+      handleCommand(transcript);
+    };
+    recognition.start();
+  };
+
+  const handleSpeak = () => {
+    if (!("speechSynthesis" in window)) {
+      toast.error("Text-to-speech tidak didukung browser ini");
+      return;
+    }
+    const lastBotMsg = [...chatMessages].reverse().find((m) => !m.isUser);
+    if (lastBotMsg) {
+      const utterance = new SpeechSynthesisUtterance(lastBotMsg.text);
+      utterance.lang = "id-ID";
+      speechSynthesis.speak(utterance);
+    }
+  };
+
+  const toggleFeature = (key: string) => {
+    setFeatures((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      const enabled = next[key];
+      addLog(enabled ? "ok" : "warn", key.toUpperCase(), enabled ? "Modul visual diaktifkan" : "Modul visual dinonaktifkan");
+      toast.success(`${key.toUpperCase()}: ${enabled ? "enabled" : "disabled"}`);
+      return next;
+    });
+  };
+
+  const toggleSubAgent = async (agentId: string) => {
+    const agent = subAgents.find((a) => a.id === agentId);
+    if (!agent) return;
+    try {
+      await api("aiTradingAgent.subAgents.update", { id: agentId, enabled: !agent.enabled });
+      setSubAgents((prev) => prev.map((a) => a.id === agentId ? { ...a, enabled: !a.enabled } : a));
+      toast.success(`${agent.name}: ${!agent.enabled ? "enabled" : "disabled"}`);
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  };
+
+  const toggleServer = async (serverId: string) => {
+    const server = tradingServers.find((s) => s.id === serverId);
+    if (!server) return;
+    try {
+      await api("aiTradingAgent.servers.update", { id: serverId, enabled: !server.enabled });
+      setTradingServers((prev) => prev.map((s) => s.id === serverId ? { ...s, enabled: !s.enabled } : s));
+      toast.success(`${server.name}: ${!server.enabled ? "enabled" : "disabled"}`);
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  };
+
+  const deletePrompt = async (promptId: string) => {
+    try {
+      await api("aiTradingAgent.prompts.delete", { id: promptId });
+      setPromptLibrary((prev) => prev.filter((p) => p.id !== promptId));
+      toast.success("Prompt dihapus");
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  };
+
+  const savePrompt = async (prompt: Partial<AiPromptTemplate>) => {
+    try {
+      if (prompt.id) {
+        const res = await api<{ prompt: AiPromptTemplate }>("aiTradingAgent.prompts.update", prompt);
+        setPromptLibrary((prev) => prev.map((p) => p.id === res.prompt.id ? res.prompt : p));
+        toast.success("Prompt diperbarui");
+      } else {
+        const res = await api<{ prompt: AiPromptTemplate }>("aiTradingAgent.prompts.create", prompt);
+        setPromptLibrary((prev) => [...prev, res.prompt]);
+        toast.success("Prompt dibuat");
+      }
+      setEditingPrompt(null);
+    } catch (err) {
+      toast.error(errorText(err));
+    }
+  };
+
+  // Chart animation
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if (chartDataRef.current.length === 0) {
+      chartDataRef.current = Array.from({ length: 70 }, (_, i) => 50 + Math.sin(i * 0.25) * 9 + Math.random() * 8);
+      signalDataRef.current = Array.from({ length: 70 }, (_, i) => 35 + Math.cos(i * 0.2) * 10 + Math.random() * 9);
+    }
+
+    const drawChart = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.strokeStyle = "rgba(96,153,207,.13)";
+      ctx.lineWidth = 1;
+      for (let y = 15; y < h; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      for (let x = 0; x < w; x += 45) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      const drawLine = (arr: number[], color: string, fill: boolean) => {
+        ctx.beginPath();
+        arr.forEach((v, i) => {
+          const x = (i / (arr.length - 1)) * w;
+          const y = h - 10 - (v / 100) * (h - 22);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        if (fill) {
+          ctx.lineTo(w, h);
+          ctx.lineTo(0, h);
+          ctx.closePath();
+          const g = ctx.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, "rgba(60,225,255,.22)");
+          g.addColorStop(1, "rgba(60,225,255,0)");
+          ctx.fillStyle = g;
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.7;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = color;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+      };
+
+      drawLine(chartDataRef.current, "#56e7ff", true);
+      drawLine(chartDataRef.current, "#56e7ff", false);
+      drawLine(signalDataRef.current, "#b36cff", false);
+
+      const x = w - 5;
+      const y = h - 10 - (chartDataRef.current[chartDataRef.current.length - 1] / 100) * (h - 22);
+      ctx.fillStyle = "#bafaff";
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    let animationId: number;
+    const animate = () => {
+      if (!paused) {
+        tickRef.current++;
+        const lastData = chartDataRef.current[chartDataRef.current.length - 1];
+        const lastSignal = signalDataRef.current[signalDataRef.current.length - 1];
+        chartDataRef.current.push(Math.max(12, Math.min(90, lastData + (Math.random() - 0.48) * 8)));
+        chartDataRef.current.shift();
+        signalDataRef.current.push(Math.max(10, Math.min(85, lastSignal + (Math.random() - 0.5) * 12)));
+        signalDataRef.current.shift();
+        drawChart();
+
+        if (tickRef.current % 8 === 0) {
+          setSignals(1284 + Math.floor(tickRef.current * 1.7));
+          setSignalDelta(8.4 + Math.sin(tickRef.current / 5) * 1.3);
+          setMarketValue(68420.8 + Math.sin(tickRef.current / 4) * 125 + tickRef.current * 0.7);
+
+          if (Math.random() > 0.35) {
+            const item = LOG_MESSAGES[Math.floor(Math.random() * LOG_MESSAGES.length)];
+            addLog(item[0], item[1], item[2]);
+          }
+        }
+      }
+      animationId = requestAnimationFrame(animate);
+    };
+
+    drawChart();
+    animationId = requestAnimationFrame(animate);
+
+    const handleResize = () => drawChart();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [paused, addLog]);
+
+  // Initial logs
+  useEffect(() => {
+    for (let i = 0; i < 7; i++) {
+      const item = LOG_MESSAGES[i];
+      addLog(item[0], item[1], item[2]);
+    }
+  }, [addLog]);
+
+  // Clock and uptime
   useEffect(() => {
     const interval = setInterval(() => {
-      setSignals((prev) => {
-        const symbols = market === "crypto"
-          ? ["BTC:USDT", "ETH:USDT", "BNB:USDT", "SOL:USDT", "XRP:USDT", "DOGE:USDT"]
-          : market === "komoditas"
-            ? ["COM:GOLD", "COM:SILVER", "COM:OIL", "COM:GAS", "COM:COPPER", "COM:CPO"]
-            : market === "forex"
-              ? ["FX:EURUSD", "FX:GBPUSD", "FX:USDJPY", "FX:AUDUSD", "FX:USDIDR", "FX:USDCAD"]
-              : ["IDX:IHSG", "IDX:BBCA", "IDX:BBRI", "IDX:TLKM", "IDX:BMRI"];
-        const actions: ("buy" | "sell" | "hold")[] = ["buy", "sell", "hold"];
-        const reasons = market === "crypto"
-          ? [
-              "Breakout di atas resistance, volume meningkat",
-              "Pola bull flag terkonfirmasi di timeframe 4H",
-              "RSI overbought, potensi koreksi jangka pendek",
-              "Support kuat teruji, potensi rebound",
-              "MACD crossover bullish di H4",
-              "Divergence bearish pada RSI daily",
-              "Pola ascending triangle terkonfirmasi",
-              "Death cross pada MA20/MA50",
-            ]
-          : market === "komoditas"
-            ? [
-                "Permintaan global meningkat, stok menipis",
-                "Pola double bottom terkonfirmasi di daily",
-                "Data inventaris mingguan menunjukkan penarikan stok",
-                "Konsolidasi di area support kunci",
-                "Musim permintaan tinggi, potensi rally",
-                "Divergence bearish pada RSI weekly",
-                "Breakout resistance dengan volume tinggi",
-                "Tren bearish, MA crossover terdeteksi",
-              ]
-            : market === "forex"
-              ? [
-                  "Data inflasi di atas ekspektasi, mata uang menguat",
-                  "Bank sentral sinyal hawkish, potensi apresiasi",
-                  "Pola head and shoulders terkonfirmasi",
-                  "NFP lebih kuat dari perkiraan, USD menguat",
-                  "Konsolidasi di area support kunci, tunggu breakout",
-                  "Divergence bearish pada RSI daily",
-                  "Cross MA20/MA50 mengkonfirmasi tren baru",
-                  "Intervensi bank sentral melemahkan mata uang",
-                ]
-              : [
-                  "Pola candlestick bullish terdeteksi",
-                  "Volume di atas rata-rata 20 hari",
-                  "Support kuat teruji, potensi rebound",
-                  "Indikator MACD menunjukkan momentum positif",
-                  "Resistance kuat, tunggu konfirmasi",
-                  "Divergence bearish pada RSI",
-                  "Trend following signal, MA20 > MA50",
-                  "Breakout dari pola segitiga",
-                ];
-        const newSignal: AgentSignal = {
-          id: `s_${Date.now()}`,
-          symbol: symbols[Math.floor(Math.random() * symbols.length)],
-          action: actions[Math.floor(Math.random() * actions.length)],
-          confidence: 0.55 + Math.random() * 0.4,
-          reason: reasons[Math.floor(Math.random() * reasons.length)],
-          timestamp: new Date().toISOString(),
-          executed: Math.random() > 0.5,
-        };
-        return [newSignal, ...prev].slice(0, 20);
-      });
-    }, 8000);
+      setUptime(99.96 + Math.abs(Math.sin(Date.now() / 18000)) * 0.03);
+      if (!paused && Math.random() > 0.85) {
+        setRiskLevel("ELEVATED");
+        addLog("warn", "Risk Manager", "Volatilitas demo meningkat; monitoring diperketat");
+      } else {
+        setRiskLevel("LOW");
+      }
+    }, 1000);
     return () => clearInterval(interval);
-  }, [market]);
-
-  useEffect(() => {
-    if (market === "crypto") setSignals(MOCK_CRYPTO_SIGNALS);
-    else if (market === "komoditas") setSignals(MOCK_COMMODITY_SIGNALS);
-    else if (market === "forex") setSignals(MOCK_FOREX_SIGNALS);
-    else setSignals(MOCK_SIGNALS);
-  }, [market]);
+  }, [paused, addLog]);
 
   if (!ready) {
     return (
@@ -197,285 +449,652 @@ export default function AiAgentPage() {
   if (!account) {
     return (
       <AccountGate
-        title="Masuk untuk mengakses AI Trading Agent"
-        description="Fitur ini tersedia untuk member Sosialita ke atas."
-        actionLabel="Masuk"
+        title={t("ai.title")}
+        description={t("ai.description")}
+        actionLabel={t("auth.login")}
       />
     );
   }
 
-  if (rank < 3) {
-    return (
-      <div className="mx-auto w-full max-w-xl px-4 py-20 text-center">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-amber-50">
-          <Info className="size-6 text-amber-600" aria-hidden />
-        </span>
-        <h1 className="mt-4 font-display text-2xl font-semibold">Fitur premium</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          AI Trading Agent tersedia untuk tier Sosialita ke atas.
-        </p>
-        <Button asChild className="mt-4">
-          <Link to="/langganan">Lihat Langganan</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  const activeSignals = signals.filter((s) => s.action !== "hold");
-  const buySignals = signals.filter((s) => s.action === "buy");
-  const sellSignals = signals.filter((s) => s.action === "sell");
-  const avgConfidence = signals.length > 0
-    ? signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length
-    : 0;
+  const filteredLogs = logs.filter((l) =>
+    (l.agent + " " + l.msg + " " + l.kind).toLowerCase().includes(logFilter.toLowerCase())
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Bot className="size-6 text-violet-600" aria-hidden />
-          <h1 className="font-display text-3xl font-semibold">AI Trading Agent</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none rounded-lg border border-border p-1">
-            <button
-              type="button"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${market === "saham" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setMarket("saham")}
-            >
-              <TrendingUp className="size-3.5" aria-hidden />
-              Saham
-            </button>
-            <button
-              type="button"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${market === "crypto" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setMarket("crypto")}
-            >
-              <Bitcoin className="size-3.5" aria-hidden />
-              Crypto
-            </button>
-            <button
-              type="button"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${market === "komoditas" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setMarket("komoditas")}
-            >
-              <Package className="size-3.5" aria-hidden />
-              Komoditas
-            </button>
-            <button
-              type="button"
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${market === "forex" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setMarket("forex")}
-            >
-              <Globe className="size-3.5" aria-hidden />
-              Forex
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      {/* Top Bar */}
+      <header className="sticky top-0 z-20 border-b border-cyan-500/30 bg-slate-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4">
+          <div>
+            <div className="text-sm font-black tracking-widest">
+              SHIBAI <span className="text-cyan-400">AI</span>
+            </div>
+            <div className="text-[10px] tracking-widest text-slate-400">SUPREME AGENT COMMAND CENTER</div>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/dasbor">Kembali</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2 rounded-md border border-cyan-500/40 bg-slate-900 px-3 py-1.5 text-xs">
+              <span className="size-2 animate-pulse rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+              {paused ? t("ai.simulationPaused") : t("ai.systemOnline")}
+            </span>
+            <LanguageSwitcher />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSoundOn(!soundOn);
+                toast.success(soundOn ? "Efek suara UI nonaktif" : "Efek suara UI aktif");
+              }}
+            >
+              {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/dasbor">{t("common.back")}</Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </header>
 
-      {settings ? (
-        <div className="rounded-lg border border-violet-200 bg-violet-50 p-3">
-          <div className="flex items-start gap-2">
-            <Bot className="mt-0.5 size-4 shrink-0 text-violet-700" aria-hidden />
-            <div>
-              <p className="text-sm font-medium text-violet-800">{settings.name}</p>
-              <p className="text-xs text-violet-700">{settings.description}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Chip>Model: {settings.model}</Chip>
-                <Chip>Strategi: {settings.strategy}</Chip>
-                <Chip>Risiko: {settings.riskLevel}</Chip>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        {/* Hero Section */}
+        <section className="relative min-h-[390px] overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-blue-900/40 via-slate-900/80 to-slate-950/90 shadow-2xl">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_58%,#143c6b_0,rgba(12,24,57,.8)_34%,rgba(4,8,20,.92)_70%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,#060a18_0%,transparent_36%,transparent_68%,#060a18_100%)]" />
+          
+          {/* Animated stars */}
+          <div className="absolute inset-0 opacity-50" style={{
+            backgroundImage: `radial-gradient(2px 2px at 12% 24%, #a6f6ff 45%, transparent 55%),
+                             radial-gradient(1px 1px at 73% 17%, #fff 45%, transparent 55%),
+                             radial-gradient(2px 2px at 88% 66%, #8e8cff 45%, transparent 55%)`,
+            backgroundSize: "280px 220px",
+            animation: "starDrift 28s linear infinite",
+          }} />
+
+          {/* Grid */}
+          <div className="absolute inset-0 opacity-30" style={{
+            backgroundImage: `linear-gradient(#34baff33 1px, transparent 1px), linear-gradient(90deg, #34baff33 1px, transparent 1px)`,
+            backgroundSize: "48px 32px",
+            transform: "perspective(240px) rotateX(55deg)",
+            transformOrigin: "50% 50%",
+            top: "50%",
+            height: "75%",
+            maskImage: "linear-gradient(transparent, #000)",
+            animation: "gridMove 5s linear infinite",
+          }} />
+
+          {/* Orbit */}
+          <div className="absolute left-1/2 top-1/2 size-80 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cyan-400/60 shadow-lg shadow-cyan-400/30" style={{ animation: "orbitSpin 15s linear infinite" }} />
+
+          {/* Planet */}
+          <div className="absolute left-1/2 top-1/2 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-400 via-blue-600 to-slate-900 shadow-2xl shadow-cyan-400/50" style={{ animation: "planetFloat 5s ease-in-out infinite" }} />
+
+          {/* Hero Copy */}
+          <div className="absolute left-7 top-7 z-10 max-w-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400">
+              Beyond time · Beyond markets
+            </div>
+            <h1 className="mt-2 font-display text-4xl font-bold tracking-wide text-white drop-shadow-lg">
+              SHIBAI<br />
+              <span className="text-cyan-400">ŌTSUTSUKI</span>
+            </h1>
+            <p className="mt-3 text-sm text-slate-300">
+              {t("ai.description")}
+            </p>
+            <blockquote className="mt-5 border-l-2 border-violet-400 pl-3 text-sm italic text-slate-200">
+              "Semua pergerakan pasar adalah data. Semua data adalah energi."
+            </blockquote>
+          </div>
+
+          {/* Master Control */}
+          <aside className="absolute right-7 top-7 z-10 w-52">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
+              {t("ai.masterControl")}
+            </div>
+            <div className="rounded-lg border border-cyan-500/40 bg-slate-900/80 p-3 text-xs">
+              <div className="flex justify-between border-b border-white/5 py-1.5">
+                <span className="text-slate-300">{t("ai.monitoring")}</span>
+                <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-1.5">
+                <span className="text-slate-300">{t("ai.analysis")}</span>
+                <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-1.5">
+                <span className="text-slate-300">{t("ai.execution")}</span>
+                <span className="font-semibold text-emerald-400">{paused ? t("ai.paused") : t("ai.simulation")}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-1.5">
+                <span className="text-slate-300">{t("ai.riskManagement")}</span>
+                <span className="font-semibold text-emerald-400">{t("ai.armed")}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-slate-300">Sub-agent network</span>
+                <span className="font-semibold text-emerald-400">7 / 7</span>
               </div>
             </div>
+          </aside>
+
+          {/* Bottom bar */}
+          <div className="absolute bottom-4 left-7 right-7 z-10 flex justify-between text-[10px] tracking-widest text-slate-400">
+            <span>NEURAL NETWORK: CONNECTED</span>
+            <span>MODE: LOCAL SIMULATION</span>
+            <span>{formatTime()}</span>
           </div>
-        </div>
-      ) : null}
+        </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex size-10 items-center justify-center rounded-full bg-violet-50">
-              <Zap className="size-5 text-violet-600" aria-hidden />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Sinyal</p>
-              <p className="font-display text-lg font-semibold">{signals.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex size-10 items-center justify-center rounded-full bg-emerald-50">
-              <ArrowUpRight className="size-5 text-emerald-600" aria-hidden />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Sinyal Buy</p>
-              <p className="font-display text-lg font-semibold">{buySignals.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex size-10 items-center justify-center rounded-full bg-rose-50">
-              <ArrowDownRight className="size-5 text-rose-600" aria-hidden />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Sinyal Sell</p>
-              <p className="font-display text-lg font-semibold">{sellSignals.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex size-10 items-center justify-center rounded-full bg-blue-50">
-              <TrendingUp className="size-5 text-blue-600" aria-hidden />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Confidence Rata-rata</p>
-              <p className="font-display text-lg font-semibold">{(avgConfidence * 100).toFixed(0)}%</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Metrics */}
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950">
+            <div className="absolute left-0 top-0 h-px w-20 bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+            <CardContent className="p-4">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {t("ai.marketSignals")}
+              </div>
+              <div className="mt-2 font-display text-2xl font-bold text-white">
+                {signals.toLocaleString("en-US")}
+              </div>
+              <div className="mt-1 text-xs text-emerald-400">
+                ↗ +{signalDelta.toFixed(1)}% <span className="text-slate-500">simulated</span>
+              </div>
+            </CardContent>
+          </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Card>
+          <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950">
+            <div className="absolute left-0 top-0 h-px w-20 bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+            <CardContent className="p-4">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {t("ai.activeAgents")}
+              </div>
+              <div className="mt-2 font-display text-2xl font-bold text-white">
+                {String(subAgents.filter((a) => a.enabled).length).padStart(2, "0")} <span className="text-xs text-emerald-400">/ {String(subAgents.length).padStart(2, "0")}</span>
+              </div>
+              <div className="mt-1 text-xs text-emerald-400">● All systems responsive</div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950">
+            <div className="absolute left-0 top-0 h-px w-20 bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+            <CardContent className="p-4">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {t("ai.riskIndex")}
+              </div>
+              <div className="mt-2 font-display text-2xl font-bold text-white">
+                {riskLevel}{" "}
+                <span className={`text-xs ${riskLevel === "LOW" ? "text-emerald-400" : "text-amber-400"}`}>
+                  ●
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-emerald-400">Guardrails enabled</div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950">
+            <div className="absolute left-0 top-0 h-px w-20 bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+            <CardContent className="p-4">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {t("ai.uptime")}
+              </div>
+              <div className="mt-2 font-display text-2xl font-bold text-white">{uptime.toFixed(2)}%</div>
+              <div className="mt-1 text-xs text-emerald-400">5 endpoints · demo status</div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Sub-agent Network */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-widest">{t("ai.subAgentNetwork")}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">{subAgents.filter((a) => a.enabled).length} / {subAgents.length} active</span>
+              <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
+                <Settings className="size-3.5" />
+                {t("ai.configAgents")}
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            {subAgents.map((agent) => (
+              <Card
+                key={agent.id}
+                className={`group border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950 transition-all hover:-translate-y-1 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-400/20 ${!agent.enabled ? "opacity-50" : ""}`}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="mx-auto mb-2 flex size-11 items-center justify-center rounded-xl border border-cyan-400/50 bg-gradient-to-br from-blue-900 to-slate-900 text-xl text-cyan-400 shadow-inner shadow-cyan-400/20">
+                    {agent.icon}
+                  </div>
+                  <h3 className="text-[11px] font-bold">{agent.name}</h3>
+                  <p className="mt-1 text-[10px] text-slate-400">{agent.description}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-[9px] font-semibold uppercase tracking-widest text-emerald-400">
+                      <span className="mr-1 inline-block size-1.5 rounded-full bg-current shadow-lg shadow-current" />
+                      {agent.enabled ? agent.status : "OFF"}
+                    </span>
+                    <Switch checked={agent.enabled} onCheckedChange={() => toggleSubAgent(agent.id)} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Main Grid */}
+        <section className="grid gap-4 lg:grid-cols-3">
+          {/* Live Market Stream */}
+          <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950 lg:col-span-1">
             <CardHeader>
-              <CardTitle className="font-display text-lg">Sinyal Trading</CardTitle>
-              <CardDescription>Analisis real-time dari AI agent. Sinyal baru muncul setiap beberapa detik.</CardDescription>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest">
+                <span className="text-cyan-400">◈</span> {t("ai.liveStream")}{" "}
+                <span className="text-[10px] font-normal text-slate-400">· simulated</span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {signals.map((signal) => {
-                  const meta = ACTION_META[signal.action];
-                  return (
-                    <div key={signal.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3">
-                      <div className="flex items-start gap-3">
-                        <span className={`mt-0.5 rounded px-2 py-0.5 text-xs font-semibold ${meta.bg} ${meta.color}`}>
-                          {meta.label}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium">{signal.symbol}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{signal.reason}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{timeAgo(signal.timestamp)}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">Confidence</p>
-                          <p className="text-sm font-semibold">{(signal.confidence * 100).toFixed(0)}%</p>
-                        </div>
-                        {signal.executed ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            Dieksekusi
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            Pending
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="relative h-44">
+                <canvas ref={canvasRef} className="size-full" aria-label="Simulated market chart" />
+              </div>
+              <div className="mt-2 flex gap-4 text-[10px] text-slate-400">
+                <span>
+                  <span className="mr-1 inline-block size-2 rounded-sm bg-cyan-400" />
+                  Market index
+                </span>
+                <span>
+                  <span className="mr-1 inline-block size-2 rounded-sm bg-violet-400" />
+                  Signal strength
+                </span>
+                <span className="ml-auto">INDEX {marketValue.toLocaleString("en-US", { maximumFractionDigits: 1 })}</span>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        <div className="space-y-6">
-          {settings ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-display text-lg">
-                  <Settings className="size-4" aria-hidden />
-                  Konfigurasi Agent
-                </CardTitle>
-                <CardDescription>Parameter yang dikonfigurasi admin.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Auto eksekusi</span>
-                  <span className="text-sm font-medium">{settings.autoExecute ? "Aktif" : "Nonaktif"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Notifikasi trade</span>
-                  <span className="text-sm font-medium">{settings.notifyOnTrade ? "Aktif" : "Nonaktif"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Max trade/hari</span>
-                  <span className="text-sm font-medium">{settings.maxDailyTrades}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Min confidence</span>
-                  <span className="text-sm font-medium">{(settings.minConfidence * 100).toFixed(0)}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Position size</span>
-                  <span className="text-sm font-medium">{settings.parameters.positionSizePercent}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Jadwal</span>
-                  <span className="text-sm font-medium">
-                    {settings.schedule.enabled
-                      ? `${settings.schedule.startHour}:00 - ${settings.schedule.endHour}:00`
-                      : "24 jam"}
-                  </span>
-                </div>
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground">Market yang diizinkan</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {settings.allowedMarkets.map((m) => (
-                      <Chip key={m}>{m}</Chip>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card>
+          {/* Event Sniffer */}
+          <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950 lg:col-span-1">
             <CardHeader>
-              <CardTitle className="font-display text-lg">Performa Agent</CardTitle>
-              <CardDescription>Statistik 7 hari terakhir.</CardDescription>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest">
+                <span className="text-cyan-400">⌘</span> {t("ai.eventSniffer")}
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Win rate</span>
-                <span className="text-sm font-semibold text-emerald-600">
-                  {market === "crypto" ? "72%" : market === "forex" ? "74%" : market === "komoditas" ? "70%" : "68%"}
-                </span>
+            <CardContent>
+              <div className="h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-300">
+                {filteredLogs.slice(0, 25).map((log, i) => (
+                  <div key={i} className="border-b border-white/5 pb-1">
+                    <span className="text-slate-500">[{log.time}]</span>{" "}
+                    <span className={log.kind === "ok" ? "text-emerald-400" : log.kind === "warn" ? "text-amber-400" : "text-cyan-400"}>
+                      {log.kind.toUpperCase()}
+                    </span>{" "}
+                    {log.agent}: {log.msg}
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total trade</span>
-                <span className="text-sm font-semibold">
-                  {market === "crypto" ? "53" : market === "forex" ? "62" : market === "komoditas" ? "41" : "47"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Profit</span>
-                <span className="text-sm font-semibold text-emerald-600">
-                  +{market === "crypto" ? "$1,245.80" : market === "forex" ? "$1,520.30" : market === "komoditas" ? "$980.50" : formatRupiah(2450000)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Loss</span>
-                <span className="text-sm font-semibold text-rose-600">
-                  -{market === "crypto" ? "$389.20" : market === "forex" ? "$412.60" : market === "komoditas" ? "$275.40" : formatRupiah(890000)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Net P&L</span>
-                <span className="text-sm font-semibold text-emerald-600">
-                  +{market === "crypto" ? "$856.60" : market === "forex" ? "$1,107.70" : market === "komoditas" ? "$705.10" : formatRupiah(1560000)}
-                </span>
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Filter log (mis. risk, server)..."
+                  value={logFilter}
+                  onChange={(e) => setLogFilter(e.target.value)}
+                  className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-400"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setLogs([]);
+                    toast.success("Event log dibersihkan");
+                  }}
+                >
+                  Clear
+                </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* Command Chat */}
+          <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950 lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest">
+                <span className="text-cyan-400">◉</span> {t("ai.commandChat")}{" "}
+                <span className="text-[10px] font-normal text-slate-400">· local demo</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-32 overflow-auto space-y-2">
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded-lg border-l-2 px-3 py-2 text-[11px] ${
+                      msg.isUser
+                        ? "border-violet-400 bg-violet-950/50"
+                        : "border-cyan-400 bg-slate-800/50"
+                    }`}
+                  >
+                    <span className="font-semibold">
+                      {msg.isUser ? "Anda" : "Shibai Core"}:
+                    </span>{" "}
+                    {msg.text}
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={handleChatSubmit} className="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ketik perintah..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-400"
+                />
+                <Button type="submit" size="sm" variant="default">
+                  Kirim
+                </Button>
+              </form>
+              <div className="mt-2 flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleVoiceInput}>
+                  <Mic className="size-3" /> Voice input
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleSpeak}>
+                  <Speaker className="size-3" /> Read reply
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Core Capabilities */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-widest">{t("ai.capabilities")}</h2>
+            <span className="text-xs text-slate-400">Toggle to simulate module state</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {FEATURES.map((feature) => (
+              <Card
+                key={feature.key}
+                className="border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950"
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl text-cyan-400">
+                      {feature.key === "chat" && "◉"}
+                      {feature.key === "voice" && "♫"}
+                      {feature.key === "analysis" && "⌁"}
+                      {feature.key === "sniffer" && "⌕"}
+                      {feature.key === "watchdog" && "⬡"}
+                    </span>
+                    <Switch
+                      checked={features[feature.key]}
+                      onCheckedChange={() => toggleFeature(feature.key)}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs font-bold">{feature.label}</div>
+                  <p className="mt-1 text-[11px] text-slate-400">{feature.desc}</p>
+                  <div className="mt-2 text-[9px] font-semibold uppercase tracking-widest text-emerald-400">
+                    {features[feature.key] ? "ENABLED" : "DISABLED"}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Multi Trading Server */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-widest">{t("ai.servers")}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">{tradingServers.filter((s) => s.enabled).length} / {tradingServers.length} connected</span>
+              <Button variant="outline" size="sm" onClick={() => setShowPrompts(true)}>
+                <BookOpen className="size-3.5" />
+                {t("ai.promptLibrary")}
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {tradingServers.map((server) => (
+              <Card
+                key={server.id}
+                className={`border-slate-700 bg-slate-950 ${!server.enabled ? "opacity-50" : ""}`}
+              >
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className="flex flex-col gap-1">
+                    <div className="h-1.5 w-7 rounded bg-cyan-400 shadow-lg shadow-cyan-400/50" style={{ animation: "serverBlink 1.6s infinite" }} />
+                    <div className="h-1.5 w-7 rounded bg-cyan-400 shadow-lg shadow-cyan-400/50" style={{ animation: "serverBlink 1.6s infinite", animationDelay: "0.4s" }} />
+                    <div className="h-1.5 w-7 rounded bg-cyan-400 shadow-lg shadow-cyan-400/50" style={{ animation: "serverBlink 1.6s infinite", animationDelay: "0.8s" }} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[11px] font-bold">{server.name}</div>
+                    <div className="text-[10px] text-slate-400">{server.provider} — {server.description}</div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-[9px] font-semibold text-emerald-400">{server.testnet ? "TESTNET" : "LIVE"}</div>
+                    <Switch checked={server.enabled} onCheckedChange={() => toggleServer(server.id)} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <section className="rounded-2xl border border-cyan-500/30 bg-slate-900/90 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-cyan-400">
+                <Cpu className="mr-2 inline size-4" />
+                {t("ai.agentSettings")}
+              </h2>
+              <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>✕</Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {subAgents.map((agent) => (
+                <div key={agent.id} className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950 p-3">
+                  <div>
+                    <div className="text-xs font-bold">{agent.icon} {agent.name}</div>
+                    <div className="text-[10px] text-slate-400">{agent.description}</div>
+                    <div className="mt-1 text-[9px] text-slate-500">
+                      Interval: {agent.intervalSeconds}s · Priority: {agent.priority}
+                    </div>
+                  </div>
+                  <Switch checked={agent.enabled} onCheckedChange={() => toggleSubAgent(agent.id)} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Prompt Library Modal */}
+        {showPrompts && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-cyan-500/30 bg-slate-900 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-cyan-400">
+                  <BookOpen className="mr-2 inline size-5" />
+                  {t("ai.promptLibrary")} ({promptLibrary.length})
+                </h2>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => setEditingPrompt({ id: "", name: "", category: "market_analysis", description: "", prompt: "", variables: [], enabled: true, priority: 5, subAgentRoles: [], createdAt: "", updatedAt: "" })}>
+                    <Plus className="mr-1 size-3.5" /> New Prompt
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setShowPrompts(false); setEditingPrompt(null); }}>✕</Button>
+                </div>
+              </div>
+
+              {editingPrompt ? (
+                <PromptEditor prompt={editingPrompt} onSave={savePrompt} onCancel={() => setEditingPrompt(null)} />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {promptLibrary.map((prompt) => (
+                    <Card key={prompt.id} className="border-slate-700 bg-slate-950">
+                      <CardContent className="p-4">
+                        <div className="mb-2 flex items-start justify-between">
+                          <div>
+                            <h3 className="text-sm font-bold">{prompt.name}</h3>
+                            <span className="mt-1 inline-block rounded bg-cyan-900/50 px-2 py-0.5 text-[9px] font-semibold uppercase text-cyan-400">
+                              {prompt.category.replace("_", " ")}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditingPrompt(prompt)}>
+                              <Edit2 className="size-3" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => deletePrompt(prompt.id)}>
+                              <Trash2 className="size-3 text-red-400" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-400">{prompt.description}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-[9px] text-slate-500">
+                            Agents: {prompt.subAgentRoles.join(", ")}
+                          </span>
+                          <Switch checked={prompt.enabled} onCheckedChange={() => savePrompt({ ...prompt, enabled: !prompt.enabled })} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <footer className="flex flex-wrap justify-between gap-3 border-t border-slate-800 pt-4 text-[10px] text-slate-500">
+          <span>SHIBAI AI TRADING AGENT · COMMAND CENTER UI</span>
+          <span>Semua angka, log, grafik, dan status server pada demo ini bersifat simulasi.</span>
+          <span>Trading sungguhan memerlukan backend, data feed, autentikasi, dan kontrol risiko.</span>
+        </footer>
+      </main>
+
+      <style>{`
+        @keyframes starDrift {
+          to { background-position: 280px 220px; }
+        }
+        @keyframes gridMove {
+          to { background-position: 0 32px; }
+        }
+        @keyframes orbitSpin {
+          to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes planetFloat {
+          50% { transform: translate(-50%, -53%); }
+        }
+        @keyframes serverBlink {
+          50% { background: #55f3ff; box-shadow: 0 0 12px #55f3ff; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const PROMPT_CATEGORIES = [
+  { value: "wallet_monitor", label: "Wallet Monitor" },
+  { value: "news_analysis", label: "News Analysis" },
+  { value: "news_surveillance", label: "News Surveillance" },
+  { value: "telegram_forum", label: "Telegram Forum" },
+  { value: "twitter_x", label: "Twitter/X" },
+  { value: "copy_trading", label: "Copy Trading" },
+  { value: "market_analysis", label: "Market Analysis" },
+  { value: "risk_assessment", label: "Risk Assessment" },
+  { value: "sentiment", label: "Sentiment" },
+  { value: "execution", label: "Execution" },
+];
+
+const SUB_AGENT_ROLES = [
+  "market_scanner", "trading_executor", "risk_manager", "news_analyzer",
+  "portfolio_manager", "backtester", "data_aggregator", "wallet_monitor",
+  "social_sentinel", "copy_trader",
+];
+
+function PromptEditor({ prompt, onSave, onCancel }: {
+  prompt: Partial<AiPromptTemplate>;
+  onSave: (p: Partial<AiPromptTemplate>) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState(prompt);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-[10px] font-bold uppercase text-slate-400">Name</label>
+          <input
+            className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            value={form.name || ""}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
         </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase text-slate-400">Category</label>
+          <select
+            className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            value={form.category || "market_analysis"}
+            onChange={(e) => setForm({ ...form, category: e.target.value as AiPromptTemplate["category"] })}
+          >
+            {PROMPT_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase text-slate-400">Description</label>
+        <input
+          className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+          value={form.description || ""}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+        />
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase text-slate-400">Prompt Template</label>
+        <textarea
+          className="mt-1 h-48 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-white"
+          value={form.prompt || ""}
+          onChange={(e) => setForm({ ...form, prompt: e.target.value })}
+          placeholder="Masukkan prompt template. Gunakan {{variable}} untuk variabel dinamis."
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-[10px] font-bold uppercase text-slate-400">Variables (comma separated)</label>
+          <input
+            className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            value={(form.variables || []).join(", ")}
+            onChange={(e) => setForm({ ...form, variables: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase text-slate-400">Priority (1-10)</label>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+            value={form.priority || 5}
+            onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase text-slate-400">Sub-Agent Roles</label>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {SUB_AGENT_ROLES.map((role) => (
+            <label key={role} className="flex items-center gap-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[10px]">
+              <input
+                type="checkbox"
+                checked={(form.subAgentRoles || []).includes(role)}
+                onChange={(e) => {
+                  const roles = e.target.checked
+                    ? [...(form.subAgentRoles || []), role]
+                    : (form.subAgentRoles || []).filter((r) => r !== role);
+                  setForm({ ...form, subAgentRoles: roles });
+                }}
+              />
+              {role.replace("_", " ")}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" onClick={() => onSave(form)}>
+          {form.id ? "Update" : "Create"} Prompt
+        </Button>
       </div>
     </div>
   );

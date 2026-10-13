@@ -8,20 +8,23 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { MemberAvatar, TierBadge, PjLogo } from "@/components/common";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { Separator } from "@/components/ui/separator";
+import { useTranslation } from "@/lib/i18n-context";
 import type { NotificationItem } from "@/lib/types";
 
 const NAV = [
-  { to: "/", label: "Beranda", exact: true },
-  { to: "/jelajah", label: "Jelajah" },
-  { to: "/program", label: "Program" },
-  { to: "/event", label: "Event" },
-  { to: "/galang-dana", label: "Galang Dana" },
-  { to: "/marketplace", label: "Marketplace" },
+  { to: "/", labelKey: "nav.home" as const, exact: true },
+  { to: "/jelajah", labelKey: "nav.explore" as const },
+  { to: "/program", labelKey: "nav.programs" as const },
+  { to: "/event", labelKey: "nav.events" as const },
+  { to: "/galang-dana", labelKey: "nav.fundraising" as const },
+  { to: "/marketplace", labelKey: "nav.marketplace" as const },
 ];
 
 function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberOnly: boolean }) {
   const { path } = useRoute();
+  const { t } = useTranslation();
   const clean = path.split("?")[0];
   const items = NAV;
   return (
@@ -40,7 +43,7 @@ function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberO
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
           >
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}
@@ -49,6 +52,7 @@ function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberO
 }
 
 function NotificationBell() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -97,7 +101,7 @@ function NotificationBell() {
         type="button"
         onClick={() => setOpen(!open)}
         className="relative inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-        aria-label="Notifikasi"
+        aria-label={t("nav.notifications")}
       >
         <Bell className="size-4" aria-hidden />
         {unread > 0 && (
@@ -109,21 +113,21 @@ function NotificationBell() {
       {open && (
         <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-card shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-            <span className="text-sm font-semibold">Notifikasi</span>
+            <span className="text-sm font-semibold">{t("nav.notifications")}</span>
             {unread > 0 && (
               <button
                 type="button"
                 onClick={() => void markAllRead()}
                 className="text-xs text-primary hover:underline"
               >
-                Tandai semua dibaca
+                {t("nav.markAllRead")}
               </button>
             )}
           </div>
           <div className="max-h-80 overflow-y-auto">
             {items.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                Belum ada notifikasi
+                {t("nav.noNotifications")}
               </div>
             ) : (
               items.map((n) => (
@@ -175,6 +179,7 @@ function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const rank = account ? ROLE_RANK[account.role] : 0;
   const member = rank >= 2;
@@ -213,17 +218,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
                     <Link to="/admin">
                       <ShieldCheck className="size-3.5" aria-hidden />
-                      Admin
+                      {t("nav.admin")}
                     </Link>
                   </Button>
                 ) : null}
                 <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                   <Link to="/dasbor">
                     <LayoutDashboard className="size-3.5" aria-hidden />
-                    Dasbor
+                    {t("nav.dashboard")}
                   </Link>
                 </Button>
                 <NotificationBell />
+                <LanguageSwitcher className="hidden sm:flex" />
                 <Link
                   to="/dasbor"
                   className="flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pr-2 pl-0.5 transition-colors hover:bg-secondary sm:gap-2 sm:py-1 sm:pr-3 sm:pl-1"
@@ -241,7 +247,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Keluar"
+                  aria-label={t("auth.logout")}
                   onClick={() => void logout()}
                   className="hidden sm:inline-flex"
                 >
@@ -249,13 +255,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Button>
                 <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="icon" className="md:hidden" aria-label="Buka menu">
+                    <Button variant="outline" size="icon" className="md:hidden" aria-label={t("nav.menu")}>
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="right" className="w-72">
                     <SheetHeader>
-                      <SheetTitle className="font-display">Menu</SheetTitle>
+                      <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>
                     <div className="flex flex-col gap-1 px-4">
                       <NavLinks memberOnly={member} onNavigate={() => setMenuOpen(false)} />
@@ -265,7 +271,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         onClick={() => setMenuOpen(false)}
                         className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
                       >
-                        Dasbor
+                        {t("nav.dashboard")}
                       </Link>
                       {rank >= 5 ? (
                         <Link
@@ -273,7 +279,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           onClick={() => setMenuOpen(false)}
                           className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
                         >
-                          Admin
+                          {t("nav.admin")}
                         </Link>
                       ) : null}
                       <button
@@ -284,7 +290,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         }}
                         className="rounded-full px-3.5 py-1.5 text-left text-sm font-medium text-destructive hover:bg-destructive/10"
                       >
-                        Keluar
+                        {t("auth.logout")}
                       </button>
                     </div>
                   </SheetContent>
@@ -295,24 +301,24 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Button asChild variant="ghost" size="sm">
                   <Link to="/masuk">
                     <UserRound className="size-3.5" aria-hidden />
-                    Masuk
+                    {t("auth.login")}
                   </Link>
                 </Button>
                 <Button asChild size="sm" className="hidden sm:inline-flex">
                   <Link to="/daftar">
                     <Crown className="size-3.5" aria-hidden />
-                    Daftar
+                    {t("auth.register")}
                   </Link>
                 </Button>
                 <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="icon" className="md:hidden" aria-label="Buka menu">
+                    <Button variant="outline" size="icon" className="md:hidden" aria-label={t("nav.menu")}>
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="right" className="w-72">
                     <SheetHeader>
-                      <SheetTitle className="font-display">Menu</SheetTitle>
+                      <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>
                     <div className="flex flex-col gap-1 px-4">
                       <NavLinks memberOnly={false} onNavigate={() => setMenuOpen(false)} />
@@ -322,14 +328,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                         onClick={() => setMenuOpen(false)}
                         className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
                       >
-                        Masuk
+                        {t("auth.login")}
                       </Link>
                       <Link
                         to="/daftar"
                         onClick={() => setMenuOpen(false)}
                         className="rounded-full px-3.5 py-1.5 text-sm font-medium text-primary"
                       >
-                        Daftar
+                        {t("auth.register")}
                       </Link>
                     </div>
                   </SheetContent>
@@ -362,46 +368,46 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="space-y-2 text-sm">
-            <p className="font-semibold text-foreground">Jelajahi</p>
+            <p className="font-semibold text-foreground">{t("footer.explore")}</p>
             <ul className="space-y-1.5 text-muted-foreground">
               <li>
                 <Link to="/jelajah" className="hover:text-foreground">
-                  Profil anggota
+                  {t("footer.memberProfiles")}
                 </Link>
               </li>
               <li>
                 <Link to="/program" className="hover:text-foreground">
-                  Akademi & pelatihan
+                  {t("footer.academy")}
                 </Link>
               </li>
               <li>
                 <Link to="/event" className="hover:text-foreground">
-                  Event komunitas
+                  {t("footer.communityEvents")}
                 </Link>
               </li>
               <li>
                 <Link to="/marketplace" className="hover:text-foreground">
-                  Marketplace
+                  {t("nav.marketplace")}
                 </Link>
               </li>
             </ul>
           </div>
           <div className="space-y-2 text-sm">
-            <p className="font-semibold text-foreground">Untuk anggota</p>
+            <p className="font-semibold text-foreground">{t("footer.forMembers")}</p>
             <ul className="space-y-1.5 text-muted-foreground">
               <li>
                 <Link to="/daftar" className="hover:text-foreground">
-                  Daftar sebagai anggota
+                  {t("footer.registerMember")}
                 </Link>
               </li>
               <li>
                 <Link to="/dasbor" className="hover:text-foreground">
-                  Dasbor anggota
+                  {t("footer.memberDashboard")}
                 </Link>
               </li>
               <li>
                 <Link to="/masuk" className="hover:text-foreground">
-                  Masuk
+                  {t("footer.login")}
                 </Link>
               </li>
             </ul>

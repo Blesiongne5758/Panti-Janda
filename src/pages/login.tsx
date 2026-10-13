@@ -7,10 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
+import { PjLogo } from "@/components/common";
+import { useTranslation } from "@/lib/i18n-context";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const { navigate } = useRoute();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,18 +34,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-14">
-      <Card className="border-border/70 shadow-sm">
+    <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6 px-4 py-14">
+      <PjLogo size={72} className="text-primary" />
+      <Card className="w-full border-border/70 shadow-sm">
         <CardHeader className="gap-1.5">
-          <CardTitle className="font-display text-2xl">Masuk ke Panti Janda</CardTitle>
+          <CardTitle className="font-display text-2xl">{t("auth.loginTitle")}</CardTitle>
           <CardDescription>
-            Sesi berlaku 30 hari di perangkat ini. Gunakan email dan kata sandi yang kamu daftarkan.
+            {t("auth.loginDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -50,11 +54,11 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="nama@email.com"
+                placeholder={t("auth.emailPlaceholder")}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Kata sandi</Label>
+              <Label htmlFor="password">{t("auth.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -62,7 +66,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Minimal 8 karakter"
+                placeholder={t("auth.passwordPlaceholder")}
               />
             </div>
             {error ? (
@@ -72,20 +76,19 @@ export default function LoginPage() {
             ) : null}
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-              Masuk
+              {t("auth.login")}
             </Button>
           </form>
           <p className="mt-6 text-sm text-muted-foreground">
-            Belum punya akun?{" "}
+            {t("auth.noAccount")}{" "}
             <Link to="/daftar" className="font-medium text-primary underline-offset-4 hover:underline">
-              Daftar sebagai non janda atau anggota janda
+              {t("auth.registerLink")}
             </Link>
           </p>
         </CardContent>
       </Card>
       <p className="text-center text-xs text-muted-foreground">
-        Anggota janda mendaftar dengan data profil lengkap, lalu menunggu verifikasi admin sebelum tampil di
-        halaman jelajah.
+        {t("auth.loginNote")}
       </p>
     </div>
   );

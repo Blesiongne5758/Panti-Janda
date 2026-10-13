@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { RouterProvider, matchRoute, useRoute } from "@/lib/router";
 import { AuthProvider } from "@/lib/session";
+import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import { LandingPage } from "@/pages/landing";
@@ -106,13 +107,15 @@ function Routes() {
 
 export default function App() {
   return (
-    <RouterProvider>
-      <AuthProvider>
-        <AppShell>
-          <Routes />
-        </AppShell>
-        <Toaster position="top-center" richColors closeButton />
-      </AuthProvider>
-    </RouterProvider>
+    <I18nProvider>
+      <RouterProvider>
+        <AuthProvider>
+          <AppShell>
+            <Routes />
+          </AppShell>
+          <Toaster position="top-center" richColors closeButton />
+        </AuthProvider>
+      </RouterProvider>
+    </I18nProvider>
   );
 }
