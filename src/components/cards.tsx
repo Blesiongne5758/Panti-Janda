@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Link } from "@/lib/router";
 import { formatDate, formatRupiah, timeAgo } from "@/lib/format";
-import { AUDIENCE_META, CATEGORY_META, TIER_META } from "@/lib/constants";
+import { AUDIENCE_META, CATEGORY_META, EVENT_STATUS_META, TIER_META } from "@/lib/constants";
 import type { EventItem, GroupItem, Profile, ProgramItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -176,6 +176,8 @@ export function EventCard({
   const audience = AUDIENCE_META[event.audience];
   const cancelled = event.status === "cancelled";
   const isPast = new Date(event.startsAt).getTime() < Date.now();
+  const openStatus = event.status === "published" || event.status === "ongoing";
+  const statusMeta = EVENT_STATUS_META[event.status];
   return (
     <Card className={cn("hover-lift flex h-full flex-col gap-0 py-0", cancelled && "opacity-70")}>
       <CardHeader className="gap-2 pt-5 pb-3">
@@ -213,6 +215,10 @@ export function EventCard({
           {cancelled ? (
             <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-900">
               Dibatalkan
+            </span>
+          ) : statusMeta && !openStatus ? (
+            <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", statusMeta.tone)}>
+              {statusMeta.label}
             </span>
           ) : null}
         </div>
@@ -254,10 +260,18 @@ export function EventCard({
           <Button
             size="sm"
             variant={event.myRsvp === "going" ? "outline" : "default"}
-            disabled={busy || cancelled || isPast}
+            disabled={busy || cancelled || isPast || !openStatus}
             onClick={() => onRsvp?.(event)}
           >
-            {cancelled ? "Event dibatalkan" : isPast ? "Sudah berlalu" : event.myRsvp === "going" ? "Batalkan kehadiran" : "Saya akan hadir"}
+            {cancelled
+              ? "Event dibatalkan"
+              : isPast
+                ? "Sudah berlalu"
+                : !openStatus
+                  ? "Pendaftaran belum dibuka"
+                  : event.myRsvp === "going"
+                    ? "Batalkan kehadiran"
+                    : "Saya akan hadir"}
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">{guestHint}</p>
@@ -348,7 +362,7 @@ export function UpdateCard({
   children?: React.ReactNode;
 }) {
   return (
-    <article className="hover-lift rounded-2xl border border-border bg-card p-5">
+    <article className="gradient-card hover-lift rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-semibold text-foreground">{title}</h3>
         <span className="text-xs text-muted-foreground">{timeAgo(createdAt)}</span>

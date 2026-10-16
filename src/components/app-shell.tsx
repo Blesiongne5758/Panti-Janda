@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { MemberAvatar, TierBadge, PjLogo } from "@/components/common";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "@/lib/i18n-context";
 import type { NotificationItem } from "@/lib/types";
@@ -18,6 +17,7 @@ const NAV = [
   { to: "/jelajah", labelKey: "nav.explore" as const },
   { to: "/program", labelKey: "nav.programs" as const },
   { to: "/event", labelKey: "nav.events" as const },
+  { to: "/kompetisi-esport", labelKey: "nav.esport" as const },
   { to: "/galang-dana", labelKey: "nav.fundraising" as const },
   { to: "/marketplace", labelKey: "nav.marketplace" as const },
 ];
@@ -188,9 +188,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="relative flex min-h-screen flex-col overflow-x-hidden">
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="texture-grain absolute inset-0" />
-        <div className="animate-drift absolute -top-40 -left-32 size-[30rem] rounded-full bg-[#B98A2F]/10 blur-3xl" />
-        <div className="absolute top-1/4 -right-40 size-[34rem] rounded-full bg-[#C2603E]/10 blur-3xl" />
-        <div className="absolute -bottom-40 left-1/4 size-[30rem] rounded-full bg-[#5B2A4E]/10 blur-3xl" />
+        <div className="animate-drift absolute -top-40 -left-32 size-[30rem] rounded-full bg-chart-3/10 blur-3xl" />
+        <div className="absolute top-1/4 -right-40 size-[34rem] rounded-full bg-chart-1/10 blur-3xl" />
+        <div className="absolute -bottom-40 left-1/4 size-[30rem] rounded-full bg-chart-2/10 blur-3xl" />
       </div>
 
       <header className="glass sticky top-0 z-40 border-b border-border/60">
@@ -229,7 +229,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </Link>
                 </Button>
                 <NotificationBell />
-                <LanguageSwitcher className="hidden sm:flex" />
                 <Link
                   to="/dasbor"
                   className="flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pr-2 pl-0.5 transition-colors hover:bg-secondary sm:gap-2 sm:py-1 sm:pr-3 sm:pl-1"

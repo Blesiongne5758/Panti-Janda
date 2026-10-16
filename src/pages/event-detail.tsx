@@ -2,25 +2,42 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   CalendarDays,
+  Check,
+  CheckCircle2,
   Clock,
   Coins,
+  Copy,
+  ExternalLink,
   Loader2,
+  Mail,
   MapPin,
+  Maximize2,
+  MessagesSquare,
   QrCode,
+  Radio,
   Send,
   Settings2,
   Ticket,
   Users,
   XCircle,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link, useRoute } from "@/lib/router";
 import { formatDate, formatDateTime, formatRupiah } from "@/lib/format";
-import { AUDIENCE_META, ROLE_RANK, TICKET_STATUS_LABEL } from "@/lib/constants";
-import type { EventCommittee, EventDetail, EventTicket } from "@/lib/types";
+import {
+  AUDIENCE_META,
+  COMMITTEE_ROLE_LABEL,
+  ROLE_RANK,
+  TICKET_STATUS_LABEL,
+  VIRTUAL_PLATFORM_LABEL,
+} from "@/lib/constants";
+import { buildInviteQrPayload, buildTicketQrPayload } from "@/lib/ticket-qr";
+import type { EventCommittee, EventDetail, EventInviteInfo, EventTicket } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -276,6 +293,14 @@ export default function EventDetailPage({ id }: { id: string }) {
                     Kelola event
                   </Link>
                 </Button>
+                {data.eventGroupId ? (
+                  <Button asChild variant="outline">
+                    <Link to={`/pesan?grup=${data.eventGroupId}`}>
+                      <MessagesSquare className="size-4" aria-hidden />
+                      Grup chat panitia
+                    </Link>
+                  </Button>
+                ) : null}
                 {(isOwner || rank >= 4) ? (
                   <Button variant="outline" onClick={cancelEvent} disabled={busy}>
                     <XCircle className="size-4" aria-hidden />
@@ -288,7 +313,83 @@ export default function EventDetailPage({ id }: { id: string }) {
         </CardContent>
       </Card>
 
-      {data.myTicket ? <MyTicketCard ticket={data.myTicket} isPaid={isPaid} /> : null}
+      {data.liveRoom ? (
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 sm:p-5",
+            data.liveRoom.status === "live" ? "border-rose-200 bg-rose-50" : "border-border bg-card",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full",
+                data.liveRoom.status === "live" ? "bg-rose-100 text-rose-600" : "bg-secondary text-muted-foreground",
+              )}
+            >
+              <Radio className="size-4" aria-hidden />
+            </span>
+            <div>
+              <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                {data.liveRoom.status === "live" ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2 animate-pulse rounded-full bg-rose-600" aria-hidden />
+                    Siaran langsung sedang berlangsung
+                  </span>
+                ) : data.liveRoom.status === "ended" ? (
+                  "Siaran langsung telah berakhir"
+                ) : (
+                  "Ruang siaran langsung"
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {VIRTUAL_PLATFORM_LABEL[data.liveRoom.provider] ?? data.liveRoom.provider}
+                {data.liveRoom.status === "live" && data.liveRoom.startedAt
+                  ? ` · sejak ${formatDateTime(data.liveRoom.startedAt)}`
+                  : ""}
+                {data.liveRoom.status === "ended" && data.liveRoom.endedAt
+                  ? ` · berakhir ${formatDateTime(data.liveRoom.endedAt)}`
+                  : data.liveRoom.status === "idle"
+                    ? " · dimulai oleh panitia saat acara berlangsung"
+                    : ""}
+              </p>
+            </div>
+          </div>
+          {data.liveRoom.status === "live" ? (
+            data.virtualUrl ? (
+              <Button asChild>
+                <a href={data.virtualUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-4" aria-hidden />
+                  Gabung siaran
+                </a>
+              </Button>
+            ) : (
+              <span className="rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white">
+                Anda berada di ruang siaran
+              </span>
+            )
+          ) : null}
+        </div>
+      ) : null}
+
+      {data.myTicket ? (
+        <MyTicketCard
+          ticket={data.myTicket}
+          isPaid={isPaid}
+          eventId={data.id}
+          eventTitle={data.title}
+          eventStartsAt={data.startsAt}
+        />
+      ) : null}
+
+      {data.myInvite ? (
+        <MyInviteCard
+          invite={data.myInvite}
+          eventId={data.id}
+          eventTitle={data.title}
+          eventStartsAt={data.startsAt}
+        />
+      ) : null}
 
       {data.committees.length > 0 ? (
         <Card>
@@ -297,7 +398,11 @@ export default function EventDetailPage({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             <ul className="flex flex-wrap gap-3">
-              {data.committees.map((member: EventCommittee) => (
+              {[...data.committees]
+                .sort((a, b) =>
+                  a.role === "ketua_panitia" ? -1 : b.role === "ketua_panitia" ? 1 : 0,
+                )
+                .map((member: EventCommittee) => (
                 <li
                   key={member.id}
                   className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
@@ -305,7 +410,9 @@ export default function EventDetailPage({ id }: { id: string }) {
                   <MemberAvatar name={member.accountName} tier="wonder_woman" size={28} photoData={member.accountPhoto} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{member.accountName}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{member.role.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {COMMITTEE_ROLE_LABEL[member.role] ?? member.role.replace(/_/g, " ")}
+                    </p>
                   </div>
                 </li>
               ))}
@@ -395,8 +502,34 @@ export default function EventDetailPage({ id }: { id: string }) {
   );
 }
 
-function MyTicketCard({ ticket, isPaid }: { ticket: EventTicket; isPaid: boolean }) {
+function MyTicketCard({
+  ticket,
+  isPaid,
+  eventId,
+  eventTitle,
+  eventStartsAt,
+}: {
+  ticket: EventTicket;
+  isPaid: boolean;
+  eventId: string;
+  eventTitle: string;
+  eventStartsAt: string;
+}) {
   const statusLabel = TICKET_STATUS_LABEL[ticket.status] ?? ticket.status;
+  const [copied, setCopied] = useState(false);
+  const qrPayload = buildTicketQrPayload(eventId, ticket.code);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(ticket.code);
+      setCopied(true);
+      toast.success("Kode tiket disalin.");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Gagal menyalin kode.");
+    }
+  };
+
   return (
     <Card className="border-violet-200 bg-violet-50/40">
       <CardHeader className="pb-3">
@@ -405,10 +538,12 @@ function MyTicketCard({ ticket, isPaid }: { ticket: EventTicket; isPaid: boolean
           Tiket Saya
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-violet-900">Kode: <span className="font-mono">{ticket.code}</span></p>
+            <p className="text-sm font-medium text-violet-900">
+              Kode: <span className="font-mono">{ticket.code}</span>
+            </p>
             <p className="text-xs text-violet-700">
               {ticket.ticketType === "free" ? "Tiket gratis" : `Tiket berbayar — ${formatRupiah(ticket.price)}`}
             </p>
@@ -425,15 +560,214 @@ function MyTicketCard({ ticket, isPaid }: { ticket: EventTicket; isPaid: boolean
             {statusLabel}
           </span>
         </div>
+
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <div
+            className={cn(
+              "relative rounded-2xl border-2 border-dashed p-3",
+              ticket.status === "valid" ? "border-violet-300 bg-white" : "border-stone-300 bg-stone-100",
+            )}
+          >
+            <QRCodeSVG
+              value={qrPayload}
+              size={148}
+              level="M"
+              marginSize={0}
+              className={cn(ticket.status !== "valid" && "opacity-40 grayscale")}
+              aria-label="Kode QR tiket"
+            />
+            {ticket.status === "used" ? (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="rounded-full bg-stone-700/90 px-3 py-1 text-xs font-semibold text-white">
+                  Sudah dipakai
+                </span>
+              </span>
+            ) : ticket.status === "pending" ? (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="rounded-full bg-amber-600/90 px-3 py-1 text-xs font-semibold text-white">
+                  Menunggu bayar
+                </span>
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex-1 space-y-2 text-center sm:text-left">
+            <p className="text-sm font-semibold text-violet-900">{eventTitle}</p>
+            <p className="text-xs text-violet-700">{formatDateTime(eventStartsAt)}</p>
+            <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" disabled={ticket.status !== "valid"}>
+                    <Maximize2 className="size-4" aria-hidden />
+                    Tampilkan QR besar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 font-display">
+                      <QrCode className="size-5" aria-hidden />
+                      Scan untuk absensi
+                    </DialogTitle>
+                    <DialogDescription>
+                      Tunjukkan QR ini ke panitia di pintu masuk event. Layar akan tetap terang agar mudah dipindai.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="rounded-2xl border border-violet-200 bg-white p-4">
+                      <QRCodeSVG value={qrPayload} size={260} level="M" marginSize={1} />
+                    </div>
+                    <p className="text-sm font-semibold text-violet-900">{eventTitle}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{ticket.code}</p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button variant="outline" size="sm" onClick={copyCode}>
+                {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                {copied ? "Tersalin" : "Salin kode"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {ticket.status === "valid" ? (
           <p className="text-xs text-violet-700">
-            Tunjukkan kode tiket ini saat absensi di lokasi event. Panitia akan memindai kode QR Anda.
+            Tunjukkan kode QR ini saat absensi di lokasi event. Panitia akan memindai kode QR Anda.
           </p>
         ) : ticket.status === "pending" && isPaid ? (
           <p className="text-xs text-amber-800">
             Selesaikan pembayaran untuk mengaktifkan tiket Anda.
           </p>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MyInviteCard({
+  invite,
+  eventId,
+  eventTitle,
+  eventStartsAt,
+}: {
+  invite: EventInviteInfo;
+  eventId: string;
+  eventTitle: string;
+  eventStartsAt: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const qrPayload = buildInviteQrPayload(eventId, invite.id);
+  const attended = Boolean(invite.attendedAt);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(qrPayload);
+      setCopied(true);
+      toast.success("Kode undangan disalin.");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Gagal menyalin kode.");
+    }
+  };
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 font-display text-lg text-amber-900">
+          <Mail className="size-5" aria-hidden />
+          Undangan Saya
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium text-amber-900">Anda diundang ke event ini.</p>
+            <p className="text-xs text-amber-700">
+              Tunjukkan QR undangan kepada panitia Absen Undangan di pintu masuk.
+            </p>
+          </div>
+          <span
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
+              attended ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900",
+            )}
+          >
+            {attended ? <CheckCircle2 className="size-3.5" aria-hidden /> : null}
+            {attended ? `Sudah hadir · ${formatDateTime(invite.attendedAt!)}` : "Belum absen"}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <div
+            className={cn(
+              "relative rounded-2xl border-2 border-dashed p-3",
+              attended ? "border-stone-300 bg-stone-100" : "border-amber-300 bg-white",
+            )}
+          >
+            <QRCodeSVG
+              value={qrPayload}
+              size={148}
+              level="M"
+              marginSize={0}
+              className={cn(attended && "opacity-40 grayscale")}
+              aria-label="Kode QR undangan"
+            />
+            {attended ? (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="rounded-full bg-emerald-700/90 px-3 py-1 text-xs font-semibold text-white">
+                  Sudah hadir
+                </span>
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex-1 space-y-2 text-center sm:text-left">
+            <p className="text-sm font-semibold text-amber-900">{eventTitle}</p>
+            <p className="text-xs text-amber-700">{formatDateTime(eventStartsAt)}</p>
+            <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" disabled={attended}>
+                    <Maximize2 className="size-4" aria-hidden />
+                    Tampilkan QR besar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 font-display">
+                      <QrCode className="size-5" aria-hidden />
+                      Scan undangan
+                    </DialogTitle>
+                    <DialogDescription>
+                      Tunjukkan QR ini kepada panitia Absen Undangan. Kehadiran Anda akan tercatat di laporan
+                      daftar hadir undangan.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="rounded-2xl border border-amber-200 bg-white p-4">
+                      <QRCodeSVG value={qrPayload} size={260} level="M" marginSize={1} />
+                    </div>
+                    <p className="text-sm font-semibold text-amber-900">{eventTitle}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{qrPayload}</p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button variant="outline" size="sm" onClick={copyCode}>
+                {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                {copied ? "Tersalin" : "Salin kode"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {attended ? (
+          <p className="text-xs text-emerald-800">
+            Terima kasih, kehadiran Anda sudah tercatat oleh panitia.
+          </p>
+        ) : (
+          <p className="text-xs text-amber-800">
+            QR undangan ini hanya dapat dipindai satu kali oleh panitia di lokasi event.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

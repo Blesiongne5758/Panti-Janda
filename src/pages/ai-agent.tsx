@@ -18,12 +18,11 @@ import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useTranslation } from "@/lib/i18n-context";
 import { Link } from "@/lib/router";
-import type { AppSettings, SubAgentConfig, TradingServerConfig, AiPromptTemplate } from "@/lib/types";
+import type { AppSettings, SubAgentConfig, SubAgentRole, TradingServerConfig, AiPromptTemplate } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { AccountGate } from "@/components/common";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { toast } from "sonner";
 
 interface LogEntry {
@@ -476,7 +475,6 @@ export default function AiAgentPage() {
               <span className="size-2 animate-pulse rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
               {paused ? t("ai.simulationPaused") : t("ai.systemOnline")}
             </span>
-            <LanguageSwitcher />
             <Button
               variant="outline"
               size="sm"
@@ -995,7 +993,7 @@ const PROMPT_CATEGORIES = [
   { value: "execution", label: "Execution" },
 ];
 
-const SUB_AGENT_ROLES = [
+const SUB_AGENT_ROLES: SubAgentRole[] = [
   "market_scanner", "trading_executor", "risk_manager", "news_analyzer",
   "portfolio_manager", "backtester", "data_aggregator", "wallet_monitor",
   "social_sentinel", "copy_trader",

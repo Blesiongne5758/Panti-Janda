@@ -105,7 +105,7 @@ export default function MarketplacePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => (
               <Link key={item.id} to={`/marketplace/${item.id}`}>
-                <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
+                <Card className="hover-lift flex h-full flex-col gap-0 overflow-hidden py-0">
                   {item.photos && item.photos.length > 0 && (
                     <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
                       <img
@@ -116,7 +116,7 @@ export default function MarketplacePage() {
                       />
                     </div>
                   )}
-                  <CardContent className={item.photos && item.photos.length > 0 ? "pt-4" : "pt-6"}>
+                  <CardContent className={item.photos && item.photos.length > 0 ? "flex-1 pb-4 pt-4" : "flex-1 pb-4 pt-6"}>
                     <div className="flex items-start justify-between">
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                         {LISTING_KIND_LABEL[item.kind] ?? item.kind}
@@ -130,23 +130,23 @@ export default function MarketplacePage() {
                     <p className="mt-3 font-display text-xl font-bold text-primary">
                       {formatRupiah(item.price)}
                     </p>
-                    <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
-                      <MemberAvatar
-                        name={item.sellerName}
-                        photoData={item.sellerPhoto}
-                        size={28}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{item.sellerName}</p>
-                        {item.sellerCity && (
-                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="size-3" />
-                            {item.sellerCity}
-                          </p>
-                        )}
-                      </div>
-                    </div>
                   </CardContent>
+                  <div className="flex items-center gap-2 border-t border-border bg-secondary/40 px-6 py-3">
+                    <MemberAvatar
+                      name={item.sellerName}
+                      photoData={item.sellerPhoto}
+                      size={28}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{item.sellerName}</p>
+                      {item.sellerCity && (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="size-3" />
+                          {item.sellerCity}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </Card>
               </Link>
             ))}

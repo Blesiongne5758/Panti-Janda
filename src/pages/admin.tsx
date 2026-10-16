@@ -6,6 +6,10 @@ import {
   Bitcoin,
   BookOpen,
   Bot,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardCheck,
+  Cloud,
   Coins,
   CreditCard,
   Crown,
@@ -18,7 +22,9 @@ import {
   Pencil,
   Plus,
   Power,
+  QrCode,
   RefreshCw,
+  RotateCcw,
   Save,
   ShieldCheck,
   Trash2,
@@ -31,10 +37,19 @@ import {
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
-import { formatRupiah, timeAgo } from "@/lib/format";
-import { ROLE_LABEL, TIER_META, PUBLIC_TIER_META, WIDOW_ROLES } from "@/lib/constants";
+import { formatDateTime, formatRupiah, timeAgo } from "@/lib/format";
+import { APPROVAL_REASON_LABEL, ROLE_LABEL, TIER_META, PUBLIC_TIER_META, WIDOW_ROLES } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS } from "@/lib/verify-doc";
-import type { AdminAccount, AdminStats, AppSettings, DonationItem, Profile, ReportItem, WidowRole } from "@/lib/types";
+import type {
+  AdminAccount,
+  AdminEventApproval,
+  AdminStats,
+  AppSettings,
+  DonationItem,
+  Profile,
+  ReportItem,
+  WidowRole,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +62,69 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, Chip, ErrorNote, LoadingGrid, MemberAvatar, Stat, StatusPill } from "@/components/common";
 import { toast } from "sonner";
+
+interface AdminEventTicketStats {
+  total: number;
+  valid: number;
+  used: number;
+  pending: number;
+  cancelled: number;
+  revenue: number;
+}
+
+const APPROVAL_STATUS_META: Record<string, { label: string; className: string }> = {
+  pending: { label: "Menunggu", className: "bg-amber-100 text-amber-800" },
+  approved: { label: "Disetujui", className: "bg-emerald-100 text-emerald-800" },
+  rejected: { label: "Ditolak", className: "bg-rose-100 text-rose-800" },
+  revision: { label: "Perlu revisi", className: "bg-sky-100 text-sky-800" },
+};
+
+interface ApprovalDecision {
+  approval: AdminEventApproval;
+  decision: "reject" | "revision";
+}
+
+interface AdminEventRow {
+  id: string;
+  title: string;
+  audience: string;
+  status: string;
+  startsAt: string;
+  createdAt: string;
+  capacity: number | null;
+  ticketPrice: number | null;
+  createdBy: string;
+  creatorName: string | null;
+  tickets: AdminEventTicketStats;
+  attendanceCount: number;
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1"
+      />
+    </div>
+  );
+}
 
 function RejectDialog({
   profile,
@@ -113,6 +191,84 @@ function RejectDialog({
   );
 }
 
+function ApprovalDecisionDialog({
+  target,
+  onOpenChange,
+  onDone,
+}: {
+  target: ApprovalDecision | null;
+  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  const close = (open: boolean) => {
+    if (!open) setNote("");
+    onOpenChange(open);
+  };
+
+  const submit = async () => {
+    if (!target) return;
+    setBusy(true);
+    try {
+      await api("admin.events.decide", {
+        approvalId: target.approval.id,
+        decision: target.decision,
+        note: note.trim() || undefined,
+      });
+      toast.success(
+        target.decision === "reject"
+          ? "Event ditolak dan dikembalikan ke draf."
+          : "Permintaan revisi terkirim ke pembuat event.",
+      );
+      close(false);
+      onDone();
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={target !== null} onOpenChange={close}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display">
+            {target?.decision === "reject" ? "Tolak event" : "Minta revisi event"}
+          </DialogTitle>
+          <DialogDescription>
+            {target?.decision === "reject"
+              ? `Event "${target?.approval.eventTitle}" akan dikembalikan ke draf dan pembuat menerima notifikasi.`
+              : `Event "${target?.approval.eventTitle}" dikembalikan ke draf agar pembuat melengkapi sesuai catatan Anda.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="approval-note">Catatan (opsional)</Label>
+          <Textarea
+            id="approval-note"
+            rows={3}
+            maxLength={400}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Contoh: lampirkan rincian anggaran konsumsi dan konfirmasi pelatih."
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => close(false)} disabled={busy}>
+            Batal
+          </Button>
+          <Button variant={target?.decision === "reject" ? "destructive" : "default"} onClick={submit} disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+            {target?.decision === "reject" ? "Kirim penolakan" : "Kirim permintaan revisi"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AdminPage() {
   const { ready, account } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -120,6 +276,10 @@ export default function AdminPage() {
   const [pending, setPending] = useState<Profile[] | null>(null);
   const [reports, setReports] = useState<ReportItem[] | null>(null);
   const [donations, setDonations] = useState<DonationItem[] | null>(null);
+  const [eventsAdmin, setEventsAdmin] = useState<AdminEventRow[] | null>(null);
+  const [approvals, setApprovals] = useState<AdminEventApproval[] | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const [approvalDecision, setApprovalDecision] = useState<ApprovalDecision | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -238,6 +398,14 @@ export default function AdminPage() {
       setReports(reportsData.items);
       setDonations(donationsData.items);
       setSettings(settingsData.settings);
+      try {
+        const eventsData = await api<{ items: AdminEventRow[] }>("admin.events.list");
+        setEventsAdmin(eventsData.items);
+      } catch { /* abaikan bila backend lama belum menyediakan */ }
+      try {
+        const approvalsData = await api<{ items: AdminEventApproval[] }>("admin.events.approvals");
+        setApprovals(approvalsData.items);
+      } catch { /* abaikan bila backend lama belum menyediakan */ }
       setPaymentForm({
         serverKey: settingsData.settings.payment.midtransServerKey,
         clientKey: settingsData.settings.payment.midtransClientKey,
@@ -581,6 +749,21 @@ export default function AdminPage() {
     }
   };
 
+  const pendingApprovals = approvals?.filter((item) => item.status === "pending").length ?? 0;
+
+  const decideApproval = async (approval: AdminEventApproval) => {
+    setApprovalBusy(approval.id);
+    try {
+      await api("admin.events.decide", { approvalId: approval.id, decision: "approve" });
+      toast.success("Event disetujui dan telah dipublikasikan.");
+      await load();
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setApprovalBusy(null);
+    }
+  };
+
   const loading = !stats || !accounts || !pending || !reports || !donations || !settings;
 
   return (
@@ -617,6 +800,12 @@ export default function AdminPage() {
             Laporan{reports && reports.length ? ` (${reports.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="donasi">Donasi</TabsTrigger>
+          <TabsTrigger value="events">
+            Event & Tiket{eventsAdmin && eventsAdmin.length ? ` (${eventsAdmin.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="approval">
+            Approval Event{pendingApprovals ? ` (${pendingApprovals})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="pembayaran">Pembayaran</TabsTrigger>
           <TabsTrigger value="pengiriman">Pengiriman</TabsTrigger>
           <TabsTrigger value="langganan">Langganan</TabsTrigger>
@@ -631,6 +820,7 @@ export default function AdminPage() {
           <TabsTrigger value="cryptoSettings">Crypto Wallet</TabsTrigger>
           <TabsTrigger value="trialAccounts">Akun Uji Coba</TabsTrigger>
           <TabsTrigger value="apiManagement">Manajemen API</TabsTrigger>
+          <TabsTrigger value="storage">Cloud Storage</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ringkasan" className="mt-4">
@@ -957,6 +1147,230 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="events" className="mt-4">
+          {loading || !eventsAdmin ? (
+            <LoadingGrid count={3} />
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Total event" value={eventsAdmin.length} />
+                <Stat
+                  label="Tiket diterbitkan"
+                  value={eventsAdmin.reduce((sum, e) => sum + e.tickets.total, 0)}
+                  hint="dari seluruh event"
+                />
+                <Stat
+                  label="Tiket terpakai"
+                  value={eventsAdmin.reduce((sum, e) => sum + e.tickets.used, 0)}
+                  hint="sudah diabsen"
+                />
+                <Stat
+                  label="Pendapatan tiket"
+                  value={formatRupiah(eventsAdmin.reduce((sum, e) => sum + e.tickets.revenue, 0))}
+                  hint="tiket valid & terpakai"
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-display text-lg">
+                    <CalendarDays className="size-4" aria-hidden />
+                    Event &amp; penerbitan tiket
+                  </CardTitle>
+                  <CardDescription>
+                    Daftar event beserta pembuatnya dan jumlah tiket yang diterbitkan. Klik judul event untuk membuka pengelolaan.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {eventsAdmin.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Belum ada event yang dibuat.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead>
+                          <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                            <th className="pb-2 pr-4">Event</th>
+                            <th className="pb-2 pr-4">Pembuat</th>
+                            <th className="pb-2 pr-4">Tiket</th>
+                            <th className="pb-2 pr-4">Absensi</th>
+                            <th className="pb-2 pr-4">Harga</th>
+                            <th className="pb-2">Mulai</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {eventsAdmin.map((ev) => (
+                            <tr key={ev.id}>
+                              <td className="py-3 pr-4">
+                                <Link
+                                  to={`/event/${ev.id}/kelola`}
+                                  className="font-medium underline-offset-2 hover:underline"
+                                >
+                                  {ev.title}
+                                </Link>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <Badge variant="secondary" className="capitalize">{ev.audience}</Badge>
+                                  {ev.status === "cancelled" ? (
+                                    <Badge variant="destructive">Dibatalkan</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="capitalize">{ev.status}</Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 pr-4">
+                                <span className="font-medium">{ev.creatorName ?? "Tidak diketahui"}</span>
+                              </td>
+                              <td className="py-3 pr-4">
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <QrCode className="size-3.5 text-muted-foreground" aria-hidden />
+                                  <span className="font-semibold">{ev.tickets.total}</span>
+                                  <span className="text-muted-foreground">
+                                    (berlaku {ev.tickets.valid} · terpakai {ev.tickets.used}
+                                    {ev.tickets.pending ? ` · menunggu ${ev.tickets.pending}` : ""})
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 pr-4">
+                                <span className="font-semibold">{ev.attendanceCount}</span>
+                              </td>
+                              <td className="py-3 pr-4">
+                                {ev.ticketPrice ? formatRupiah(ev.ticketPrice) : "Gratis"}
+                              </td>
+                              <td className="py-3 text-xs text-muted-foreground">
+                                {formatDateTime(ev.startsAt)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="approval" className="mt-4">
+          {loading || !approvals ? (
+            <LoadingGrid count={3} />
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Stat label="Menunggu keputusan" value={pendingApprovals} hint="perlu tindakan admin" />
+                <Stat
+                  label="Disetujui"
+                  value={approvals.filter((item) => item.status === "approved").length}
+                  hint="otomatis dipublikasikan"
+                />
+                <Stat
+                  label="Ditolak / revisi"
+                  value={approvals.filter((item) => item.status === "rejected" || item.status === "revision").length}
+                  hint="dikembalikan ke draf"
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-display text-lg">
+                    <ClipboardCheck className="size-4" aria-hidden />
+                    Persetujuan event
+                  </CardTitle>
+                  <CardDescription>
+                    Pengajuan event yang memakai dana platform, melibatkan sponsor, menargetkan lebih dari 1.000
+                    peserta, berkategori amal, atau konferensi berizin.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {approvals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Belum ada pengajuan persetujuan event.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {approvals.map((item) => {
+                        const meta = APPROVAL_STATUS_META[item.status] ?? APPROVAL_STATUS_META.pending;
+                        return (
+                          <li key={item.id} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 py-4">
+                            <div className="min-w-0 flex-1 basis-64 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Link
+                                  to={`/event/${item.eventId}/kelola`}
+                                  className="font-medium underline-offset-2 hover:underline"
+                                >
+                                  {item.eventTitle}
+                                </Link>
+                                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${meta.className}`}>
+                                  {meta.label}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <span>
+                                  Diajukan {item.requestedByName} · {timeAgo(item.createdAt)}
+                                </span>
+                                {item.startsAt ? <span>Mulai {formatDateTime(item.startsAt)}</span> : null}
+                                {item.capacity ? <span>Kapasitas {item.capacity}</span> : null}
+                              </div>
+                              {item.reason.length ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {item.reason.map((reason) => (
+                                    <Badge key={reason} variant="outline">
+                                      {APPROVAL_REASON_LABEL[reason] ?? reason}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : null}
+                              <p className="text-xs text-muted-foreground">
+                                Anggaran {formatRupiah(item.totalBudget)} · Sumber dana {formatRupiah(item.totalFunding)}
+                              </p>
+                              {item.decisionNote ? (
+                                <p className="text-xs text-muted-foreground">Catatan admin: {item.decisionNote}</p>
+                              ) : null}
+                            </div>
+                            {item.status === "pending" ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => void decideApproval(item)}
+                                  disabled={approvalBusy === item.id}
+                                >
+                                  {approvalBusy === item.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="size-4" aria-hidden />
+                                  )}
+                                  Setujui
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setApprovalDecision({ approval: item, decision: "revision" })}
+                                  disabled={approvalBusy === item.id}
+                                >
+                                  <RotateCcw className="size-4" aria-hidden />
+                                  Minta revisi
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => setApprovalDecision({ approval: item, decision: "reject" })}
+                                  disabled={approvalBusy === item.id}
+                                >
+                                  <XCircle className="size-4" aria-hidden />
+                                  Tolak
+                                </Button>
+                              </div>
+                            ) : item.decidedAt ? (
+                              <span className="text-xs text-muted-foreground">Diputuskan {timeAgo(item.decidedAt)}</span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
 
@@ -2649,6 +3063,9 @@ export default function AdminPage() {
                       parameters: aiTradingAgentForm.parameters,
                       allowedMarkets: aiTradingAgentForm.allowedMarkets,
                       schedule: aiTradingAgentForm.schedule,
+                      subAgents: settings?.aiTradingAgent?.subAgents ?? [],
+                      tradingServers: settings?.aiTradingAgent?.tradingServers ?? [],
+                      promptLibrary: settings?.aiTradingAgent?.promptLibrary ?? [],
                     },
                   })
                 }
@@ -4029,12 +4446,238 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="storage" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Cloud className="mr-2 inline size-5" />
+                Cloud Storage Settings
+              </CardTitle>
+              <CardDescription>
+                Konfigurasi penyimpanan file cloud (AWS S3, DigitalOcean Spaces, MinIO, Cloudinary) dengan pre-signed URLs untuk upload langsung.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!settings ? (
+                <div className="text-center text-sm text-muted-foreground">Memuat pengaturan...</div>
+              ) : (
+              <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold">Storage Enabled</h4>
+                  <p className="text-sm text-muted-foreground">Aktifkan penyimpanan cloud untuk file upload</p>
+                </div>
+                <Switch
+                  checked={settings.storage?.enabled ?? false}
+                  onCheckedChange={(checked) =>
+                    updateSettings({ storage: { ...(settings.storage ?? {}), enabled: checked } })
+                  }
+                />
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-semibold">Storage Provider</h4>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {(["aws_s3", "digitalocean_spaces", "minio", "cloudinary"] as const).map((provider) => (
+                    <Button
+                      key={provider}
+                      variant={settings.storage?.provider === provider ? "default" : "outline"}
+                      onClick={() => updateSettings({ storage: { ...(settings.storage ?? {}), provider } })}
+                      className="justify-start"
+                    >
+                      {provider === "aws_s3" && "AWS S3"}
+                      {provider === "digitalocean_spaces" && "DigitalOcean Spaces"}
+                      {provider === "minio" && "MinIO"}
+                      {provider === "cloudinary" && "Cloudinary"}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {settings.storage?.provider !== "cloudinary" && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold">S3 Configuration</h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <InputField
+                      label="Region"
+                      value={settings.storage?.s3?.region ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), region: v } } })}
+                      placeholder="ap-southeast-1"
+                    />
+                    <InputField
+                      label="Endpoint (optional for custom S3)"
+                      value={settings.storage?.s3?.endpoint ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), endpoint: v } } })}
+                      placeholder="https://s3.amazonaws.com"
+                    />
+                    <InputField
+                      label="Access Key ID"
+                      value={settings.storage?.s3?.accessKeyId ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), accessKeyId: v } } })}
+                      placeholder="AKIA..."
+                      type="password"
+                    />
+                    <InputField
+                      label="Secret Access Key"
+                      value={settings.storage?.s3?.secretAccessKey ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), secretAccessKey: v } } })}
+                      placeholder="••••••••"
+                      type="password"
+                    />
+                    <InputField
+                      label="Public Bucket Name"
+                      value={settings.storage?.s3?.publicBucket ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), publicBucket: v } } })}
+                      placeholder="my-public-bucket"
+                    />
+                    <InputField
+                      label="Private Bucket Name"
+                      value={settings.storage?.s3?.privateBucket ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), privateBucket: v } } })}
+                      placeholder="my-private-bucket"
+                    />
+                    <InputField
+                      label="CDN URL (optional)"
+                      value={settings.storage?.s3?.cdnUrl ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), cdnUrl: v } } })}
+                      placeholder="https://cdn.example.com"
+                    />
+                    <InputField
+                      label="Max File Size (MB)"
+                      value={String(settings.storage?.s3?.maxFileSizeMB ?? 10)}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), maxFileSizeMB: Number(v) || 10 } } })}
+                      type="number"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {settings.storage?.provider === "cloudinary" && (
+                <div className="space-y-4">
+                  <h4 className="font-semibold">Cloudinary Configuration</h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <InputField
+                      label="Cloud Name"
+                      value={settings.storage?.cloudinary?.cloudName ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), cloudName: v } } })}
+                      placeholder="my-cloud"
+                    />
+                    <InputField
+                      label="API Key"
+                      value={settings.storage?.cloudinary?.apiKey ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), apiKey: v } } })}
+                      placeholder="123456789012345"
+                    />
+                    <InputField
+                      label="API Secret"
+                      value={settings.storage?.cloudinary?.apiSecret ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), apiSecret: v } } })}
+                      placeholder="••••••••"
+                      type="password"
+                    />
+                    <InputField
+                      label="Upload Preset"
+                      value={settings.storage?.cloudinary?.uploadPreset ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), uploadPreset: v } } })}
+                      placeholder="panti_janda"
+                    />
+                    <InputField
+                      label="Folder"
+                      value={settings.storage?.cloudinary?.folder ?? ""}
+                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), folder: v } } })}
+                      placeholder="panti-janda"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h4 className="font-semibold">Media Optimization</h4>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Enable Optimization</p>
+                    <p className="text-sm text-muted-foreground">Auto compress, WebP conversion, thumbnail generation</p>
+                  </div>
+                  <Switch
+                    checked={settings.storage?.optimization?.enabled ?? true}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ storage: { ...(settings.storage ?? {}), optimization: { ...(settings.storage?.optimization ?? {}), enabled: checked } } })
+                    }
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium">Optimization Provider</label>
+                    <select
+                      value={settings.storage?.optimization?.provider ?? "cloudinary"}
+                      onChange={(e) =>
+                        updateSettings({ storage: { ...(settings.storage ?? {}), optimization: { ...(settings.storage?.optimization ?? {}), provider: e.target.value as any } } })
+                      }
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
+                    >
+                      <option value="cloudinary">Cloudinary</option>
+                      <option value="imagekit">ImageKit</option>
+                      <option value="none">None</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-semibold">Security Settings</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <InputField
+                    label="Pre-signed URL Expiry (seconds)"
+                    value={String(settings.storage?.security?.presignedUrlExpirySeconds ?? 300)}
+                    onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), security: { ...(settings.storage?.security ?? {}), presignedUrlExpirySeconds: Number(v) || 300 } } })}
+                    type="number"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Require Ownership for Private Files</p>
+                    <p className="text-sm text-muted-foreground">Only allow access to private files after verifying ownership</p>
+                  </div>
+                  <Switch
+                    checked={settings.storage?.security?.requireOwnershipForPrivate ?? true}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ storage: { ...(settings.storage ?? {}), security: { ...(settings.storage?.security ?? {}), requireOwnershipForPrivate: checked } } })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  disabled={savingSettings}
+                  onClick={() =>
+                    updateSettings({
+                      storage: settings.storage,
+                    })
+                  }
+                >
+                  {savingSettings ? <Loader2 className="size-4 animate-spin" /> : <Save className="mr-2 size-4" />}
+                  Simpan Pengaturan Storage
+                </Button>
+              </div>
+              </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <RejectDialog
         profile={rejectTarget}
         open={rejectTarget !== null}
         onOpenChange={(open) => (!open ? setRejectTarget(null) : null)}
+        onDone={load}
+      />
+
+      <ApprovalDecisionDialog
+        target={approvalDecision}
+        onOpenChange={(open) => (!open ? setApprovalDecision(null) : null)}
         onDone={load}
       />
     </div>

@@ -43,6 +43,13 @@
   --chart-3: #b98a2f;
   --chart-4: #7c8a5a;
   --chart-5: #8a5a7c;
+  /* Gradient kartu mengikuti chart-1/chart-2 — otomatis ganti di tema gelap theme-public. */
+  --card-gradient: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--chart-1) 10%, transparent) 0%,
+    transparent 45%,
+    color-mix(in srgb, var(--chart-2) 8%, transparent) 100%
+  );
   --radius: 0.75rem;
   --sidebar: #fffdf9;
   --sidebar-foreground: #2e1f26;
@@ -52,6 +59,152 @@
   --sidebar-accent-foreground: #2e1f26;
   --sidebar-border: #e8dccc;
   --sidebar-ring: #b98a2f;
+  --neu-shadow: rgba(46, 31, 38, 0.08);
+  --neu-shadow-soft: rgba(46, 31, 38, 0.06);
+  --neu-shadow-strong: rgba(46, 31, 38, 0.1);
+  --neu-highlight: rgba(255, 255, 255, 0.7);
+  --neu-highlight-strong: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-border-soft: rgba(255, 255, 255, 0.3);
+  --glass-border-strong: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Tema non-janda: Embers #B82601 · Posy #813772 · Ink #062F4F · Black #000000 ──
+   Diterapkan otomatis via class .theme-public pada <html> (lihat ThemeSync di App.tsx).
+   Semua utility Tailwind (bg-*, text-*, border-*) membaca var(--color-*), jadi palet
+   di bawah me-remap kelas hardcoded yang dipakai di seluruh halaman ke ekuivalen gelap. */
+html.theme-public {
+  color-scheme: dark;
+  --background: #030a12;
+  --foreground: #f2ede7;
+  --card: #071827;
+  --card-foreground: #f2ede7;
+  --popover: #0a1d2f;
+  --popover-foreground: #f2ede7;
+  --primary: #b82601;
+  --primary-foreground: #fff4ee;
+  --secondary: #0e2a44;
+  --secondary-foreground: #e8e2da;
+  --muted: #0c1d2e;
+  --muted-foreground: #93a3b4;
+  --accent: #2a1533;
+  --accent-foreground: #ebbfe0;
+  --destructive: #e5484d;
+  --border: #16324a;
+  --input: #16324a;
+  --ring: #e85d26;
+  --chart-1: #e85d26;
+  --chart-2: #c98bbe;
+  --chart-3: #4c9fe0;
+  --chart-4: #b82601;
+  --chart-5: #ebbfe0;
+  --sidebar: #071827;
+  --sidebar-foreground: #f2ede7;
+  --sidebar-primary: #b82601;
+  --sidebar-primary-foreground: #fff4ee;
+  --sidebar-accent: #0e2a44;
+  --sidebar-accent-foreground: #e8e2da;
+  --sidebar-border: #16324a;
+  --sidebar-ring: #e85d26;
+  --neu-shadow: rgba(0, 0, 0, 0.5);
+  --neu-shadow-soft: rgba(0, 0, 0, 0.38);
+  --neu-shadow-strong: rgba(0, 0, 0, 0.62);
+  --neu-highlight: rgba(255, 255, 255, 0.05);
+  --neu-highlight-strong: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-soft: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Oranye → embers gelap/terang */
+  --color-orange-50: #1c1210;
+  --color-orange-100: #241613;
+  --color-orange-200: #3a241c;
+  --color-orange-300: #4a2e22;
+  --color-orange-600: #f08050;
+  --color-orange-700: #f59062;
+  --color-orange-800: #f9a176;
+  --color-orange-900: #fdb28a;
+
+  /* Amber */
+  --color-amber-50: #221a0e;
+  --color-amber-100: #2a1f10;
+  --color-amber-200: #3a2e16;
+  --color-amber-300: #493b1c;
+  --color-amber-600: #f0bc50;
+  --color-amber-700: #f5c65e;
+  --color-amber-800: #f9d06c;
+  --color-amber-900: #fdda7b;
+
+  /* Rose → nuansa posy */
+  --color-rose-50: #1f1116;
+  --color-rose-100: #27151b;
+  --color-rose-200: #3a2028;
+  --color-rose-300: #4a2833;
+  --color-rose-600: #f26d88;
+  --color-rose-700: #f57d97;
+  --color-rose-800: #f88ea6;
+  --color-rose-900: #fb9fb5;
+
+  /* Emerald */
+  --color-emerald-50: #0d1a14;
+  --color-emerald-100: #122117;
+  --color-emerald-200: #1e3328;
+  --color-emerald-300: #274234;
+  --color-emerald-600: #34c08c;
+  --color-emerald-700: #3ecf9a;
+  --color-emerald-800: #49dda7;
+  --color-emerald-900: #55ecb4;
+
+  /* Sky / Blue → ink terang */
+  --color-sky-50: #0d141a;
+  --color-sky-100: #111b24;
+  --color-sky-300: #22384a;
+  --color-sky-600: #4fa8e8;
+  --color-sky-700: #66b4ec;
+  --color-sky-800: #7ec1f0;
+  --color-sky-900: #95cdf4;
+  --color-blue-50: #0d1420;
+  --color-blue-200: #1b2c46;
+  --color-blue-300: #243956;
+  --color-blue-600: #4f8fe8;
+  --color-blue-700: #669eec;
+  --color-blue-800: #7dadf0;
+  --color-blue-900: #95baf4;
+
+  /* Violet / Indigo / Purple / Pink */
+  --color-violet-50: #141020;
+  --color-violet-100: #181328;
+  --color-violet-200: #2a2140;
+  --color-violet-300: #352a50;
+  --color-violet-600: #9a7cf0;
+  --color-violet-700: #a98df4;
+  --color-violet-800: #b89ef7;
+  --color-violet-900: #c7aefb;
+  --color-indigo-100: #131629;
+  --color-indigo-600: #7c88f0;
+  --color-indigo-900: #b5bcf8;
+  --color-purple-600: #b57ae8;
+  --color-pink-600: #ef6fa6;
+
+  /* Status lain */
+  --color-green-600: #4fd47e;
+  --color-red-600: #ef5b5b;
+  --color-yellow-600: #e8c73f;
+
+  /* Netral hangat/dingin: bg terang → permukaan gelap, teks gelap → teks terang */
+  --color-slate-100: #10161e;
+  --color-slate-200: #151d27;
+  --color-slate-300: #233040;
+  --color-slate-400: #2b3a4d;
+  --color-slate-500: #8fa0b5;
+  --color-slate-600: #a7b4c6;
+  --color-slate-700: #c0cad8;
+  --color-stone-100: #15120f;
+  --color-stone-200: #1b1714;
+  --color-stone-300: #352e28;
+  --color-stone-500: #a39a93;
+  --color-stone-600: #b5aca4;
+  --color-stone-700: #c8bfb7;
 }
 
 @theme inline {
@@ -115,15 +268,18 @@ body {
 }
 
 .texture-grain {
-  background-image: radial-gradient(rgba(91, 42, 78, 0.05) 1px, transparent 1px);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--primary) 5%, transparent) 1px,
+    transparent 1px
+  );
   background-size: 22px 22px;
 }
 
 .hero-glow {
   background:
-    radial-gradient(60% 70% at 15% 0%, rgba(185, 138, 47, 0.18) 0%, transparent 60%),
-    radial-gradient(50% 60% at 90% 10%, rgba(194, 96, 62, 0.16) 0%, transparent 55%),
-    radial-gradient(40% 50% at 60% 100%, rgba(91, 42, 78, 0.1) 0%, transparent 60%);
+    radial-gradient(60% 70% at 15% 0%, color-mix(in srgb, var(--ring) 18%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 60% at 90% 10%, color-mix(in srgb, var(--chart-1) 16%, transparent) 0%, transparent 55%),
+    radial-gradient(40% 50% at 60% 100%, color-mix(in srgb, var(--chart-2) 10%, transparent) 0%, transparent 60%);
 }
 
 @keyframes rise-in {
@@ -200,29 +356,29 @@ body {
 .neu-flat {
   background: var(--card);
   box-shadow:
-    6px 6px 14px rgba(46, 31, 38, 0.08),
-    -6px -6px 14px rgba(255, 255, 255, 0.7);
+    6px 6px 14px var(--neu-shadow),
+    -6px -6px 14px var(--neu-highlight);
   transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
 .neu-flat:hover {
   box-shadow:
-    8px 8px 18px rgba(46, 31, 38, 0.1),
-    -8px -8px 18px rgba(255, 255, 255, 0.8);
+    8px 8px 18px var(--neu-shadow-strong),
+    -8px -8px 18px var(--neu-highlight-strong);
 }
 
 .neu-pressed {
   background: var(--card);
   box-shadow:
-    inset 4px 4px 8px rgba(46, 31, 38, 0.08),
-    inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+    inset 4px 4px 8px var(--neu-shadow),
+    inset -4px -4px 8px var(--neu-highlight);
 }
 
 .neu-round {
   background: var(--card);
   box-shadow:
-    4px 4px 10px rgba(46, 31, 38, 0.07),
-    -4px -4px 10px rgba(255, 255, 255, 0.6);
+    4px 4px 10px var(--neu-shadow-soft),
+    -4px -4px 10px var(--neu-highlight);
   border-radius: 9999px;
 }
 
@@ -230,23 +386,29 @@ body {
 .glass {
   background: color-mix(in srgb, var(--card) 72%, transparent);
   backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 8px 32px rgba(46, 31, 38, 0.08);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px var(--neu-shadow);
 }
 
 .glass-subtle {
   background: color-mix(in srgb, var(--card) 60%, transparent);
   backdrop-filter: blur(8px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--glass-border-soft);
 }
 
 .glass-intense {
   background: color-mix(in srgb, var(--card) 82%, transparent);
   backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--glass-border-strong);
   box-shadow:
-    0 8px 32px rgba(46, 31, 38, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    0 8px 32px var(--neu-shadow-strong),
+    inset 0 1px 0 var(--glass-border);
+}
+
+/* ── Gradient kartu (diletakkan setelah blok neu & glass agar background-image
+   menang atas shorthand background mereka) ── */
+.gradient-card {
+  background-image: var(--card-gradient);
 }
 
 /* ── Microinteractions ── */
@@ -257,8 +419,8 @@ body {
 .hover-lift:hover {
   transform: translateY(-3px);
   box-shadow:
-    0 12px 28px rgba(46, 31, 38, 0.1),
-    0 4px 12px rgba(46, 31, 38, 0.06);
+    0 12px 28px var(--neu-shadow-strong),
+    0 4px 12px var(--neu-shadow-soft);
 }
 
 .press-scale {

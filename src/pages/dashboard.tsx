@@ -7,7 +7,9 @@ import {
   Coins,
   Crown,
   FileUp,
+  Gamepad2,
   HandCoins,
+  Handshake,
   Heart,
   LayoutDashboard,
   Loader2,
@@ -55,6 +57,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, MemberAvatar, StatusPill, TierBadge } from "@/components/common";
+import { DashboardCalendar } from "@/components/dashboard-calendar";
 import { toast } from "sonner";
 
 const listToText = (values: string[]) => values.join(", ");
@@ -808,6 +811,8 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
+      {rank >= 2 ? <DashboardCalendar /> : null}
+
       {rank >= 2 && kpi ? (
         <Card>
           <CardHeader>
@@ -977,6 +982,49 @@ export default function DashboardPage() {
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link to="/learning-center?tab=komunitas">Forum Komunitas</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
+            <Gamepad2 className="size-4 text-orange-600" aria-hidden />
+            Kompetisi E-Sport
+          </CardTitle>
+          <CardDescription>
+            Ikuti dan selenggarakan turnamen game: Mobile Legends, PUBG Mobile, Free Fire, Valorant, Dota 2, dan lainnya — lengkap dengan manajemen tim, bagan pertandingan otomatis, jadwal, dan live streaming.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link to="/kompetisi-esport">Buka Kompetisi E-Sport</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/kompetisi-esport/papan">Papan Peringkat</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/bursa-transfer">Bursa Transfer Pemain</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
+            <Handshake className="size-4 text-emerald-600" aria-hidden />
+            Bursa Transfer Pemain
+          </CardTitle>
+          <CardDescription>
+            Jual, beli, pinjamkan, atau rekrut pemain antar tim e-sport: profil pemain, negosiasi tawaran, kontrak digital, dan pembayaran escrow koin yang aman.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link to="/bursa-transfer">Buka Bursa Transfer</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/bursa-transfer">Cari Pemain</Link>
           </Button>
         </CardContent>
       </Card>

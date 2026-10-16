@@ -1,6 +1,11 @@
 // Minimal in-memory stand-in for the supabase-js query builder used by the
 // handler. Supports the chain shapes the handler relies on: select/insert/
-// update/delete with eq/neq/in/order/limit/range/maybeSingle/single.
+// update/delete with eq/neq/in/like/order/limit/range/maybeSingle/single.
+
+const likeToRegExp = (pattern) => {
+  const escaped = String(pattern).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped.replace(/%/g, ".*").replace(/_/g, ".")}$`);
+};
 
 export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
   const store = new Map(Object.entries(tables));
@@ -55,6 +60,11 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
       this.filters.push((row) => set.has(String(row[column])));
       return this;
     }
+    like(column, pattern) {
+      const regex = likeToRegExp(pattern);
+      this.filters.push((row) => row[column] !== null && row[column] !== undefined && regex.test(String(row[column])));
+      return this;
+    }
     order(column, options = {}) {
       this.orderBy = { column, ascending: options.ascending !== false };
       return this;
@@ -81,6 +91,7 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
     filter(column, operator, value) {
       if (operator === "eq") return this.eq(column, value);
       if (operator === "neq") return this.neq(column, value);
+      if (operator === "like") return this.like(column, value);
       return this;
     }
     then(resolve) {

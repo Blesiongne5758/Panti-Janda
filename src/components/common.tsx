@@ -257,10 +257,12 @@ export function PageBanner({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-3xl border border-border bg-card/70 px-5 py-7 shadow-sm sm:px-8",
+        "relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-chart-1/15 via-card to-chart-2/15 px-5 py-7 shadow-sm sm:px-8",
         className,
       )}
     >
+      <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-chart-1/20 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -bottom-20 -left-10 size-48 rounded-full bg-chart-2/20 blur-3xl" aria-hidden />
       <img
         src={art}
         alt=""
@@ -274,7 +276,7 @@ export function PageBanner({
 
 export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="neu-flat rounded-2xl px-3 py-3 sm:px-5 sm:py-4">
+    <div className="neu-flat gradient-card rounded-2xl px-3 py-3 sm:px-5 sm:py-4">
       <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase sm:text-xs">{label}</p>
       <p className="mt-1 font-display text-xl font-semibold text-foreground sm:text-2xl">{value}</p>
       {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}

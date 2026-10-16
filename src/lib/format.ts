@@ -9,6 +9,20 @@ export function formatRupiah(value: number | null | undefined): string {
   return rupiah.format(value);
 }
 
+export function formatRupiahCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  if (value >= 1_000_000_000) {
+    return `Rp${(value / 1_000_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} M`;
+  }
+  if (value >= 1_000_000) {
+    return `Rp${(value / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`;
+  }
+  if (value >= 1_000) {
+    return `Rp${(value / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 0 })} rb`;
+  }
+  return `Rp${value}`;
+}
+
 const dateFull = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
   month: "long",

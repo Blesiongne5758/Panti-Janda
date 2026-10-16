@@ -7,3 +7,7 @@ dist/
 *.tsbuildinfo
 .qoder-sites/
 .qoder-sites.json
+
+# Local test artifacts
+/*.png
+dev/fixture.log

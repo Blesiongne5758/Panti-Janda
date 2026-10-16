@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PageBanner } from "@/components/common";
 import { LISTING_CATEGORIES } from "@/lib/constants";
+import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
 export default function MarketplaceFormPage() {
   const { navigate } = useRoute();
@@ -18,16 +19,16 @@ export default function MarketplaceFormPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploading: hookUploading, uploadFile, error: uploadHookError } = usePresignedUpload();
+  const uploading = hookUploading;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setUploading(true);
     setError("");
 
     try {
@@ -42,19 +43,16 @@ export default function MarketplaceFormPage() {
           setError("Ukuran file maksimal 5 MB.");
           continue;
         }
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        newPhotos.push(dataUrl);
+        const result = await uploadFile(file, "public");
+        if (result) {
+          newPhotos.push(result.publicUrl || result.key);
+        }
       }
+      if (uploadHookError) setError(uploadHookError);
       setPhotos((prev) => [...prev, ...newPhotos].slice(0, 5));
     } catch (err) {
       setError("Gagal mengunggah foto.");
     } finally {
-      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };

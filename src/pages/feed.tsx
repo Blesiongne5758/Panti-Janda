@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X } from "lucide-react";
+import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
 import type { MediaPost } from "@/lib/types";
 import { toast } from "sonner";
+import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
 export function FeedPage() {
   const auth = useAuth();
@@ -26,6 +27,8 @@ export function FeedPage() {
   });
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedFileRef = useRef<File | null>(null);
+  const { uploading, uploadFile, error: uploadError, clearError } = usePresignedUpload();
 
   useEffect(() => {
     loadFeed();
@@ -113,37 +116,39 @@ export function FeedPage() {
     }
 
     setUploadForm({ ...uploadForm, type: isVideo ? "video" : "photo" });
+    selectedFileRef.current = file;
 
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      setFilePreview(dataUrl);
-      setUploadForm({ ...uploadForm, type: isVideo ? "video" : "photo", mediaUrl: dataUrl });
-    } catch (error) {
-      toast.error("Gagal memuat file");
-    }
+    const previewUrl = URL.createObjectURL(file);
+    setFilePreview(previewUrl);
   }
 
   function clearFileSelection() {
+    if (filePreview) URL.revokeObjectURL(filePreview);
     setFilePreview(null);
+    selectedFileRef.current = null;
     setUploadForm({ ...uploadForm, mediaUrl: "" });
+    clearError();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleUpload() {
-    if (!uploadForm.mediaUrl.trim()) {
+    const file = selectedFileRef.current;
+    if (!file) {
       toast.error("File harus dipilih");
       return;
     }
 
     try {
+      const result = await uploadFile(file, "public");
+      if (!result) {
+        toast.error(uploadError || "Upload gagal");
+        return;
+      }
+
+      const mediaUrl = result.publicUrl || result.key;
       const data = await api<{ post: MediaPost }>("media.create", {
         type: uploadForm.type,
-        mediaUrl: uploadForm.mediaUrl,
+        mediaUrl,
         caption: uploadForm.caption || null,
         duration: uploadForm.type === "video" ? uploadForm.duration : null,
       });
@@ -151,7 +156,9 @@ export function FeedPage() {
       setPosts((prev) => [data.post, ...prev]);
       setUploadDialogOpen(false);
       setUploadForm({ type: "photo", mediaUrl: "", caption: "", duration: 6 });
+      if (filePreview) URL.revokeObjectURL(filePreview);
       setFilePreview(null);
+      selectedFileRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Postingan berhasil ditambahkan");
     } catch (error) {
@@ -303,8 +310,9 @@ export function FeedPage() {
                   </div>
                 )}
 
-                <Button onClick={handleUpload} className="w-full">
-                  Posting
+                <Button onClick={handleUpload} className="w-full" disabled={uploading}>
+                  {uploading && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {uploading ? "Mengunggah..." : "Posting"}
                 </Button>
               </div>
             </DialogContent>

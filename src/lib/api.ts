@@ -1,7 +1,12 @@
 // App API client for the same-origin `app` Function.
 // Response contract: { ok: true, data } | { ok: false, error: <code> }.
 export class ApiError extends Error {
-  constructor(message: string, readonly code: string, readonly status: number = 0) {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status: number = 0,
+    readonly detail: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -63,11 +68,89 @@ const MESSAGES: Readonly<Record<string, string>> = {
   event_is_paid: "Event ini berbayar. Silakan beli tiket terlebih dahulu.",
   already_purchased: "Anda sudah membeli tiket untuk event ini.",
   already_committee: "Anggota ini sudah menjadi panitia.",
+  committee_members_only: "Panitia harus akun aktif anggota (janda atau mitra non-janda).",
+  cannot_remove_chair: "Ketua panitia tidak dapat dihapus dari struktur kepanitiaan.",
+  cannot_change_chair: "Peran ketua panitia tidak dapat diubah.",
+  invite_not_found: "Undangan tidak ditemukan pada event ini.",
+  invite_already_used: "Undangan ini sudah dipindai sebelumnya.",
+  not_invite_scanner: "Hanya ketua panitia atau panitia Absen Undangan yang dapat memindai undangan.",
+  invalid_invite_code: "Kode QR undangan tidak valid.",
   not_group_member: "Anggota ini bukan anggota grup yang ditentukan.",
   already_subscribed: "Anda sudah memiliki langganan aktif.",
   invalid_tier: "Tier langganan yang dipilih tidak valid.",
   not_active: "Langganan ini tidak dalam status aktif.",
+  publish_incomplete: "Event belum bisa dipublikasikan — masih ada bagian yang harus dilengkapi.",
+  approval_pending: "Event ini sedang menunggu persetujuan admin.",
+  not_virtual: "Fitur live hanya tersedia untuk event online atau hybrid.",
+  tier_sold_out: "Kuota tier tiket ini sudah habis.",
+  tier_not_open: "Penjualan tier tiket ini belum dibuka.",
+  tier_closed: "Masa penjualan tier tiket ini sudah berakhir.",
+  team_name_taken: "Nama tim sudah dipakai. Pilih nama lain.",
+  not_team_captain: "Hanya kapten tim yang dapat melakukan tindakan ini.",
+  cannot_remove_captain: "Kapten tim tidak dapat dikeluarkan dari tim.",
+  already_team_member: "Anggota ini sudah bergabung ke tim.",
+  member_limit_reached: "Jumlah anggota tim sudah mencapai batas maksimal.",
+  registration_closed: "Pendaftaran turnamen ini sudah ditutup.",
+  tournament_full: "Kuota tim turnamen ini sudah penuh.",
+  already_registered: "Tim ini sudah terdaftar di turnamen tersebut.",
+  roster_too_small: "Jumlah pemain dalam roster kurang dari ketentuan turnamen.",
+  roster_too_large: "Jumlah pemain dalam roster melebihi ketentuan turnamen.",
+  roster_not_member: "Semua pemain roster harus anggota tim terlebih dahulu.",
+  player_registered_elsewhere: "Ada pemain yang sudah terdaftar di tim lain pada turnamen ini.",
+  invalid_seeding: "Mode pengundian tidak valid atau nomor unggulan belum lengkap.",
+  bracket_not_ready: "Bagan belum bisa dibuat — peserta belum memenuhi syarat.",
+  bracket_exists: "Bagan sudah dibuat sebelumnya. Hapus atau selesaikan dulu pertandingan yang ada.",
+  groups_incomplete: "Fase grup belum selesai seluruhnya. Selesaikan semua pertandingan grup dulu.",
+  no_matches: "Tidak ada pertandingan yang cocok dengan filter.",
+  match_finished: "Pertandingan ini sudah selesai dan tidak dapat diubah lagi.",
+  match_cancelled: "Pertandingan ini dibatalkan otomatis karena kedua tim tidak check-in. Hubungi penyelenggara untuk penjadwalan ulang.",
+  match_not_ready: "Pertandingan belum siap — tim peserta belum lengkap.",
+  invalid_score: "Skor tidak valid.",
+  tied_score: "Skor tidak boleh seri pada format best-of. Tentukan pemenangnya.",
+  invalid_score_bestof: "Skor tidak sesuai format best-of yang berlaku.",
+  checkin_not_open: "Belum waktunya check-in. Coba lagi mendekati jadwal pertandingan.",
+  not_match_participant: "Anda bukan kapten tim yang bertanding di pertandingan ini.",
+  dispute_exists: "Sudah ada sengketa terbuka untuk pertandingan ini.",
+  downstream_locked: "Pertandingan lanjutan sudah dimainkan, skor tidak bisa diubah otomatis.",
+  invalid_prize: "Data hadiah tidak valid.",
+  invalid_transition: "Perubahan status ini tidak diizinkan dari status turnamen saat ini.",
+  invalid_format: "Aksi ini tidak berlaku untuk format turnamen ini.",
+  round_incomplete: "Ronde saat ini belum selesai seluruhnya. Selesaikan semua pertandingannya dulu.",
+  approval_required: "Hadiah turnamen melebihi ambang batas — menunggu persetujuan admin sebelum pendaftaran dibuka.",
+  invalid_schedule_title: "Judul jadwal wajib diisi (maksimal 100 karakter).",
+  invalid_schedule_date: "Tanggal jadwal tidak valid.",
+  invalid_schedule_time: "Jam jadwal tidak valid — pastikan jam selesai setelah jam mulai.",
+  transfer_window_closed: "Jendela transfer untuk game ini sedang ditutup. Tunggu sampai jendela berikutnya dibuka.",
+  already_listed: "Pemain ini sudah punya tawaran bursa yang aktif (terbuka atau dijeda).",
+  offer_pending: "Tim Anda masih memiliki tawaran berjalan untuk pemain ini. Tarik atau tunggu jawabannya dulu.",
+  captain_cannot_be_listed: "Kapten tim tidak dapat dimasukkan ke bursa transfer.",
+  own_listing_offer: "Anda tidak dapat menawar pemain yang Anda sendiri daftarkan.",
+  own_team_offer: "Pemain ini sudah berada di tim Anda.",
+  not_team_member: "Pemain ini bukan anggota tim yang dipilih.",
+  insufficient_balance: "Saldo koin tidak mencukupi.",
+  already_exists: "Profil pemain untuk game ini sudah ada. Edit profil yang tersedia.",
 };
+
+export const PUBLISH_MISSING_LABEL: Readonly<Record<string, string>> = {
+  plan: "Rencana acara (tujuan & target peserta) belum lengkap",
+  budget_items: "Anggaran biaya belum memiliki item",
+  funding_deficit: "Sumber dana belum mencukupi total anggaran",
+  rundown: "Rundown / sesi acara belum terisi",
+};
+
+export const PUBLISH_READY_LABEL: Readonly<Record<string, string>> = {
+  plan: "Rencana acara lengkap (tujuan & target peserta)",
+  budget_items: "Anggaran biaya sudah memiliki item",
+  funding_deficit: "Sumber dana mencukupi total anggaran",
+  rundown: "Rundown / sesi acara terisi",
+};
+
+export function errorMissing(error: unknown): string[] {
+  if (error instanceof ApiError && Array.isArray(error.detail?.missing)) {
+    return (error.detail?.missing as unknown[]).filter((v): v is string => typeof v === "string");
+  }
+  return [];
+}
 
 const GENERIC_MESSAGE = "Terjadi kendala. Silakan coba lagi.";
 
@@ -109,12 +192,12 @@ export async function requestJson(
   const appCode = body.ok === false && typeof body.error === "string" ? body.error : null;
   if (response.status === 401 || response.status === 403) {
     const code = appCode ?? "access_denied";
-    throw new ApiError(messages[code] ?? MESSAGES[code] ?? GENERIC_MESSAGE, code, response.status);
+    throw new ApiError(messages[code] ?? MESSAGES[code] ?? GENERIC_MESSAGE, code, response.status, appCode ? body : null);
   }
   const code = appCode ?? (response.ok ? null : "request_failed");
   if (!response.ok || body.ok === false || code) {
     const resolved = code ?? "request_failed";
-    throw new ApiError(messages[resolved] ?? MESSAGES[resolved] ?? GENERIC_MESSAGE, resolved, response.status);
+    throw new ApiError(messages[resolved] ?? MESSAGES[resolved] ?? GENERIC_MESSAGE, resolved, response.status, appCode ? body : null);
   }
   return body;
 }

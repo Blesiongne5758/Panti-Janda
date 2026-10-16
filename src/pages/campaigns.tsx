@@ -73,7 +73,7 @@ export function CampaignsPage() {
                 key={c.id}
                 type="button"
                 onClick={() => void openCampaign(c.id)}
-                className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/50 hover:shadow-lg"
+                className="group gradient-card hover-lift flex h-full flex-col rounded-2xl border border-border bg-card p-5 text-left"
               >
                 <div className="mb-3 flex items-center gap-3">
                   <MemberAvatar
@@ -106,7 +106,7 @@ export function CampaignsPage() {
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-primary transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-2 transition-all"
                       style={{ width: `${Math.min(100, (c.collectedAmount / c.targetAmount) * 100)}%` }}
                     />
                   </div>

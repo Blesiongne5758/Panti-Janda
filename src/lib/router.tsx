@@ -84,6 +84,7 @@ export function matchRoute(path: string): { name: string; params: Record<string,
     case "program":
       return { name: "programs", params: {} };
     case "event":
+      if (second === "baru") return { name: "event-new", params: {} };
       if (second && segments[2] === "kelola") return { name: "event-manage", params: { id: second } };
       return { name: "events", params: second ? { id: second } : {} };
     case "galang-dana":
@@ -123,6 +124,15 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "ai-agent", params: {} };
     case "learning-center":
       return { name: "learning-center", params: {} };
+    case "kompetisi-esport":
+      if (second === "baru") return { name: "esport-create", params: {} };
+      if (second === "tim") return { name: "esport-teams", params: {} };
+      if (second === "papan") return { name: "esport-leaderboard", params: {} };
+      if (second === "kelola" && segments[2]) return { name: "esport-manage", params: { id: segments[2] } };
+      if (second && segments[2] === "kelola") return { name: "esport-manage", params: { id: second } };
+      return { name: "esport-competition", params: second ? { id: second } : {} };
+    case "bursa-transfer":
+      return { name: "bursa-transfer", params: {} };
     case "feed":
       return { name: "feed", params: {} };
     default:
