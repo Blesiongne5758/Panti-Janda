@@ -2,14 +2,21 @@ import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
+  Bot,
+  Coins,
   Crown,
   Flower2,
+  Gamepad2,
   Gem,
+  GraduationCap,
   HandHeart,
+  LineChart,
   Megaphone,
+  ShoppingBag,
   Sparkles,
   Star,
   Users,
+  Wallet,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -285,6 +292,133 @@ export function LandingPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* Ekosistem Fitur Lengkap & Program Unggulan */}
+      <section className="relative overflow-hidden border-b border-border bg-gradient-to-b from-card/40 via-background to-secondary/20 py-12">
+        <div className="relative mx-auto w-full max-w-6xl px-3 sm:px-6">
+          <SectionHeading
+            eyebrow="Ekosistem Platform Terintegrasi"
+            title="Inovasi & Fitur Unggulan Panti Janda"
+            description="Platform holistik yang menggabungkan pemberdayaan ekonomi riil, akademi trading, AI pintar, kompetisi esport & bursa pemain, hingga dompet digital & donasi transparan."
+          />
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <GraduationCap className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Program & Akademi Keahlian</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Pelatihan kewirausahaan terstruktur, sertifikasi keahlian, kelas memasak & katering, manajemen keuangan keluarga, hingga pendampingan bisnis anggota sampai mandiri.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-primary font-medium text-xs">
+                    <Link to="/program">
+                      Pelajari Program <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+                  <LineChart className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Live Trading & Simulasi Demo</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Grafik real-time pasar saham, kripto, komoditas, dan valuta asing terintegrasi TradingView lengkap dengan saldo latihan bebas risiko bagi anggota pemula.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-emerald-600 font-medium text-xs">
+                    <Link to="/live-trading">
+                      Buka Terminal Trading <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500">
+                  <Bot className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">AI Mentor & Autonomous Agent</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Konsultasi bisnis 24/7 dengan AI Mentor ramah serta Agen Shibai Ōtsutsuki dengan analisis indikator teknikal cerdas, manajemen risiko, dan simulasi strategi pasar.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-cyan-600 font-medium text-xs">
+                    <Link to="/ai-agent">
+                      Kenali AI Agent <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+                  <Gamepad2 className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Turnamen E-Sport & Bursa Transfer</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Arena kompetisi gaming Mobile Legends, PUBG, Free Fire berhadiah resmi dengan bursa transfer pemain bergaransi escrow Midtrans dan kontrak digital terpercaya.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-amber-600 font-medium text-xs">
+                    <Link to="/kompetisi-esport">
+                      Lihat Kompetisi & Bursa <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600">
+                  <ShoppingBag className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Marketplace UMKM Mandiri</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Katalog jual beli aneka produk kuliner, fashion, kerajinan tangan, dan sewa jasa profesional langsung dari tangan para pejuang keluarga anggota Panti Janda.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-rose-600 font-medium text-xs">
+                    <Link to="/marketplace">
+                      Kunjungi Marketplace <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
+              <CardContent className="space-y-3.5 p-6">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600">
+                  <Wallet className="size-6" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Dompet Web3, Koin & Midtrans</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Sistem pembayaran terpadu Payment Gateway Midtrans (QRIS, VA Bank, E-Wallet), koin digital internal, serta penarikan dan swap aset kripto jaringan blockchain.
+                </p>
+                <div className="pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-purple-600 font-medium text-xs">
+                    <Link to="/koin">
+                      Informasi Dompet & Koin <ArrowRight className="ml-1 size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 

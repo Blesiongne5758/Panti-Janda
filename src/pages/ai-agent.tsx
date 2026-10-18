@@ -492,14 +492,14 @@ export default function AiAgentPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
         {/* Hero Section */}
-        <section className="relative min-h-[390px] overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-blue-900/40 via-slate-900/80 to-slate-950/90 shadow-2xl">
+        <section className="relative min-h-[420px] overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-blue-900/40 via-slate-900/80 to-slate-950/90 p-6 shadow-2xl sm:p-8">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_58%,#143c6b_0,rgba(12,24,57,.8)_34%,rgba(4,8,20,.92)_70%)]" />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,#060a18_0%,transparent_36%,transparent_68%,#060a18_100%)]" />
           
           {/* Animated stars */}
-          <div className="absolute inset-0 opacity-50" style={{
+          <div className="absolute inset-0 opacity-50 pointer-events-none" style={{
             backgroundImage: `radial-gradient(2px 2px at 12% 24%, #a6f6ff 45%, transparent 55%),
                              radial-gradient(1px 1px at 73% 17%, #fff 45%, transparent 55%),
                              radial-gradient(2px 2px at 88% 66%, #8e8cff 45%, transparent 55%)`,
@@ -508,7 +508,7 @@ export default function AiAgentPage() {
           }} />
 
           {/* Grid */}
-          <div className="absolute inset-0 opacity-30" style={{
+          <div className="absolute inset-0 opacity-30 pointer-events-none" style={{
             backgroundImage: `linear-gradient(#34baff33 1px, transparent 1px), linear-gradient(90deg, #34baff33 1px, transparent 1px)`,
             backgroundSize: "48px 32px",
             transform: "perspective(240px) rotateX(55deg)",
@@ -520,59 +520,61 @@ export default function AiAgentPage() {
           }} />
 
           {/* Orbit */}
-          <div className="absolute left-1/2 top-1/2 size-80 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cyan-400/60 shadow-lg shadow-cyan-400/30" style={{ animation: "orbitSpin 15s linear infinite" }} />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden md:block size-80 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cyan-400/60 shadow-lg shadow-cyan-400/30" style={{ animation: "orbitSpin 15s linear infinite" }} />
 
           {/* Planet */}
-          <div className="absolute left-1/2 top-1/2 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-400 via-blue-600 to-slate-900 shadow-2xl shadow-cyan-400/50" style={{ animation: "planetFloat 5s ease-in-out infinite" }} />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden md:block size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-400 via-blue-600 to-slate-900 shadow-2xl shadow-cyan-400/50" style={{ animation: "planetFloat 5s ease-in-out infinite" }} />
 
-          {/* Hero Copy */}
-          <div className="absolute left-7 top-7 z-10 max-w-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400">
-              Beyond time · Beyond markets
+          <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row md:items-start">
+            {/* Hero Copy */}
+            <div className="max-w-md">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400">
+                Beyond time · Beyond markets
+              </div>
+              <h1 className="mt-2 font-display text-3xl font-bold tracking-wide text-white drop-shadow-lg sm:text-4xl">
+                SHIBAI<br />
+                <span className="text-cyan-400">ŌTSUTSUKI</span>
+              </h1>
+              <p className="mt-3 text-sm text-slate-300">
+                {t("ai.description")}
+              </p>
+              <blockquote className="mt-4 border-l-2 border-violet-400 pl-3 text-xs italic text-slate-200 sm:text-sm">
+                "Semua pergerakan pasar adalah data. Semua data adalah energi."
+              </blockquote>
             </div>
-            <h1 className="mt-2 font-display text-4xl font-bold tracking-wide text-white drop-shadow-lg">
-              SHIBAI<br />
-              <span className="text-cyan-400">ŌTSUTSUKI</span>
-            </h1>
-            <p className="mt-3 text-sm text-slate-300">
-              {t("ai.description")}
-            </p>
-            <blockquote className="mt-5 border-l-2 border-violet-400 pl-3 text-sm italic text-slate-200">
-              "Semua pergerakan pasar adalah data. Semua data adalah energi."
-            </blockquote>
+
+            {/* Master Control */}
+            <aside className="w-full shrink-0 sm:w-60">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
+                {t("ai.masterControl")}
+              </div>
+              <div className="rounded-xl border border-cyan-500/40 bg-slate-900/90 p-3.5 text-xs shadow-lg backdrop-blur-md">
+                <div className="flex justify-between border-b border-white/5 py-1.5">
+                  <span className="text-slate-300">{t("ai.monitoring")}</span>
+                  <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 py-1.5">
+                  <span className="text-slate-300">{t("ai.analysis")}</span>
+                  <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 py-1.5">
+                  <span className="text-slate-300">{t("ai.execution")}</span>
+                  <span className="font-semibold text-emerald-400">{paused ? t("ai.paused") : t("ai.simulation")}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 py-1.5">
+                  <span className="text-slate-300">{t("ai.riskManagement")}</span>
+                  <span className="font-semibold text-emerald-400">{t("ai.armed")}</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-slate-300">Sub-agent network</span>
+                  <span className="font-semibold text-emerald-400">7 / 7</span>
+                </div>
+              </div>
+            </aside>
           </div>
 
-          {/* Master Control */}
-          <aside className="absolute right-7 top-7 z-10 w-52">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
-              {t("ai.masterControl")}
-            </div>
-            <div className="rounded-lg border border-cyan-500/40 bg-slate-900/80 p-3 text-xs">
-              <div className="flex justify-between border-b border-white/5 py-1.5">
-                <span className="text-slate-300">{t("ai.monitoring")}</span>
-                <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-1.5">
-                <span className="text-slate-300">{t("ai.analysis")}</span>
-                <span className="font-semibold text-emerald-400">{t("ai.active")}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-1.5">
-                <span className="text-slate-300">{t("ai.execution")}</span>
-                <span className="font-semibold text-emerald-400">{paused ? t("ai.paused") : t("ai.simulation")}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-1.5">
-                <span className="text-slate-300">{t("ai.riskManagement")}</span>
-                <span className="font-semibold text-emerald-400">{t("ai.armed")}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-slate-300">Sub-agent network</span>
-                <span className="font-semibold text-emerald-400">7 / 7</span>
-              </div>
-            </div>
-          </aside>
-
           {/* Bottom bar */}
-          <div className="absolute bottom-4 left-7 right-7 z-10 flex justify-between text-[10px] tracking-widest text-slate-400">
+          <div className="relative z-10 mt-8 flex flex-wrap justify-between gap-2 border-t border-cyan-500/20 pt-3 text-[10px] tracking-widest text-slate-400">
             <span>NEURAL NETWORK: CONNECTED</span>
             <span>MODE: LOCAL SIMULATION</span>
             <span>{formatTime()}</span>

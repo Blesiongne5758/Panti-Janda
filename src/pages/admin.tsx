@@ -378,6 +378,41 @@ export default function AdminPage() {
     rateLimit: 60,
   });
   const [showAddApi, setShowAddApi] = useState(false);
+  const [storageForm, setStorageForm] = useState<AppSettings["storage"]>({
+    enabled: false,
+    provider: "cloudinary",
+    s3: {
+      region: "ap-southeast-1",
+      endpoint: "",
+      accessKeyId: "",
+      secretAccessKey: "",
+      publicBucket: "pantijanda-public",
+      privateBucket: "pantijanda-private",
+      cdnUrl: "",
+      maxFileSizeMB: 10,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"],
+    },
+    cloudinary: {
+      cloudName: "mlup4hpq",
+      apiKey: "942243774775565",
+      apiSecret: "T3BRjCK-1u4q91TAYGg3mkWefXM",
+      uploadPreset: "Multimedia",
+      folder: "pantijanda",
+    },
+    optimization: {
+      enabled: true,
+      provider: "cloudinary",
+      autoFormat: true,
+      autoQuality: true,
+      thumbnailSizes: [150, 300, 600, 1200],
+    },
+    security: {
+      presignedUrlExpirySeconds: 300,
+      requireOwnershipForPrivate: true,
+      scanForMalware: false,
+    },
+  });
+  const [storageDirty, setStorageDirty] = useState(false);
 
   const isAdmin = account?.role === "admin";
 
@@ -509,6 +544,18 @@ export default function AdminPage() {
           categories: am.categories ?? [],
         });
         setApiManagementDirty(false);
+      }
+      const st = settingsData.settings.storage;
+      if (st) {
+        setStorageForm({
+          enabled: st.enabled,
+          provider: st.provider,
+          s3: { ...st.s3, allowedMimeTypes: [...(st.s3?.allowedMimeTypes ?? [])] },
+          cloudinary: { ...st.cloudinary },
+          optimization: { ...st.optimization, thumbnailSizes: [...(st.optimization?.thumbnailSizes ?? [])] },
+          security: { ...st.security },
+        });
+        setStorageDirty(false);
       }
       try {
         const trialData = await api<{ total: number; byTier: Record<string, { id: string; email: string; display_name: string }[]> }>("admin.trial.status");
@@ -740,6 +787,18 @@ export default function AdminPage() {
           categories: am.categories ?? [],
         });
         setApiManagementDirty(false);
+      }
+      if (newSettings.storage) {
+        const st = res.settings.storage;
+        setStorageForm({
+          enabled: st.enabled,
+          provider: st.provider,
+          s3: { ...st.s3, allowedMimeTypes: [...(st.s3?.allowedMimeTypes ?? [])] },
+          cloudinary: { ...st.cloudinary },
+          optimization: { ...st.optimization, thumbnailSizes: [...(st.optimization?.thumbnailSizes ?? [])] },
+          security: { ...st.security },
+        });
+        setStorageDirty(false);
       }
       toast.success("Pengaturan berhasil disimpan.");
     } catch (err) {
@@ -4469,10 +4528,11 @@ export default function AdminPage() {
                   <p className="text-sm text-muted-foreground">Aktifkan penyimpanan cloud untuk file upload</p>
                 </div>
                 <Switch
-                  checked={settings.storage?.enabled ?? false}
-                  onCheckedChange={(checked) =>
-                    updateSettings({ storage: { ...(settings.storage ?? {}), enabled: checked } })
-                  }
+                  checked={storageForm.enabled ?? false}
+                  onCheckedChange={(checked) => {
+                    setStorageForm((prev) => ({ ...prev, enabled: checked }));
+                    setStorageDirty(true);
+                  }}
                 />
               </div>
 
@@ -4482,8 +4542,11 @@ export default function AdminPage() {
                   {(["aws_s3", "digitalocean_spaces", "minio", "cloudinary"] as const).map((provider) => (
                     <Button
                       key={provider}
-                      variant={settings.storage?.provider === provider ? "default" : "outline"}
-                      onClick={() => updateSettings({ storage: { ...(settings.storage ?? {}), provider } })}
+                      variant={storageForm.provider === provider ? "default" : "outline"}
+                      onClick={() => {
+                        setStorageForm((prev) => ({ ...prev, provider }));
+                        setStorageDirty(true);
+                      }}
                       className="justify-start"
                     >
                       {provider === "aws_s3" && "AWS S3"}
@@ -4495,97 +4558,136 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {settings.storage?.provider !== "cloudinary" && (
+              {storageForm.provider !== "cloudinary" && (
                 <div className="space-y-4">
                   <h4 className="font-semibold">S3 Configuration</h4>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <InputField
                       label="Region"
-                      value={settings.storage?.s3?.region ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), region: v } } })}
+                      value={storageForm.s3?.region ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { endpoint: "", accessKeyId: "", secretAccessKey: "", publicBucket: "", privateBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), region: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="ap-southeast-1"
                     />
                     <InputField
                       label="Endpoint (optional for custom S3)"
-                      value={settings.storage?.s3?.endpoint ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), endpoint: v } } })}
+                      value={storageForm.s3?.endpoint ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", accessKeyId: "", secretAccessKey: "", publicBucket: "", privateBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), endpoint: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="https://s3.amazonaws.com"
                     />
                     <InputField
                       label="Access Key ID"
-                      value={settings.storage?.s3?.accessKeyId ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), accessKeyId: v } } })}
+                      value={storageForm.s3?.accessKeyId ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", secretAccessKey: "", publicBucket: "", privateBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), accessKeyId: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="AKIA..."
                       type="password"
                     />
                     <InputField
                       label="Secret Access Key"
-                      value={settings.storage?.s3?.secretAccessKey ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), secretAccessKey: v } } })}
+                      value={storageForm.s3?.secretAccessKey ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", accessKeyId: "", publicBucket: "", privateBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), secretAccessKey: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="••••••••"
                       type="password"
                     />
                     <InputField
                       label="Public Bucket Name"
-                      value={settings.storage?.s3?.publicBucket ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), publicBucket: v } } })}
+                      value={storageForm.s3?.publicBucket ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", accessKeyId: "", secretAccessKey: "", privateBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), publicBucket: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="my-public-bucket"
                     />
                     <InputField
                       label="Private Bucket Name"
-                      value={settings.storage?.s3?.privateBucket ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), privateBucket: v } } })}
+                      value={storageForm.s3?.privateBucket ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", accessKeyId: "", secretAccessKey: "", publicBucket: "", cdnUrl: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), privateBucket: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="my-private-bucket"
                     />
                     <InputField
                       label="CDN URL (optional)"
-                      value={settings.storage?.s3?.cdnUrl ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), cdnUrl: v } } })}
+                      value={storageForm.s3?.cdnUrl ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", accessKeyId: "", secretAccessKey: "", publicBucket: "", privateBucket: "", maxFileSizeMB: 10, allowedMimeTypes: [] }), cdnUrl: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="https://cdn.example.com"
                     />
                     <InputField
                       label="Max File Size (MB)"
-                      value={String(settings.storage?.s3?.maxFileSizeMB ?? 10)}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), s3: { ...(settings.storage?.s3 ?? {}), maxFileSizeMB: Number(v) || 10 } } })}
+                      value={String(storageForm.s3?.maxFileSizeMB ?? 10)}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, s3: { ...(prev.s3 ?? { region: "ap-southeast-1", endpoint: "", accessKeyId: "", secretAccessKey: "", publicBucket: "", privateBucket: "", cdnUrl: "", allowedMimeTypes: [] }), maxFileSizeMB: Number(v) || 10 } }));
+                        setStorageDirty(true);
+                      }}
                       type="number"
                     />
                   </div>
                 </div>
               )}
 
-              {settings.storage?.provider === "cloudinary" && (
+              {storageForm.provider === "cloudinary" && (
                 <div className="space-y-4">
                   <h4 className="font-semibold">Cloudinary Configuration</h4>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <InputField
                       label="Cloud Name"
-                      value={settings.storage?.cloudinary?.cloudName ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), cloudName: v } } })}
+                      value={storageForm.cloudinary?.cloudName ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, cloudinary: { ...(prev.cloudinary ?? { apiKey: "", apiSecret: "", uploadPreset: "", folder: "" }), cloudName: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="my-cloud"
                     />
                     <InputField
                       label="API Key"
-                      value={settings.storage?.cloudinary?.apiKey ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), apiKey: v } } })}
+                      value={storageForm.cloudinary?.apiKey ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, cloudinary: { ...(prev.cloudinary ?? { cloudName: "", apiSecret: "", uploadPreset: "", folder: "" }), apiKey: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="123456789012345"
                     />
                     <InputField
                       label="API Secret"
-                      value={settings.storage?.cloudinary?.apiSecret ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), apiSecret: v } } })}
+                      value={storageForm.cloudinary?.apiSecret ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, cloudinary: { ...(prev.cloudinary ?? { cloudName: "", apiKey: "", uploadPreset: "", folder: "" }), apiSecret: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="••••••••"
                       type="password"
                     />
                     <InputField
                       label="Upload Preset"
-                      value={settings.storage?.cloudinary?.uploadPreset ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), uploadPreset: v } } })}
+                      value={storageForm.cloudinary?.uploadPreset ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, cloudinary: { ...(prev.cloudinary ?? { cloudName: "", apiKey: "", apiSecret: "", folder: "" }), uploadPreset: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="panti_janda"
                     />
                     <InputField
                       label="Folder"
-                      value={settings.storage?.cloudinary?.folder ?? ""}
-                      onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), cloudinary: { ...(settings.storage?.cloudinary ?? {}), folder: v } } })}
+                      value={storageForm.cloudinary?.folder ?? ""}
+                      onChange={(v) => {
+                        setStorageForm((prev) => ({ ...prev, cloudinary: { ...(prev.cloudinary ?? { cloudName: "", apiKey: "", apiSecret: "", uploadPreset: "" }), folder: v } }));
+                        setStorageDirty(true);
+                      }}
                       placeholder="panti-janda"
                     />
                   </div>
@@ -4600,20 +4702,22 @@ export default function AdminPage() {
                     <p className="text-sm text-muted-foreground">Auto compress, WebP conversion, thumbnail generation</p>
                   </div>
                   <Switch
-                    checked={settings.storage?.optimization?.enabled ?? true}
-                    onCheckedChange={(checked) =>
-                      updateSettings({ storage: { ...(settings.storage ?? {}), optimization: { ...(settings.storage?.optimization ?? {}), enabled: checked } } })
-                    }
+                    checked={storageForm.optimization?.enabled ?? true}
+                    onCheckedChange={(checked) => {
+                      setStorageForm((prev) => ({ ...prev, optimization: { ...(prev.optimization ?? { provider: "cloudinary", autoFormat: true, autoQuality: true, thumbnailSizes: [150, 300, 600, 1200] }), enabled: checked } }));
+                      setStorageDirty(true);
+                    }}
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="text-sm font-medium">Optimization Provider</label>
                     <select
-                      value={settings.storage?.optimization?.provider ?? "cloudinary"}
-                      onChange={(e) =>
-                        updateSettings({ storage: { ...(settings.storage ?? {}), optimization: { ...(settings.storage?.optimization ?? {}), provider: e.target.value as any } } })
-                      }
+                      value={storageForm.optimization?.provider ?? "cloudinary"}
+                      onChange={(e) => {
+                        setStorageForm((prev) => ({ ...prev, optimization: { ...(prev.optimization ?? { enabled: true, autoFormat: true, autoQuality: true, thumbnailSizes: [150, 300, 600, 1200] }), provider: e.target.value as any } }));
+                        setStorageDirty(true);
+                      }}
                       className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2"
                     >
                       <option value="cloudinary">Cloudinary</option>
@@ -4629,8 +4733,11 @@ export default function AdminPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <InputField
                     label="Pre-signed URL Expiry (seconds)"
-                    value={String(settings.storage?.security?.presignedUrlExpirySeconds ?? 300)}
-                    onChange={(v) => updateSettings({ storage: { ...(settings.storage ?? {}), security: { ...(settings.storage?.security ?? {}), presignedUrlExpirySeconds: Number(v) || 300 } } })}
+                    value={String(storageForm.security?.presignedUrlExpirySeconds ?? 300)}
+                    onChange={(v) => {
+                      setStorageForm((prev) => ({ ...prev, security: { ...(prev.security ?? { requireOwnershipForPrivate: true, scanForMalware: false }), presignedUrlExpirySeconds: Number(v) || 300 } }));
+                      setStorageDirty(true);
+                    }}
                     type="number"
                   />
                 </div>
@@ -4640,20 +4747,21 @@ export default function AdminPage() {
                     <p className="text-sm text-muted-foreground">Only allow access to private files after verifying ownership</p>
                   </div>
                   <Switch
-                    checked={settings.storage?.security?.requireOwnershipForPrivate ?? true}
-                    onCheckedChange={(checked) =>
-                      updateSettings({ storage: { ...(settings.storage ?? {}), security: { ...(settings.storage?.security ?? {}), requireOwnershipForPrivate: checked } } })
-                    }
+                    checked={storageForm.security?.requireOwnershipForPrivate ?? true}
+                    onCheckedChange={(checked) => {
+                      setStorageForm((prev) => ({ ...prev, security: { ...(prev.security ?? { presignedUrlExpirySeconds: 300, scanForMalware: false }), requireOwnershipForPrivate: checked } }));
+                      setStorageDirty(true);
+                    }}
                   />
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <Button
-                  disabled={savingSettings}
+                  disabled={savingSettings || !storageDirty}
                   onClick={() =>
                     updateSettings({
-                      storage: settings.storage,
+                      storage: storageForm,
                     })
                   }
                 >

@@ -255,21 +255,23 @@ export function PageBanner({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-chart-1/15 via-card to-chart-2/15 px-5 py-7 shadow-sm sm:px-8",
-        className,
-      )}
-    >
-      <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-chart-1/20 blur-3xl" aria-hidden />
-      <div className="pointer-events-none absolute -bottom-20 -left-10 size-48 rounded-full bg-chart-2/20 blur-3xl" aria-hidden />
-      <img
-        src={art}
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-2/5 object-cover object-[center_30%] opacity-[0.18] [mask-image:linear-gradient(to_left,black,transparent)] sm:block"
-      />
-      <div className="relative">{children}</div>
+    <div className="w-full">
+      <div
+        className={cn(
+          "relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-chart-1/15 via-card to-chart-2/15 px-5 py-7 shadow-sm sm:px-8",
+          className,
+        )}
+      >
+        <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-chart-1/20 blur-3xl" aria-hidden />
+        <div className="pointer-events-none absolute -bottom-20 -left-10 size-48 rounded-full bg-chart-2/20 blur-3xl" aria-hidden />
+        <img
+          src={art}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-2/5 object-cover object-[center_30%] opacity-[0.18] [mask-image:linear-gradient(to_left,black,transparent)] sm:block"
+        />
+        <div className="relative">{children}</div>
+      </div>
     </div>
   );
 }
