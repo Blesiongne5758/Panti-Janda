@@ -207,6 +207,10 @@ async function sha256Hex(value) {
   const digest = await crypto.subtle.digest("SHA-256", enc.encode(value));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+async function sha1Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-1", enc.encode(value));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 async function pbkdf2(password, salt, iterations) {
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
@@ -12031,6 +12035,14 @@ async function adminResolveReport(ctx) {
 const MIDTRANS_DEFAULT_SERVER_KEY = "SB-Mid-server-jcVEcyaxetYl.CUA3m3pgffR";
 const MIDTRANS_DEFAULT_CLIENT_KEY = "SB-Mid-client-l7_nLQr-8pZBaVV1CCmLR~p-";
 
+// Default Cloudinary credentials — overridable via Supabase secrets / env vars or Admin Settings
+const CLOUDINARY_DEFAULT_CLOUD_NAME = "mlup4hpq";
+const CLOUDINARY_DEFAULT_API_KEY = "942243774775565";
+const CLOUDINARY_DEFAULT_API_SECRET = "T3BRjCK-1u4q91TAYGg3mkWefXM";
+const CLOUDINARY_DEFAULT_KEYNAME = "Multimedia";
+const CLOUDINARY_DEFAULT_FOLDER = "Multimedia";
+const CLOUDINARY_DEFAULT_URL = "cloudinary://942243774775565:T3BRjCK-1u4q91TAYGg3mkWefXM@mlup4hpq";
+
 const APP_SETTINGS = {
   payment: {
     midtransServerKey: MIDTRANS_DEFAULT_SERVER_KEY,
@@ -12431,8 +12443,8 @@ const APP_SETTINGS = {
     categories: ["price_feed", "exchange", "ai", "blockchain", "notification", "analytics"],
   },
   storage: {
-    enabled: false,
-    provider: "aws_s3",
+    enabled: true,
+    provider: "cloudinary",
     s3: {
       region: "ap-southeast-1",
       endpoint: "",
@@ -12445,11 +12457,13 @@ const APP_SETTINGS = {
       allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "application/pdf"],
     },
     cloudinary: {
-      cloudName: "",
-      apiKey: "",
-      apiSecret: "",
-      uploadPreset: "panti_janda",
-      folder: "panti-janda",
+      cloudName: CLOUDINARY_DEFAULT_CLOUD_NAME,
+      apiKey: CLOUDINARY_DEFAULT_API_KEY,
+      apiSecret: CLOUDINARY_DEFAULT_API_SECRET,
+      keyName: CLOUDINARY_DEFAULT_KEYNAME,
+      folder: CLOUDINARY_DEFAULT_FOLDER,
+      uploadPreset: "Multimedia",
+      cloudinaryUrl: CLOUDINARY_DEFAULT_URL,
     },
     optimization: {
       enabled: true,
@@ -13906,14 +13920,55 @@ async function storagePresignedUpload(ctx) {
   const storage = APP_SETTINGS.storage;
   if (!storage.enabled) return fail(403, "storage_disabled");
 
-  const maxBytes = (storage.s3.maxFileSizeMB || 10) * 1024 * 1024;
+  const maxBytes = (storage.s3?.maxFileSizeMB || 10) * 1024 * 1024;
   if (fileSize > maxBytes) return fail(400, "file_too_large", { maxBytes });
 
-  const allowedTypes = storage.s3.allowedMimeTypes || [];
+  const allowedTypes = storage.s3?.allowedMimeTypes || [];
   if (allowedTypes.length > 0 && !allowedTypes.includes(mimeType)) {
     return fail(400, "invalid_mime_type", { allowed: allowedTypes });
   }
 
+  // Cloudinary provider (default)
+  if (storage.provider === "cloudinary") {
+    const cloudName = ctx.env("CLOUDINARY_CLOUD_NAME") || storage.cloudinary?.cloudName || CLOUDINARY_DEFAULT_CLOUD_NAME;
+    const apiKey = ctx.env("CLOUDINARY_API_KEY") || storage.cloudinary?.apiKey || CLOUDINARY_DEFAULT_API_KEY;
+    const apiSecret = ctx.env("CLOUDINARY_API_SECRET") || storage.cloudinary?.apiSecret || CLOUDINARY_DEFAULT_API_SECRET;
+    const folder = storage.cloudinary?.folder || CLOUDINARY_DEFAULT_FOLDER;
+    const uploadPreset = storage.cloudinary?.uploadPreset || "Multimedia";
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const isVideo = mimeType.startsWith("video/");
+    const resourceType = isVideo ? "video" : "image";
+    const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^/.]+$/, "");
+    const publicId = `${folder}/${auth.account.id}/${Date.now()}_${cleanFileName}`;
+
+    // Generate signed upload parameters
+    const toSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
+    const signature = await sha1Hex(toSign);
+
+    const presignedUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+    const publicUrl = `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${publicId}`;
+
+    return ok({
+      provider: "cloudinary",
+      presignedUrl,
+      publicUrl: bucketType === "public" ? publicUrl : null,
+      key: publicId,
+      bucket: cloudName,
+      method: "POST",
+      headers: {},
+      fields: {
+        api_key: apiKey,
+        timestamp: String(timestamp),
+        signature,
+        folder,
+        public_id: publicId,
+        upload_preset: uploadPreset,
+      },
+    });
+  }
+
+  // AWS S3 / Compatible provider fallback
   const bucket = bucketType === "public" ? storage.s3.publicBucket : storage.s3.privateBucket;
   const key = `${auth.account.id}/${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
 
@@ -13923,6 +13978,7 @@ async function storagePresignedUpload(ctx) {
     : `https://${bucket}.s3.${storage.s3.region}.amazonaws.com/${key}`;
 
   return ok({
+    provider: "aws_s3",
     presignedUrl,
     publicUrl: bucketType === "public" ? publicUrl : null,
     key,
