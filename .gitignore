@@ -11,3 +11,5 @@ dist/
 # Local test artifacts
 /*.png
 dev/fixture.log
+supabase/.temp/
+

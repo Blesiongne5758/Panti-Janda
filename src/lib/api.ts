@@ -241,9 +241,20 @@ export async function api<T = unknown>(
   const headers: Record<string, string> = { "content-type": "application/json" };
   const token = getToken();
   if (token) headers["x-app-session"] = token;
+  
+  // Use Supabase Edge Function URL if configured, otherwise fallback to same-origin
+  const apiUrl = import.meta.env.VITE_SUPABASE_URL 
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/app`
+    : "/functions/v1/app";
+  
+  // Add Supabase authorization header if using Supabase
+  if (import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    headers["authorization"] = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+  }
+  
   try {
     const body = (await requestJson(
-      "/functions/v1/app",
+      apiUrl,
       {
         method: "POST",
         headers,

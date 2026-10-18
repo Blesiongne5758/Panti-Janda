@@ -22,6 +22,9 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_SUPABASE_URL: https://ivvaglofgvfjfgfuecbe.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_XeOo25eCwK0Ag4rSlIYTRw_7NJvHz9E
         run: npm run build
 
       - name: Sync files
