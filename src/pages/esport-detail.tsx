@@ -5,6 +5,7 @@ import {
   CalendarClock,
   Check,
   Clock,
+  CreditCard,
   Crown,
   ExternalLink,
   Gavel,
@@ -22,6 +23,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { SEO } from "@/components/seo";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
@@ -102,6 +104,26 @@ export default function EsportDetailPage({ id }: { id: string }) {
   const [now, setNow] = useState(() => Date.now());
   const [checkinBusy, setCheckinBusy] = useState<string | null>(null);
   const [disputeMatch, setDisputeMatch] = useState<EsportMatch | null>(null);
+  const [payingRegId, setPayingRegId] = useState<string | null>(null);
+
+  const handlePayRegistration = async (regId: string) => {
+    setPayingRegId(regId);
+    try {
+      const res = await api<{ token?: string; redirectUrl?: string; orderId: string }>(
+        "esport.registrations.gatewayPay",
+        { registrationId: regId },
+      );
+      if (res.redirectUrl) {
+        window.location.href = res.redirectUrl;
+      } else {
+        toast.success("Instruksi pembayaran berhasil dibuat.");
+      }
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setPayingRegId(null);
+    }
+  };
 
   const load = useCallback(
     async (silent = false) => {
@@ -246,6 +268,10 @@ export default function EsportDetailPage({ id }: { id: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
+      <SEO
+        title={`${t.title} — Turnamen E-Sport Panti Janda`}
+        description={t.description || `Ikuti kompetisi ${t.title} di platform komunitas Panti Janda.`}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link to="/kompetisi-esport">
@@ -358,10 +384,34 @@ export default function EsportDetailPage({ id }: { id: string }) {
               </p>
             ) : null}
             {t.entryFee > 0 && data.myRegistrations.some((r) => r.paymentStatus === "unpaid") ? (
-              <p className="w-full text-xs text-amber-700">
-                Biaya pendaftaran {formatRupiah(t.entryFee)} per tim belum dikonfirmasi panitia. Hubungi penyelenggara
-                setelah melakukan pembayaran.
-              </p>
+              <div className="w-full space-y-2 pt-1">
+                {data.myRegistrations
+                  .filter((r) => r.paymentStatus === "unpaid")
+                  .map((r) => (
+                    <div
+                      key={r.registrationId}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5"
+                    >
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                          Biaya Pendaftaran Belum Dibayar: <span className="font-bold">{r.teamName}</span>
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Tagihan: <span className="font-bold">{formatRupiah(t.entryFee)}</span>. Bayar otomatis melalui Payment Gateway (QRIS, VA, E-Wallet).
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={payingRegId === r.registrationId}
+                        onClick={() => void handlePayRegistration(r.registrationId)}
+                        className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs"
+                      >
+                        <CreditCard className="mr-1.5 size-4" />
+                        {payingRegId === r.registrationId ? "Membuka Gateway..." : "Bayar Sekarang (Payment Gateway)"}
+                      </Button>
+                    </div>
+                  ))}
+              </div>
             ) : null}
           </CardContent>
         </Card>

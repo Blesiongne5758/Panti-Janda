@@ -6037,6 +6037,9 @@ const ROUTES = {
   "esport.transfer.offers.create": esportTransferOfferCreate,
   "esport.transfer.offers.respond": esportTransferOfferRespond,
   "esport.transfer.pay": esportTransferPay,
+  "esport.transfer.gatewayPay": esportTransferGatewayPay,
+  "esport.registrations.gatewayPay": esportRegistrationsGatewayPay,
+  "payments.verify": paymentsVerify,
   "esport.transfer.confirm": esportTransferConfirm,
   "esport.transfer.cancel": esportTransferCancel,
   "esport.transfer.option.exercise": esportTransferOptionExercise,
@@ -6927,6 +6930,21 @@ async function midtransNotification(ctx) {
       await notify(supabase, sub.account_id, "subscription", null, `Langganan ${sub.tier} aktif selama 30 hari`, null);
     } else if (status === "failed") {
       await supabase.from("subscriptions").update({ status: "expired" }).eq("id", sub.id);
+    }
+  } else if (orderId.startsWith("ESP-")) {
+    if (status === "settled") {
+      await supabase
+        .from("esport_tournament_registrations")
+        .update({ payment_status: "paid", payment_note: `Lunas via Midtrans (${orderId})` })
+        .ilike("payment_note", `%${orderId}%`);
+    }
+  } else if (orderId.startsWith("TRF-")) {
+    const trfPrefix = orderId.split("-")[2];
+    if (status === "settled") {
+      await supabase
+        .from("esport_transfers")
+        .update({ status: "escrow_held", paid_at: now() })
+        .ilike("id", `${trfPrefix}%`);
     }
   } else {
     const { data: donation } = await supabase
@@ -10518,6 +10536,182 @@ async function esportTransferPay(ctx) {
     );
   }
   return ok({ escrowHeld: true, fee });
+}
+
+async function esportTransferGatewayPay(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const transferId = text(ctx.body.id, 60);
+  if (!transferId) return fail(400, "invalid_input");
+
+  const { data: transfer } = await ctx.supabase
+    .from("esport_transfers")
+    .select("*, player:esport_player_profiles(*)")
+    .eq("id", transferId)
+    .maybeSingle();
+  if (!transfer) return fail(404, "transfer_not_found");
+  if (transfer.status !== "pending_payment") return fail(409, "invalid_status");
+
+  const feeCoins = Number(transfer.fee ?? 0);
+  const amountRupiah = Math.max(10000, feeCoins * 100);
+  const orderId = `TRF-${Date.now()}-${transferId.slice(0, 8)}`;
+
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS?.payment?.midtransServerKey;
+  if (serverKey) {
+    const itemDetails = [{ id: transferId, price: amountRupiah, quantity: 1, name: `Escrow Transfer ${transfer.player?.ign || "Pemain"}`.slice(0, 50) }];
+    const snap = await createSnapTransaction(orderId, amountRupiah, auth.account, itemDetails, serverKey, ctx.env);
+    if (!snap.error) {
+      return ok({ redirectUrl: snap.value.redirect_url, token: snap.value.token, orderId, amount: amountRupiah });
+    }
+  }
+
+  const simUrl = `#/pembayaran-berhasil?order_id=${orderId}&type=esport_transfer&amount=${amountRupiah}&simulated=true`;
+  return ok({ redirectUrl: simUrl, orderId, amount: amountRupiah, simulated: true });
+}
+
+async function esportRegistrationsGatewayPay(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const registrationId = text(ctx.body.registrationId, 60);
+  if (!registrationId) return fail(400, "invalid_input");
+
+  const { data: reg } = await ctx.supabase
+    .from("esport_tournament_registrations")
+    .select("*, tournament:esport_tournaments(*)")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg) return fail(404, "registration_not_found");
+
+  const tournament = reg.tournament;
+  const entryFee = Number(tournament?.entry_fee ?? 0);
+  if (entryFee <= 0) {
+    await ctx.supabase
+      .from("esport_tournament_registrations")
+      .update({ payment_status: "paid", payment_note: "Pendaftaran Gratis" })
+      .eq("id", registrationId);
+    return ok({ free: true, paid: true, redirectUrl: "#/pembayaran-berhasil?order_id=FREE&type=esport_registration" });
+  }
+
+  const orderId = `ESP-${Date.now()}-${registrationId.slice(0, 8)}`;
+  await ctx.supabase
+    .from("esport_tournament_registrations")
+    .update({ payment_note: `Order: ${orderId}` })
+    .eq("id", registrationId);
+
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS?.payment?.midtransServerKey;
+  if (serverKey) {
+    const itemDetails = [{ id: tournament?.id || registrationId, price: entryFee, quantity: 1, name: `Biaya Turnamen ${tournament?.name || "E-Sport"}`.slice(0, 50) }];
+    const snap = await createSnapTransaction(orderId, entryFee, auth.account, itemDetails, serverKey, ctx.env);
+    if (!snap.error) {
+      return ok({ redirectUrl: snap.value.redirect_url, token: snap.value.token, orderId, amount: entryFee });
+    }
+  }
+
+  const simUrl = `#/pembayaran-berhasil?order_id=${orderId}&type=esport_registration&amount=${entryFee}&simulated=true`;
+  return ok({ redirectUrl: simUrl, orderId, amount: entryFee, simulated: true });
+}
+
+async function paymentsVerify(ctx) {
+  const orderId = text(ctx.body.orderId, 80);
+  const status = text(ctx.body.status, 20) || "settled";
+  if (!orderId) return fail(400, "invalid_input");
+
+  if (orderId.startsWith("ESP-")) {
+    const { data: reg } = await ctx.supabase
+      .from("esport_tournament_registrations")
+      .select("*, tournament:esport_tournaments(*)")
+      .ilike("payment_note", `%${orderId}%`)
+      .maybeSingle();
+
+    if (reg) {
+      if (status === "settled" || status === "success" || status === "capture") {
+        await ctx.supabase
+          .from("esport_tournament_registrations")
+          .update({ payment_status: "paid", payment_note: `Lunas via Payment Gateway (${orderId})` })
+          .eq("id", reg.id);
+      }
+      return ok({
+        verified: true,
+        type: "esport_registration",
+        title: `Pendaftaran Turnamen ${reg.tournament?.name || ""}`,
+        amount: Number(reg.tournament?.entry_fee ?? 0),
+        status: status === "settled" || status === "success" || status === "capture" ? "success" : "pending",
+        details: {
+          tournamentId: reg.tournament_id,
+          teamName: reg.team_name,
+          registrationId: reg.id,
+        },
+      });
+    }
+  } else if (orderId.startsWith("TRF-")) {
+    const trfPrefix = orderId.split("-")[2];
+    const { data: trf } = await ctx.supabase
+      .from("esport_transfers")
+      .select("*, player:esport_player_profiles(*)")
+      .ilike("id", `${trfPrefix}%`)
+      .maybeSingle();
+
+    if (trf) {
+      if (status === "settled" || status === "success" || status === "capture") {
+        await ctx.supabase
+          .from("esport_transfers")
+          .update({ status: "escrow_held", paid_at: now() })
+          .eq("id", trf.id);
+      }
+      return ok({
+        verified: true,
+        type: "esport_transfer",
+        title: `Escrow Bursa Transfer — ${trf.player?.ign || "Pemain"}`,
+        amount: Number(trf.fee ?? 0) * 100,
+        status: status === "settled" || status === "success" || status === "capture" ? "success" : "pending",
+        details: {
+          transferId: trf.id,
+          fee: trf.fee,
+        },
+      });
+    }
+  } else if (orderId.startsWith("PJT-")) {
+    const { data: ticket } = await ctx.supabase
+      .from("event_tickets")
+      .select("*, event:events(*)")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (ticket) {
+      return ok({
+        verified: true,
+        type: "event_ticket",
+        title: `Tiket Acara ${ticket.event?.title || ""}`,
+        amount: Number(ticket.price ?? 0),
+        status: ticket.status === "valid" || ticket.payment_status === "settled" ? "success" : ticket.status,
+        details: { ticketCode: ticket.code, eventId: ticket.event_id },
+      });
+    }
+  } else if (orderId.startsWith("PJC-")) {
+    const { data: donation } = await ctx.supabase
+      .from("campaign_donations")
+      .select("*, campaign:campaigns(*)")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (donation) {
+      return ok({
+        verified: true,
+        type: "campaign_donation",
+        title: `Donasi Kampanye ${donation.campaign?.title || ""}`,
+        amount: Number(donation.amount ?? 0),
+        status: donation.status === "settled" ? "success" : donation.status,
+        details: { campaignId: donation.campaign_id },
+      });
+    }
+  }
+
+  return ok({
+    verified: true,
+    type: "general",
+    title: "Pembayaran Layanan Panti Janda",
+    amount: 0,
+    status: status === "settled" || status === "success" ? "success" : "pending",
+    details: { orderId },
+  });
 }
 
 async function esportTransferConfirm(ctx) {

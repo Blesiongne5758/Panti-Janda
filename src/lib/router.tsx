@@ -133,6 +133,10 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "esport-competition", params: second ? { id: second } : {} };
     case "bursa-transfer":
       return { name: "bursa-transfer", params: {} };
+    case "pembayaran-berhasil":
+      return { name: "payment-success", params: {} };
+    case "pembayaran-gagal":
+      return { name: "payment-failed", params: {} };
     case "feed":
       return { name: "feed", params: {} };
     default:

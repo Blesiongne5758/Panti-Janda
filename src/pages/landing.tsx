@@ -23,6 +23,7 @@ import { ErrorNote, LoadingGrid, SectionHeading, Stat, TierBadge } from "@/compo
 import { EventCard, ProfileCard, ProgramCard } from "@/components/cards";
 import { FeedPage } from "@/pages/feed";
 import { useTranslation } from "@/lib/i18n-context";
+import { SEO } from "@/components/seo";
 
 const TIER_ICON = { the_ceo: Gem, high_society: Crown, sosialita: Star, wonder_woman: Flower2 } as const;
 
@@ -131,6 +132,22 @@ export function LandingPage() {
 
   return (
     <div className="animate-rise">
+      <SEO
+        title="Panti Janda — Platform Komunitas, Pemberdayaan, & Ekosistem Digital"
+        description="Platform komunitas mandiri, pelatihan wirausaha, galang dana transparan, kompetisi e-sport, dan marketplace UMKM terpercaya di Indonesia."
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Panti Janda",
+          url: "https://pantijanda.com",
+          description: "Platform komunitas mandiri, pemberdayaan wirausaha, dan ekosistem digital terpercaya.",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "https://pantijanda.com/#/jelajah?q={search_term_string}",
+            "query-input": "required name=search_term_string",
+          },
+        }}
+      />
       <section className="relative overflow-hidden border-b border-border">
         <div className="hero-stage" aria-hidden>
           {HERO_SLIDES.map((item, index) => (

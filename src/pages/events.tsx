@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorNote, LoadingGrid, PageBanner, SectionHeading } from "@/components/common";
 import { EventCard } from "@/components/cards";
 import { Link } from "@/lib/router";
+import { SEO } from "@/components/seo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -67,6 +68,10 @@ export default function EventsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10">
+      <SEO
+        title="Event, Gathering & Seminar Komunitas — Panti Janda"
+        description="Jadwal event, workshop, seminar bisnis, dan gathering komunitas Panti Janda. Beli tiket daring mudah dan aman."
+      />
       <PageBanner art="/images/wajah-sosialita.webp">
         <SectionHeading
           title="Event komunitas"

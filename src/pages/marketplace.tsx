@@ -6,6 +6,7 @@ import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemberAvatar, PageBanner } from "@/components/common";
+import { SEO } from "@/components/seo";
 import { LISTING_CATEGORIES, LISTING_KIND_LABEL, ROLE_RANK } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
 
@@ -45,6 +46,10 @@ export default function MarketplacePage() {
 
   return (
     <>
+      <SEO
+        title="Marketplace UMKM — Produk & Jasa Komunitas Panti Janda"
+        description="Belanja produk kerajinan, kuliner, busana, dan sewa jasa profesional dari para pelaku usaha dan wanita mandiri anggota Panti Janda."
+      />
       <PageBanner art="/images/banner-event.svg">
         <h1 className="font-display text-3xl font-bold">Marketplace</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorNote, EmptyState, LoadingGrid, PageBanner } from "@/components/common";
+import { SEO } from "@/components/seo";
 import { cn } from "@/lib/utils";
 
 type StatusSection = "all" | "open" | "live" | "done";
@@ -86,6 +87,10 @@ export default function EsportHubPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10">
+      <SEO
+        title="Kompetisi & Turnamen E-Sport — Panti Janda"
+        description="Ikuti dan selenggarakan turnamen game online: Mobile Legends, PUBG Mobile, Free Fire, Valorant, Dota 2. Sistem bagan otomatis dan prize pool resmi."
+      />
       <PageBanner>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl space-y-2">

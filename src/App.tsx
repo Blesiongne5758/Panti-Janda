@@ -40,6 +40,8 @@ import ChatPage from "@/pages/chat";
 import DashboardPage from "@/pages/dashboard";
 import AdminPage from "@/pages/admin";
 import FinancePage from "@/pages/finance";
+import PaymentSuccessPage from "@/pages/payment-success";
+import PaymentFailedPage from "@/pages/payment-failed";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import NotFoundPage from "@/pages/not-found";
@@ -107,6 +109,10 @@ function Routes() {
       return <EsportLeaderboardPage />;
     case "bursa-transfer":
       return <BursaTransferPage />;
+    case "payment-success":
+      return <PaymentSuccessPage />;
+    case "payment-failed":
+      return <PaymentFailedPage />;
     case "feed":
       return <FeedPage />;
     case "groups":

@@ -27,7 +27,9 @@ import {
   Wallet,
   X,
   XCircle,
+  CreditCard,
 } from "lucide-react";
+import { SEO } from "@/components/seo";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
@@ -412,6 +414,27 @@ export default function BursaTransferPage() {
     }
   };
 
+  const [gatewayBusy, setGatewayBusy] = useState(false);
+
+  const handleGatewayPayTransfer = async (transferId: string) => {
+    setGatewayBusy(true);
+    try {
+      const res = await api<{ token?: string; redirectUrl?: string; orderId: string }>(
+        "esport.transfer.gatewayPay",
+        { id: transferId },
+      );
+      if (res.redirectUrl) {
+        window.location.href = res.redirectUrl;
+      } else {
+        toast.success("Instruksi pembayaran payment gateway berhasil dibuat.");
+      }
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setGatewayBusy(false);
+    }
+  };
+
   if (!account) {
     return (
       <AccountGate
@@ -435,6 +458,10 @@ export default function BursaTransferPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
+      <SEO
+        title="Bursa Transfer Pemain E-Sport — Jual Beli & Rekrut Roster"
+        description="Bursa transfer pemain turnamen game dan e-sport komunitas Panti Janda. Transaksi aman dengan sistem escrow, kontrak digital, dan payment gateway."
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link to="/kompetisi-esport">
@@ -805,30 +832,58 @@ export default function BursaTransferPage() {
       {detailFor ? <PlayerDetailDialog profileId={detailFor} onOpenChange={(open) => !open && setDetailFor(null)} /> : null}
 
       {pending && actionCopy ? (
-        <Dialog open onOpenChange={(open) => !open && !actionBusy && setPending(null)}>
+        <Dialog open onOpenChange={(open) => !open && !actionBusy && !gatewayBusy && setPending(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{actionCopy.title}</DialogTitle>
               <DialogDescription>{actionCopy.description}</DialogDescription>
             </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setPending(null)} disabled={actionBusy}>
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setPending(null)} disabled={actionBusy || gatewayBusy}>
                 Batal
               </Button>
-              <Button
-                variant={actionCopy.danger ? "destructive" : "default"}
-                onClick={() => void runPending()}
-                disabled={actionBusy}
-              >
-                {actionBusy ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                ) : pending.kind === "pay" ? (
-                  <Coins className="size-4" aria-hidden />
-                ) : (
-                  <Check className="size-4" aria-hidden />
-                )}
-                {actionCopy.confirmLabel}
-              </Button>
+              {pending.kind === "pay" ? (
+                <>
+                  <Button
+                    variant="default"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => void handleGatewayPayTransfer(pending.transfer.id)}
+                    disabled={actionBusy || gatewayBusy}
+                  >
+                    {gatewayBusy ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <CreditCard className="mr-1.5 size-4" aria-hidden />
+                    )}
+                    Bayar via Payment Gateway
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void runPending()}
+                    disabled={actionBusy || gatewayBusy}
+                  >
+                    {actionBusy ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Coins className="mr-1.5 size-4" aria-hidden />
+                    )}
+                    Bayar via Koin ({fmtKoin(pending.transfer.fee)})
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant={actionCopy.danger ? "destructive" : "default"}
+                  onClick={() => void runPending()}
+                  disabled={actionBusy || gatewayBusy}
+                >
+                  {actionBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Check className="size-4" aria-hidden />
+                  )}
+                  {actionCopy.confirmLabel}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

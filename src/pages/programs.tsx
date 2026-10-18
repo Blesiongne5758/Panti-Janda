@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, ErrorNote, LoadingGrid, PageBanner, SectionHeading } from "@/components/common";
 import { ProgramCard } from "@/components/cards";
 import { Link } from "@/lib/router";
+import { SEO } from "@/components/seo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -208,6 +209,10 @@ export default function ProgramsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10">
+      <SEO
+        title="Program Pelatihan, Seminar & Akademi — Panti Janda"
+        description="Ikuti program pengembangan diri, seminar bisnis UMKM, pelatihan vokasi, dan sertifikasi keahlian untuk kemandirian anggota komunitas Panti Janda."
+      />
       <PageBanner art="/images/wajah-pengusaha.webp">
         <SectionHeading
           title="Program peningkatan kualitas"

@@ -6,6 +6,7 @@ import { Link } from "@/lib/router";
 import { ROLE_RANK } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { MemberAvatar, PageBanner } from "@/components/common";
+import { SEO } from "@/components/seo";
 import type { Campaign, CampaignDetail } from "@/lib/types";
 
 export function CampaignsPage() {
@@ -40,6 +41,10 @@ export function CampaignsPage() {
 
   return (
     <>
+      <SEO
+        title="Galang Dana & Solidaritas Komunitas — Panti Janda"
+        description="Dukung program sosial, bantuan darurat, dan kemandirian anggota komunitas Panti Janda secara transparan dan amanah."
+      />
       <PageBanner art="/images/banner-event.svg">
         <h1 className="font-display text-3xl font-bold">Galang Dana</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
