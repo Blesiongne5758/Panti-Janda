@@ -6417,7 +6417,7 @@ async function homeSummary(ctx) {
     programs: (programs ?? []).map(programPublic),
     events: (events ?? []).map(eventPublic),
     stats: { verifiedMembers: verifiedCount, programs: programCount, members: memberCount },
-    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY")),
+    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
   });
 }
 
@@ -6491,7 +6491,7 @@ async function profilesGet(ctx) {
     profile: publicProfile(row),
     support: { donationTotal, pledgeCount, updateCount },
     follow: { followerCount: followers.length, viewerFollows },
-    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY")),
+    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
   });
 }
 
@@ -6775,7 +6775,7 @@ async function donationsCreate(ctx) {
   const { body, supabase } = ctx;
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
   const profileId = text(body.profileId, 60);
   const amount = intOrNull(body.amount, 10000, 100000000000);
@@ -6833,7 +6833,7 @@ async function donationsCreate(ctx) {
 
 async function midtransNotification(ctx) {
   const { body, supabase } = ctx;
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   const orderId = text(body.order_id, 80);
   const statusCode = text(body.status_code, 10);
   const grossAmount = text(body.gross_amount, 30);
@@ -7658,7 +7658,7 @@ async function eventTicketsList(ctx) {
 async function eventTicketsBuy(ctx) {
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
   const eventId = text(ctx.body.eventId, 60);
   if (!eventId) return fail(400, "invalid_input");
@@ -9368,7 +9368,7 @@ async function coinsPurchase(ctx) {
   const pkg = COIN_PACKAGES.find((p) => p.id === packageId);
   if (!pkg) return fail(400, "invalid_package");
 
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
 
   const orderId = `coin-${auth.account.id}-${Date.now()}`;
@@ -11854,7 +11854,7 @@ async function adminStats(ctx) {
     pendingProfiles,
     openReports,
     donationTotal,
-    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY")),
+    paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
   });
 }
 
@@ -12027,10 +12027,14 @@ async function adminResolveReport(ctx) {
 
 // ---------- admin settings ----------
 
+// Default Midtrans Sandbox credentials — overridable via Supabase secrets (MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY)
+const MIDTRANS_DEFAULT_SERVER_KEY = "SB-Mid-server-jcVEcyaxetYl.CUA3m3pgffR";
+const MIDTRANS_DEFAULT_CLIENT_KEY = "SB-Mid-client-l7_nLQr-8pZBaVV1CCmLR~p-";
+
 const APP_SETTINGS = {
   payment: {
-    midtransServerKey: "",
-    midtransClientKey: "",
+    midtransServerKey: MIDTRANS_DEFAULT_SERVER_KEY,
+    midtransClientKey: MIDTRANS_DEFAULT_CLIENT_KEY,
     midtransEnvironment: "sandbox",
     enabled: true,
   },
@@ -13050,7 +13054,7 @@ async function campaignsCreate(ctx) {
 async function campaignsDonate(ctx) {
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
   const campaignId = text(ctx.body.campaignId, 60);
   const amount = intOrNull(ctx.body.amount, 10000, 100000000000);
@@ -13662,7 +13666,7 @@ async function subscriptionsCreate(ctx) {
   if (auth.error) return auth.error;
   const tier = text(ctx.body.tier, 30);
   if (!SUBSCRIPTION_TIERS.includes(tier)) return fail(400, "invalid_tier");
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY");
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
   const amount = getSubscriptionPrice(tier);
   if (amount <= 0) return fail(503, "service_not_configured");
