@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { MemberAvatar, TierBadge, PjLogo } from "@/components/common";
 import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "@/lib/i18n-context";
+import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import type { NotificationItem } from "@/lib/types";
 
 const NAV = [
@@ -243,6 +244,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {profile?.nickname ?? account.displayName ?? ROLE_LABEL[account.role]}
                   </span>
                 </Link>
+                <ProfileSettingsDialog
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Pengaturan Akun & Profil"
+                      title="Pengaturan Akun & Profil"
+                      className="hidden sm:inline-flex"
+                    >
+                      <Settings className="size-4" aria-hidden />
+                    </Button>
+                  }
+                />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -272,6 +286,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                       >
                         {t("nav.dashboard")}
                       </Link>
+                      <ProfileSettingsDialog
+                        trigger={
+                          <button
+                            type="button"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-secondary"
+                          >
+                            <Settings className="size-4" />
+                            Pengaturan Profil & Akun
+                          </button>
+                        }
+                      />
                       {rank >= 5 ? (
                         <Link
                           to="/admin"

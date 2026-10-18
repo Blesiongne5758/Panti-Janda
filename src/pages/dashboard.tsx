@@ -58,6 +58,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, MemberAvatar, StatusPill, TierBadge } from "@/components/common";
 import { DashboardCalendar } from "@/components/dashboard-calendar";
+import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import { toast } from "sonner";
 
 const listToText = (values: string[]) => values.join(", ");
@@ -745,7 +746,7 @@ export default function DashboardPage() {
         </span>
       </div>
 
-      {rank >= 2 && profile ? (
+      {profile ? (
         <Card>
           <CardHeader className="gap-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -766,7 +767,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <EditProfileDialog profile={profile} onSaved={setProfile} />
-                <SettingsDialog profile={profile} onSaved={setProfile} />
+                <ProfileSettingsDialog onSaved={setProfile} />
                 {verified ? <WriteUpdateDialog onCreated={refresh} /> : null}
               </div>
             </div>
@@ -809,7 +810,29 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <Card className="border-border/80">
+          <CardHeader className="gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <MemberAvatar
+                  name={account.displayName ?? "Pengguna"}
+                  size={52}
+                />
+                <div>
+                  <p className="font-display text-xl font-semibold">{account.displayName ?? "Pengguna"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {account.email} • Peran: <span className="font-medium text-foreground">{ROLE_LABEL[account.role] ?? account.role}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <ProfileSettingsDialog onSaved={setProfile} />
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       {rank >= 2 ? <DashboardCalendar /> : null}
 

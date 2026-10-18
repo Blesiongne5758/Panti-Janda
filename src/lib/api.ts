@@ -24,6 +24,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   invalid_verification_doc: "Dokumen verifikasi tidak valid. Gunakan foto JPG, PNG, atau WebP maksimal 8 MB.",
   invalid_photo: "Foto profil tidak valid. Gunakan gambar JPG, PNG, atau WebP maksimal 8 MB.",
   invalid_credentials: "Email atau kata sandi salah.",
+  wrong_current_password: "Password saat ini salah. Pastikan Anda memasukkan password yang benar.",
   account_suspended: "Akun ini sedang dinonaktifkan. Hubungi admin.",
   not_authenticated: "Silakan masuk terlebih dahulu.",
   access_denied: "Sesi Anda tidak berlaku lagi. Silakan masuk kembali.",

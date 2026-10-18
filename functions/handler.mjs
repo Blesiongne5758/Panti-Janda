@@ -1514,7 +1514,7 @@ async function cryptoCoinsList(ctx) {
 }
 
 async function cryptoWalletsList(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("crypto_wallets")
@@ -1535,7 +1535,7 @@ async function cryptoWalletsList(ctx) {
 }
 
 async function cryptoWalletsCreate(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const coinSymbol = text(ctx.body.coinSymbol, 20);
   if (!coinSymbol) return fail(400, "coin_symbol_required");
@@ -5919,6 +5919,7 @@ const ROUTES = {
   "auth.login": login,
   "auth.logout": logout,
   "auth.me": me,
+  "auth.changePassword": changePassword,
 
   "home.summary": homeSummary,
 
@@ -6350,10 +6351,35 @@ async function logout(ctx) {
 async function me(ctx) {
   const auth = await actor(ctx);
   if (auth.error) return auth.error;
-  const profile = WIDOW_ROLES.includes(auth.account.role)
-    ? await ownProfile(ctx.supabase, auth.account.id)
-    : null;
+  const profile = await ownProfile(ctx.supabase, auth.account.id);
   return ok({ account: publicAccount(auth.account), profile: profile ? publicProfile(profile, true) : null });
+}
+
+async function changePassword(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const currentPassword = typeof ctx.body.currentPassword === "string" ? ctx.body.currentPassword : "";
+  const newPassword = typeof ctx.body.newPassword === "string" ? ctx.body.newPassword : "";
+  if (!currentPassword || !newPassword) return fail(400, "invalid_input");
+  if (newPassword.length < 8 || newPassword.length > 200) return fail(400, "weak_password");
+
+  const { data: account } = await ctx.supabase
+    .from("accounts")
+    .select("id, password_hash")
+    .eq("id", auth.account.id)
+    .maybeSingle();
+  if (!account) return fail(404, "not_found");
+  if (!(await verifyPassword(currentPassword, account.password_hash))) {
+    return fail(401, "wrong_current_password");
+  }
+
+  const newHash = await hashPassword(newPassword);
+  const { error } = await ctx.supabase
+    .from("accounts")
+    .update({ password_hash: newHash })
+    .eq("id", auth.account.id);
+  if (error) return fail(500, "server_error");
+  return ok({ changed: true });
 }
 
 // ---------- home ----------
@@ -6467,15 +6493,31 @@ async function profilesGet(ctx) {
 }
 
 async function profilesUpdate(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
-  const profile = await ownProfile(ctx.supabase, auth.account.id);
-  if (!profile) return fail(404, "not_found");
+  let profile = await ownProfile(ctx.supabase, auth.account.id);
+  if (!profile) {
+    const defaultName = auth.account.displayName || auth.account.email.split("@")[0] || "User";
+    const newProf = {
+      id: crypto.randomUUID(),
+      account_id: auth.account.id,
+      nickname: defaultName,
+      tier: null,
+      full_name: defaultName,
+      status: "verified",
+      created_at: now(),
+      updated_at: now(),
+    };
+    const { error: insErr } = await ctx.supabase.from("profiles").insert(newProf);
+    if (insErr) return fail(500, "server_error");
+    profile = newProf;
+  }
   const { body } = ctx;
-  const nickname = text(body.nickname, 40);
+  const rawNickname = body.nickname !== undefined ? text(body.nickname, 40) : profile.nickname;
+  const nickname = rawNickname || profile.nickname || "User";
   if (nickname.length < 2) return fail(400, "invalid_nickname");
-  const fullName = text(body.fullName, 100);
-  if (fullName.length < 2) return fail(400, "invalid_full_name");
+  const rawFullName = body.fullName !== undefined ? text(body.fullName, 100) : (profile.full_name ?? "");
+  const fullName = rawFullName || profile.full_name || nickname;
   const patch = {
     nickname,
     full_name: fullName,

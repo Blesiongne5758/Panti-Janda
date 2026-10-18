@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, FileUp, Flower2, Loader2, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, FileUp, Flower2, Loader2, ShieldCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareVerificationDoc } from "@
 import { PjLogo } from "@/components/common";
 import { useTranslation } from "@/lib/i18n-context";
 import type { VerificationDocType } from "@/lib/types";
+import { PasswordStrengthMeter, StrongPasswordGenerator } from "@/components/password-generator";
 
 const toList = (value: string) =>
   value
@@ -37,6 +38,7 @@ export default function RegisterPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
 
   const [nickname, setNickname] = useState("");
@@ -177,15 +179,37 @@ export default function RegisterPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="password">{t("auth.passwordMin")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="pr-10"
+                    placeholder="Minimal 8 karakter"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </Button>
+                </div>
+
+                {/* Indikator Kekuatan Password Real-time */}
+                <PasswordStrengthMeter password={password} />
+
+                {/* Pengaturan Pembuat Password Kuat */}
+                <div className="pt-1">
+                  <StrongPasswordGenerator onApply={(pw) => setPassword(pw)} />
+                </div>
               </div>
               {error ? (
                 <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
