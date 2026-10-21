@@ -17,9 +17,9 @@ const readEnv = (name) => {
   }
 };
 
-const ROLE_RANK = { public: 1, kades: 2, wonder_woman: 2, gubernur: 3, sosialita: 3, panglima: 4, high_society: 4, presiden: 5, the_ceo: 5, admin: 6 };
+const ROLE_RANK = { public: 1, kades: 2, wonder_woman: 2, walikota: 3, sosialita: 3, gubernur: 4, high_society: 4, panglima: 5, the_ceo: 5, presiden: 6, sultan: 6, ceo: 7, admin: 8 };
 const WIDOW_ROLES = ["wonder_woman", "sosialita", "high_society", "the_ceo"];
-const PUBLIC_ROLES = ["kades", "gubernur", "panglima", "presiden"];
+const PUBLIC_ROLES = ["kades", "walikota", "gubernur", "panglima", "presiden", "ceo", "sultan"];
 const EVENT_ASSIGNABLE_ROLES = ["sekretaris", "bendahara", "koordinator_acara", "absen_tiket", "absen_undangan", "publikasi", "logistik", "panitia"];
 const INVITE_QR_PREFIX = "PJ-INVITE:";
 const EVENT_CATEGORIES = ["workshop", "webinar", "meetup", "concert", "charity", "conference", "garage_sale", "lelang", "bazar", "nobar", "other"];
@@ -1541,15 +1541,30 @@ async function cryptoWalletsList(ctx) {
 async function cryptoWalletsCreate(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
-  const coinSymbol = text(ctx.body.coinSymbol, 20);
-  if (!coinSymbol) return fail(400, "coin_symbol_required");
+  let coinSymbol = text(ctx.body.coinSymbol, 20);
+  const coinId = text(ctx.body.coinId, 60);
 
-  const { data: coin } = await ctx.supabase
-    .from("crypto_supported_coins")
-    .select("*")
-    .eq("symbol", coinSymbol)
-    .eq("is_active", true)
-    .maybeSingle();
+  let coin = null;
+  if (coinSymbol) {
+    const { data } = await ctx.supabase
+      .from("crypto_supported_coins")
+      .select("*")
+      .eq("symbol", coinSymbol)
+      .eq("is_active", true)
+      .maybeSingle();
+    coin = data;
+  }
+  if (!coin && coinId) {
+    const { data } = await ctx.supabase
+      .from("crypto_supported_coins")
+      .select("*")
+      .eq("id", coinId)
+      .eq("is_active", true)
+      .maybeSingle();
+    coin = data;
+    if (coin) coinSymbol = coin.symbol;
+  }
+  if (!coinSymbol && !coinId) return fail(400, "coin_symbol_required");
   if (!coin) return fail(400, "unsupported_coin");
 
   const { data: existing } = await ctx.supabase
@@ -1576,7 +1591,10 @@ async function cryptoWalletsCreate(ctx) {
     })
     .select()
     .single();
-  if (error) return fail(400, "failed_to_create_wallet");
+  if (error) {
+    console.error("Failed to insert crypto_wallet:", error);
+    return fail(400, "failed_to_create_wallet", { detail: error.message });
+  }
 
   return ok({
     id: wallet.id,
@@ -1589,7 +1607,7 @@ async function cryptoWalletsCreate(ctx) {
 }
 
 async function cryptoWalletsGet(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const walletId = text(ctx.body.walletId, 60);
   if (!walletId) return fail(400, "wallet_id_required");
@@ -1636,7 +1654,7 @@ async function cryptoWalletsGet(ctx) {
 }
 
 async function cryptoDeposit(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const walletId = text(ctx.body.walletId, 60);
   const amountCrypto = Number(ctx.body.amountCrypto);
@@ -1717,7 +1735,7 @@ async function cryptoDeposit(ctx) {
 }
 
 async function cryptoWithdraw(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const walletId = text(ctx.body.walletId, 60);
   const amountCrypto = Number(ctx.body.amountCrypto);
@@ -1806,7 +1824,7 @@ async function cryptoWithdraw(ctx) {
 }
 
 async function cryptoSwapToCoins(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const walletId = text(ctx.body.walletId, 60);
   const amountCrypto = Number(ctx.body.amountCrypto);
@@ -1884,10 +1902,10 @@ async function cryptoSwapToCoins(ctx) {
 }
 
 async function cryptoSwapFromCoins(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const walletId = text(ctx.body.walletId, 60);
-  const amountCoins = Number(ctx.body.amountCoins);
+  const amountCoins = Number(ctx.body.amountCoins || ctx.body.amountCrypto);
   if (!walletId || !amountCoins || amountCoins <= 0) return fail(400, "invalid_swap_params");
 
   const { data: wallet } = await ctx.supabase
@@ -1963,7 +1981,7 @@ async function cryptoSwapFromCoins(ctx) {
 }
 
 async function cryptoTransactionsList(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("crypto_transactions")

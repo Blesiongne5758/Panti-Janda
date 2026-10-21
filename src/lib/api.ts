@@ -130,6 +130,19 @@ const MESSAGES: Readonly<Record<string, string>> = {
   not_team_member: "Pemain ini bukan anggota tim yang dipilih.",
   insufficient_balance: "Saldo koin tidak mencukupi.",
   already_exists: "Profil pemain untuk game ini sudah ada. Edit profil yang tersedia.",
+  coin_symbol_required: "Simbol cryptocurrency wajib dipilih.",
+  unsupported_coin: "Cryptocurrency yang dipilih tidak didukung.",
+  wallet_already_exists: "Wallet untuk crypto dan jaringan ini sudah ada di akun Anda.",
+  failed_to_create_wallet: "Gagal membuat wallet crypto. Silakan coba lagi.",
+  wallet_id_required: "ID wallet wajib diisi.",
+  wallet_not_found: "Wallet tidak ditemukan.",
+  invalid_deposit_params: "Parameter deposit tidak valid.",
+  coin_not_found: "Data cryptocurrency tidak ditemukan.",
+  insufficient_crypto_balance: "Saldo crypto di wallet tidak mencukupi.",
+  insufficient_coin_balance: "Saldo koin Anda tidak mencukupi untuk transaksi ini.",
+  invalid_withdraw_params: "Data penarikan crypto tidak lengkap atau tidak valid.",
+  invalid_swap_params: "Jumlah koin / crypto untuk swap tidak valid.",
+  invalid_conversion_rate: "Kurs konversi tidak valid.",
 };
 
 export const PUBLISH_MISSING_LABEL: Readonly<Record<string, string>> = {

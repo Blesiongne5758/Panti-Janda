@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Coins, Loader2, Wallet, History, Sparkles, ArrowDownCircle, CreditCard, Banknote, Bitcoin, ArrowLeftRight, Copy, Plus, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { formatRupiah } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -53,17 +53,11 @@ export default function CoinsPage() {
 
   const load = async () => {
     try {
-      const [balanceRes, txRes, featuresRes, settingsRes, cryptoCoinsRes, cryptoWalletsRes, cryptoTxRes] = await Promise.all([
-        api<CoinBalance>("coins.balance"),
-        api<{ items: CoinTransaction[] }>("coins.transactions"),
-        api<{ items: CoinFeature[] }>("coins.features"),
-        api<{ coinSettings: CoinSettings }>("coinSettings.settings"),
-        api<{ items: CryptoSupportedCoin[] }>("crypto.coins.list"),
-        api<{ items: CryptoWallet[] }>("crypto.wallets.list"),
-        api<{ items: CryptoTransaction[] }>("crypto.transactions.list"),
+      const [featuresRes, settingsRes, cryptoCoinsRes] = await Promise.all([
+        api<{ items: CoinFeature[] }>("coins.features").catch(() => null),
+        api<{ coinSettings: CoinSettings }>("coinSettings.settings").catch(() => null),
+        api<{ items: CryptoSupportedCoin[] }>("crypto.coins.list").catch(() => null),
       ]);
-      if (balanceRes) setBalance(balanceRes);
-      if (txRes) setTransactions(txRes.items);
       if (featuresRes) setFeatures(featuresRes.items);
       if (settingsRes) {
         setCoinSettings(settingsRes.coinSettings);
@@ -73,8 +67,19 @@ export default function CoinsPage() {
         if (firstWithdraw) setWithdrawMethod(firstWithdraw.id);
       }
       if (cryptoCoinsRes) setCryptoCoins(cryptoCoinsRes.items);
-      if (cryptoWalletsRes) setCryptoWallets(cryptoWalletsRes.items);
-      if (cryptoTxRes) setCryptoTransactions(cryptoTxRes.items);
+
+      if (account) {
+        const [balanceRes, txRes, cryptoWalletsRes, cryptoTxRes] = await Promise.all([
+          api<CoinBalance>("coins.balance").catch(() => null),
+          api<{ items: CoinTransaction[] }>("coins.transactions").catch(() => null),
+          api<{ items: CryptoWallet[] }>("crypto.wallets.list").catch(() => null),
+          api<{ items: CryptoTransaction[] }>("crypto.transactions.list").catch(() => null),
+        ]);
+        if (balanceRes) setBalance(balanceRes);
+        if (txRes) setTransactions(txRes.items);
+        if (cryptoWalletsRes) setCryptoWallets(cryptoWalletsRes.items);
+        if (cryptoTxRes) setCryptoTransactions(cryptoTxRes.items);
+      }
     } catch {
       // ignore
     } finally {
@@ -186,14 +191,19 @@ export default function CoinsPage() {
     }
     setCreatingWallet(true);
     try {
-      const res = await api<{ success: boolean; message: string }>("crypto.wallets.create", { coinId: selectedCryptoCoin });
-      if (res?.success) {
-        toast.success(res.message);
+      const coin = cryptoCoins.find((c) => c.id === selectedCryptoCoin);
+      if (!coin) {
+        toast.error("Coin tidak ditemukan.");
+        return;
+      }
+      const res = await api<{ id: string; coinSymbol: string; walletAddress: string; balance: number }>("crypto.wallets.create", { coinSymbol: coin.symbol });
+      if (res?.id) {
+        toast.success(`Wallet ${res.coinSymbol} berhasil dibuat!`);
         setSelectedCryptoCoin("");
         await load();
       }
-    } catch {
-      toast.error("Gagal membuat wallet.");
+    } catch (err) {
+      toast.error(errorText(err));
     } finally {
       setCreatingWallet(false);
     }
@@ -215,20 +225,20 @@ export default function CoinsPage() {
     }
     setDepositing(true);
     try {
-      const res = await api<{ success: boolean; coinsCredited: number; message: string }>("crypto.deposit", {
+      const res = await api<{ amountCrypto: number; amountCoins: number; newWalletBalance: number; newCoinBalance: number; status: string }>("crypto.deposit", {
         walletId: depositWalletId,
         amountCrypto: amount,
         txHash: depositTxHash.trim(),
       });
-      if (res?.success) {
-        toast.success(res.message);
+      if (res?.status === "confirmed") {
+        toast.success(`Deposit berhasil! +${res.amountCoins} koin dikreditkan.`);
         setDepositAmount("");
         setDepositTxHash("");
         setDepositWalletId("");
         await load();
       }
-    } catch {
-      toast.error("Gagal memproses deposit.");
+    } catch (err) {
+      toast.error(errorText(err));
     } finally {
       setDepositing(false);
     }
@@ -250,20 +260,29 @@ export default function CoinsPage() {
     }
     setCryptoWithdrawing(true);
     try {
-      const res = await api<{ success: boolean; message: string }>("crypto.withdraw", {
+      const res = await api<{
+        amountCrypto: number;
+        fee: number;
+        netAmount: number;
+        amountCoins: number;
+        newWalletBalance: number;
+        newCoinBalance: number;
+        txHash: string;
+        status: string;
+      }>("crypto.withdraw", {
         walletId: cryptoWithdrawWalletId,
         amountCrypto: amount,
         toAddress: cryptoWithdrawAddress.trim(),
       });
-      if (res?.success) {
-        toast.success(res.message);
+      if (res) {
+        toast.success(`Permintaan penarikan ${res.amountCrypto} sedang diproses. Status: ${res.status}`);
         setCryptoWithdrawAmount("");
         setCryptoWithdrawAddress("");
         setCryptoWithdrawWalletId("");
         await load();
       }
-    } catch {
-      toast.error("Gagal memproses penarikan crypto.");
+    } catch (err) {
+      toast.error(errorText(err));
     } finally {
       setCryptoWithdrawing(false);
     }
@@ -282,18 +301,28 @@ export default function CoinsPage() {
     setSwapping(true);
     try {
       const endpoint = swapDirection === "to_coins" ? "crypto.swap.to_coins" : "crypto.swap.from_coins";
-      const res = await api<{ success: boolean; message: string }>(endpoint, {
-        walletId: swapWalletId,
-        amountCrypto: amount,
-      });
-      if (res?.success) {
-        toast.success(res.message);
+      const payload = swapDirection === "to_coins"
+        ? { walletId: swapWalletId, amountCrypto: amount }
+        : { walletId: swapWalletId, amountCoins: amount };
+      const res = await api<{
+        amountCrypto: number;
+        amountCoins: number;
+        newWalletBalance: number;
+        newCoinBalance: number;
+        conversionRate: number;
+      }>(endpoint, payload);
+      if (res) {
+        toast.success(
+          swapDirection === "to_coins"
+            ? `Berhasil swap ${res.amountCrypto} ke ${res.amountCoins} koin!`
+            : `Berhasil swap ${res.amountCoins} koin ke ${res.amountCrypto.toFixed(6)} crypto!`
+        );
         setSwapAmount("");
         setSwapWalletId("");
         await load();
       }
-    } catch {
-      toast.error("Gagal melakukan swap.");
+    } catch (err) {
+      toast.error(errorText(err));
     } finally {
       setSwapping(false);
     }
