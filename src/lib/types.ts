@@ -1099,6 +1099,36 @@ export interface AppSettings {
       scanForMalware: boolean;
     };
   };
+  themeSettings: {
+    widowTheme: {
+      name: string;
+      primaryColor: string;
+      primaryForeground: string;
+      backgroundColor: string;
+      cardColor: string;
+      accentColor: string;
+      ringColor: string;
+      sidebarColor: string;
+      borderColor: string;
+      chartColors: string[];
+      gradientFrom: string;
+      gradientTo: string;
+    };
+    publicTheme: {
+      name: string;
+      primaryColor: string;
+      primaryForeground: string;
+      backgroundColor: string;
+      cardColor: string;
+      accentColor: string;
+      ringColor: string;
+      sidebarColor: string;
+      borderColor: string;
+      chartColors: string[];
+      gradientFrom: string;
+      gradientTo: string;
+    };
+  };
 }
 
 export type EsportFormat = "single_elim" | "double_elim" | "round_robin" | "group_playoff" | "swiss" | "battle_royale" | "league";

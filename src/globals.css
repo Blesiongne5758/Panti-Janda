@@ -69,87 +69,87 @@
   --glass-border-strong: rgba(255, 255, 255, 0.5);
 }
 
-/* ── Tema non-janda: Merah Marun (#6B1524 / #4A0E17) dengan gradasi & aksen Champagne Gold (#D4AF37) + Wine Burgundy (#2E0812) ──
+/* ── Tema non-janda: Orange-to-Green Gradient & Deep Forest Green (#0B6623) dengan aksen Golden Orange (#F5A623) ──
    Diterapkan otomatis via class .theme-public pada <html> (lihat ThemeSync di App.tsx).
    Semua utility Tailwind (bg-*, text-*, border-*) membaca var(--color-*), palet
-   di bawah mengusung tema marun gelap berkelas dengan gradasi dinamis. */
+   di bawah mengusung tema oranye-hijau hutan gelap berkelas dengan gradasi dinamis. */
 html.theme-public {
   color-scheme: dark;
-  --background: #180509;
-  --foreground: #fcf6f4;
-  --card: #270910;
-  --card-foreground: #fcf6f4;
-  --popover: #330c16;
-  --popover-foreground: #fcf6f4;
-  --primary: #9e1b32;
-  --primary-foreground: #fff5f5;
-  --secondary: #3b0d19;
-  --secondary-foreground: #f8e9eb;
-  --muted: #2e0b14;
-  --muted-foreground: #cbb4b9;
-  --accent: #4a1322;
-  --accent-foreground: #fde8b8;
+  --background: #071a0e;
+  --foreground: #faf7f2;
+  --card: #0f2a18;
+  --card-foreground: #faf7f2;
+  --popover: #132e1d;
+  --popover-foreground: #faf7f2;
+  --primary: #0b6623;
+  --primary-foreground: #faf7f2;
+  --secondary: #1a3520;
+  --secondary-foreground: #e2ede5;
+  --muted: #132b1b;
+  --muted-foreground: #a3b8a8;
+  --accent: #e8830c;
+  --accent-foreground: #fed7aa;
   --destructive: #ef4444;
-  --border: #4f1524;
-  --input: #4f1524;
-  --ring: #d4af37;
-  --chart-1: #9e1b32;
-  --chart-2: #d4af37;
-  --chart-3: #c2415d;
-  --chart-4: #e5c158;
-  --chart-5: #7a1226;
-  --sidebar: #22080e;
-  --sidebar-foreground: #fcf6f4;
-  --sidebar-primary: #9e1b32;
-  --sidebar-primary-foreground: #fff5f5;
-  --sidebar-accent: #360c17;
-  --sidebar-accent-foreground: #f8e9eb;
-  --sidebar-border: #4a1322;
-  --sidebar-ring: #d4af37;
+  --border: #1e4a2e;
+  --input: #1e4a2e;
+  --ring: #f5a623;
+  --chart-1: #f5a623;
+  --chart-2: #0b6623;
+  --chart-3: #e8830c;
+  --chart-4: #2d8b4e;
+  --chart-5: #d4740c;
+  --sidebar: #0d2314;
+  --sidebar-foreground: #faf7f2;
+  --sidebar-primary: #0b6623;
+  --sidebar-primary-foreground: #faf7f2;
+  --sidebar-accent: #15331e;
+  --sidebar-accent-foreground: #e2ede5;
+  --sidebar-border: #1e4a2e;
+  --sidebar-ring: #f5a623;
   --card-gradient: linear-gradient(
     135deg,
-    color-mix(in srgb, #9e1b32 18%, transparent) 0%,
-    color-mix(in srgb, #270910 90%, transparent) 45%,
-    color-mix(in srgb, #d4af37 12%, transparent) 100%
+    color-mix(in srgb, #e8830c 18%, transparent) 0%,
+    color-mix(in srgb, #0f2a18 90%, transparent) 45%,
+    color-mix(in srgb, #2d8b4e 12%, transparent) 100%
   );
-  --neu-shadow: rgba(20, 3, 7, 0.65);
-  --neu-shadow-soft: rgba(20, 3, 7, 0.45);
-  --neu-shadow-strong: rgba(15, 2, 5, 0.85);
-  --neu-highlight: rgba(255, 220, 225, 0.08);
-  --neu-highlight-strong: rgba(255, 220, 225, 0.14);
-  --glass-border: rgba(212, 175, 55, 0.22);
+  --neu-shadow: rgba(5, 15, 8, 0.65);
+  --neu-shadow-soft: rgba(5, 15, 8, 0.45);
+  --neu-shadow-strong: rgba(4, 12, 6, 0.85);
+  --neu-highlight: rgba(200, 220, 180, 0.08);
+  --neu-highlight-strong: rgba(200, 220, 180, 0.14);
+  --glass-border: rgba(245, 166, 35, 0.22);
   --glass-border-soft: rgba(255, 255, 255, 0.09);
-  --glass-border-strong: rgba(212, 175, 55, 0.35);
+  --glass-border-strong: rgba(245, 166, 35, 0.35);
 
-  /* Oranye / Embers → nuansa api marun */
-  --color-orange-50: #29080e;
-  --color-orange-100: #380b15;
-  --color-orange-200: #571322;
-  --color-orange-300: #781c30;
-  --color-orange-600: #e2586e;
-  --color-orange-700: #eb7184;
-  --color-orange-800: #f391a1;
-  --color-orange-900: #f9b6c1;
+  /* Oranye hangat (True warm oranges) */
+  --color-orange-50: #261307;
+  --color-orange-100: #361b0a;
+  --color-orange-200: #54280e;
+  --color-orange-300: #753813;
+  --color-orange-600: #f5921e;
+  --color-orange-700: #fb9e47;
+  --color-orange-800: #fdba74;
+  --color-orange-900: #fed7aa;
 
-  /* Amber → emas sampanye (champagne gold) */
-  --color-amber-50: #241a06;
-  --color-amber-100: #332509;
-  --color-amber-200: #523c10;
-  --color-amber-300: #785817;
-  --color-amber-600: #e5be4d;
-  --color-amber-700: #f0cc63;
-  --color-amber-800: #f6d981;
-  --color-amber-900: #fbe8a6;
+  /* Amber → kuning keemasan (golden yellow) */
+  --color-amber-50: #241b06;
+  --color-amber-100: #362708;
+  --color-amber-200: #543d0d;
+  --color-amber-300: #785712;
+  --color-amber-600: #f5c22b;
+  --color-amber-700: #f8ce52;
+  --color-amber-800: #fadf7c;
+  --color-amber-900: #fceeab;
 
-  /* Rose → merah marun & burgundy */
-  --color-rose-50: #25060d;
-  --color-rose-100: #380a14;
-  --color-rose-200: #541121;
-  --color-rose-300: #751a2f;
-  --color-rose-600: #e54260;
-  --color-rose-700: #f05e7a;
-  --color-rose-800: #f58399;
-  --color-rose-900: #fba9b9;
+  /* Rose → coral / salmon hangat */
+  --color-rose-50: #260e0e;
+  --color-rose-100: #381414;
+  --color-rose-200: #571f1f;
+  --color-rose-300: #7b2e2d;
+  --color-rose-600: #f06b5b;
+  --color-rose-700: #f38476;
+  --color-rose-800: #f7a398;
+  --color-rose-900: #fbc7c0;
 
   /* Emerald */
   --color-emerald-50: #0a1f14;
@@ -195,22 +195,22 @@ html.theme-public {
   /* Status lain */
   --color-green-600: #38b96d;
   --color-red-600: #e0314b;
-  --color-yellow-600: #d4af37;
+  --color-yellow-600: #f5a623;
 
-  /* Netral hangat/dingin: permukaan marun pekat → teks cerah sampanye */
-  --color-slate-100: #22070e;
-  --color-slate-200: #2d0b13;
-  --color-slate-300: #451320;
-  --color-slate-400: #591b2b;
-  --color-slate-500: #b09198;
-  --color-slate-600: #c7adb3;
-  --color-slate-700: #dfc8cd;
-  --color-stone-100: #20060c;
-  --color-stone-200: #2b0a12;
-  --color-stone-300: #42121e;
-  --color-stone-500: #b3979c;
-  --color-stone-600: #c9b1b6;
-  --color-stone-700: #dfcbcf;
+  /* Netral dingin & hangat: permukaan hijau hutan pekat → teks sage cerah */
+  --color-slate-100: #0d1e14;
+  --color-slate-200: #14291d;
+  --color-slate-300: #1e3b2b;
+  --color-slate-400: #2d523d;
+  --color-slate-500: #8fa695;
+  --color-slate-600: #b2c5b7;
+  --color-slate-700: #d3e0d7;
+  --color-stone-100: #0e1d13;
+  --color-stone-200: #17291b;
+  --color-stone-300: #223826;
+  --color-stone-500: #93a697;
+  --color-stone-600: #b7c7bb;
+  --color-stone-700: #d9e3dc;
 }
 
 @theme inline {

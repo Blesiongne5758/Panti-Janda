@@ -12478,6 +12478,36 @@ const APP_SETTINGS = {
       scanForMalware: false,
     },
   },
+  themeSettings: {
+    widowTheme: {
+      name: "Tema Janda (Default)",
+      primaryColor: "#5b2a4e",
+      primaryForeground: "#fdf7f0",
+      backgroundColor: "#faf5ee",
+      cardColor: "#fffdf9",
+      accentColor: "#f7edd8",
+      ringColor: "#b98a2f",
+      sidebarColor: "#fffdf9",
+      borderColor: "#e8dccc",
+      chartColors: ["#c2603e", "#5b2a4e", "#b98a2f", "#7c8a5a", "#8a5a7c"],
+      gradientFrom: "#c2603e",
+      gradientTo: "#5b2a4e",
+    },
+    publicTheme: {
+      name: "Tema Non-Janda (Oranye-Hijau)",
+      primaryColor: "#0B6623",
+      primaryForeground: "#f5faf7",
+      backgroundColor: "#071A0E",
+      cardColor: "#0F2A18",
+      accentColor: "#E8830C",
+      ringColor: "#F5A623",
+      sidebarColor: "#0D2314",
+      borderColor: "#1E4A2E",
+      chartColors: ["#F5A623", "#0B6623", "#E8830C", "#2D8B4E", "#D4740C"],
+      gradientFrom: "#F5A623",
+      gradientTo: "#0B6623",
+    },
+  },
 };
 
 async function adminSettingsGet(ctx) {
@@ -12489,7 +12519,7 @@ async function adminSettingsGet(ctx) {
 async function adminSettingsUpdate(ctx) {
   const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
-  const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement, storage } = ctx.body ?? {};
+  const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement, storage, themeSettings } = ctx.body ?? {};
   if (payment) {
     if (typeof payment.midtransServerKey === "string") APP_SETTINGS.payment.midtransServerKey = payment.midtransServerKey;
     if (typeof payment.midtransClientKey === "string") APP_SETTINGS.payment.midtransClientKey = payment.midtransClientKey;
@@ -12792,6 +12822,33 @@ async function adminSettingsUpdate(ctx) {
         APP_SETTINGS.storage.security.requireOwnershipForPrivate = s.requireOwnershipForPrivate;
       }
       if (typeof s.scanForMalware === "boolean") APP_SETTINGS.storage.security.scanForMalware = s.scanForMalware;
+    }
+  }
+  if (themeSettings) {
+    const parseTheme = (t) => {
+      if (!t || typeof t !== "object") return null;
+      return {
+        name: typeof t.name === "string" ? t.name.slice(0, 100) : "",
+        primaryColor: typeof t.primaryColor === "string" ? t.primaryColor.slice(0, 20) : "",
+        primaryForeground: typeof t.primaryForeground === "string" ? t.primaryForeground.slice(0, 20) : "",
+        backgroundColor: typeof t.backgroundColor === "string" ? t.backgroundColor.slice(0, 20) : "",
+        cardColor: typeof t.cardColor === "string" ? t.cardColor.slice(0, 20) : "",
+        accentColor: typeof t.accentColor === "string" ? t.accentColor.slice(0, 20) : "",
+        ringColor: typeof t.ringColor === "string" ? t.ringColor.slice(0, 20) : "",
+        sidebarColor: typeof t.sidebarColor === "string" ? t.sidebarColor.slice(0, 20) : "",
+        borderColor: typeof t.borderColor === "string" ? t.borderColor.slice(0, 20) : "",
+        chartColors: Array.isArray(t.chartColors) ? t.chartColors.filter((c) => typeof c === "string").map((c) => c.slice(0, 20)).slice(0, 10) : [],
+        gradientFrom: typeof t.gradientFrom === "string" ? t.gradientFrom.slice(0, 20) : "",
+        gradientTo: typeof t.gradientTo === "string" ? t.gradientTo.slice(0, 20) : "",
+      };
+    };
+    if (themeSettings.widowTheme) {
+      const parsed = parseTheme(themeSettings.widowTheme);
+      if (parsed) APP_SETTINGS.themeSettings.widowTheme = parsed;
+    }
+    if (themeSettings.publicTheme) {
+      const parsed = parseTheme(themeSettings.publicTheme);
+      if (parsed) APP_SETTINGS.themeSettings.publicTheme = parsed;
     }
   }
   return ok({ settings: APP_SETTINGS });

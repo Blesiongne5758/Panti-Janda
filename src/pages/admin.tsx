@@ -414,6 +414,38 @@ export default function AdminPage() {
   });
   const [storageDirty, setStorageDirty] = useState(false);
 
+  const [themeForm, setThemeForm] = useState<AppSettings["themeSettings"]>({
+    widowTheme: {
+      name: "Tema Janda (Default)",
+      primaryColor: "#5b2a4e",
+      primaryForeground: "#fdf7f0",
+      backgroundColor: "#faf5ee",
+      cardColor: "#fffdf9",
+      accentColor: "#f7edd8",
+      ringColor: "#b98a2f",
+      sidebarColor: "#fffdf9",
+      borderColor: "#e8dccc",
+      chartColors: ["#c2603e", "#5b2a4e", "#b98a2f", "#7c8a5a", "#8a5a7c"],
+      gradientFrom: "#c2603e",
+      gradientTo: "#5b2a4e",
+    },
+    publicTheme: {
+      name: "Tema Non-Janda (Oranye-Hijau)",
+      primaryColor: "#0B6623",
+      primaryForeground: "#f5faf7",
+      backgroundColor: "#071A0E",
+      cardColor: "#0F2A18",
+      accentColor: "#E8830C",
+      ringColor: "#F5A623",
+      sidebarColor: "#0D2314",
+      borderColor: "#1E4A2E",
+      chartColors: ["#F5A623", "#0B6623", "#E8830C", "#2D8B4E", "#D4740C"],
+      gradientFrom: "#F5A623",
+      gradientTo: "#0B6623",
+    },
+  });
+  const [themeDirty, setThemeDirty] = useState(false);
+
   const isAdmin = account?.role === "admin";
 
   const load = useCallback(async () => {
@@ -556,6 +588,14 @@ export default function AdminPage() {
           security: { ...st.security },
         });
         setStorageDirty(false);
+      }
+      const th = settingsData.settings.themeSettings;
+      if (th) {
+        setThemeForm({
+          widowTheme: { ...th.widowTheme },
+          publicTheme: { ...th.publicTheme },
+        });
+        setThemeDirty(false);
       }
       try {
         const trialData = await api<{ total: number; byTier: Record<string, { id: string; email: string; display_name: string }[]> }>("admin.trial.status");
@@ -800,6 +840,14 @@ export default function AdminPage() {
         });
         setStorageDirty(false);
       }
+      if (newSettings.themeSettings) {
+        const th = res.settings.themeSettings;
+        setThemeForm({
+          widowTheme: { ...th.widowTheme },
+          publicTheme: { ...th.publicTheme },
+        });
+        setThemeDirty(false);
+      }
       toast.success("Pengaturan berhasil disimpan.");
     } catch (err) {
       toast.error(errorText(err));
@@ -880,6 +928,7 @@ export default function AdminPage() {
           <TabsTrigger value="trialAccounts">Akun Uji Coba</TabsTrigger>
           <TabsTrigger value="apiManagement">Manajemen API</TabsTrigger>
           <TabsTrigger value="storage">Cloud Storage</TabsTrigger>
+          <TabsTrigger value="tema">Tema Tampilan</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ringkasan" className="mt-4">
@@ -4773,6 +4822,146 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="tema" className="mt-4 space-y-6">
+          {loading ? <LoadingGrid count={2} /> : (
+            <>
+              {/* Tema Janda */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <Crown className="size-5" aria-hidden />
+                    Tema User Janda
+                  </CardTitle>
+                  <CardDescription>Kustomisasi tampilan untuk anggota janda (Wonder Woman, Sosialita, High Society, The CEO).</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <InputField label="Nama Tema" value={themeForm.widowTheme.name} onChange={(v) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, name: v } })); setThemeDirty(true); }} />
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {([
+                      ["Warna Primer", "primaryColor"],
+                      ["Background", "backgroundColor"],
+                      ["Warna Kartu", "cardColor"],
+                      ["Warna Aksen", "accentColor"],
+                      ["Warna Ring / Aksen Emas", "ringColor"],
+                      ["Warna Border", "borderColor"],
+                    ] as const).map(([label, key]) => (
+                      <div key={key}>
+                        <Label>{label}</Label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <input type="color" value={(themeForm.widowTheme as Record<string, unknown>)[key] as string} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, [key]: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                          <Input value={(themeForm.widowTheme as Record<string, unknown>)[key] as string} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, [key]: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label>Gradasi Dari</Label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="color" value={themeForm.widowTheme.gradientFrom} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, gradientFrom: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                        <Input value={themeForm.widowTheme.gradientFrom} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, gradientFrom: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Gradasi Ke</Label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="color" value={themeForm.widowTheme.gradientTo} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, gradientTo: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                        <Input value={themeForm.widowTheme.gradientTo} onChange={(e) => { setThemeForm(prev => ({ ...prev, widowTheme: { ...prev.widowTheme, gradientTo: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-12 rounded-lg" style={{ background: `linear-gradient(135deg, ${themeForm.widowTheme.gradientFrom}, ${themeForm.widowTheme.primaryColor}, ${themeForm.widowTheme.gradientTo})` }} />
+                </CardContent>
+              </Card>
+
+              {/* Tema Non-Janda */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <Globe className="size-5" aria-hidden />
+                    Tema User Non-Janda
+                  </CardTitle>
+                  <CardDescription>Kustomisasi tampilan untuk anggota non-janda (Kades, Walikota, Gubernur, Panglima, Presiden, CEO, Sultan).</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <InputField label="Nama Tema" value={themeForm.publicTheme.name} onChange={(v) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, name: v } })); setThemeDirty(true); }} />
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {([
+                      ["Warna Primer", "primaryColor"],
+                      ["Background", "backgroundColor"],
+                      ["Warna Kartu", "cardColor"],
+                      ["Warna Aksen (Oranye)", "accentColor"],
+                      ["Warna Ring / Aksen Emas", "ringColor"],
+                      ["Warna Border", "borderColor"],
+                    ] as const).map(([label, key]) => (
+                      <div key={key}>
+                        <Label>{label}</Label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <input type="color" value={(themeForm.publicTheme as Record<string, unknown>)[key] as string} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, [key]: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                          <Input value={(themeForm.publicTheme as Record<string, unknown>)[key] as string} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, [key]: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label>Gradasi Dari</Label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="color" value={themeForm.publicTheme.gradientFrom} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, gradientFrom: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                        <Input value={themeForm.publicTheme.gradientFrom} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, gradientFrom: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Gradasi Ke</Label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="color" value={themeForm.publicTheme.gradientTo} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, gradientTo: e.target.value } })); setThemeDirty(true); }} className="h-10 w-14 cursor-pointer rounded border" />
+                        <Input value={themeForm.publicTheme.gradientTo} onChange={(e) => { setThemeForm(prev => ({ ...prev, publicTheme: { ...prev.publicTheme, gradientTo: e.target.value } })); setThemeDirty(true); }} className="font-mono" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-12 rounded-lg" style={{ background: `linear-gradient(135deg, ${themeForm.publicTheme.gradientFrom}, ${themeForm.publicTheme.primaryColor}, ${themeForm.publicTheme.gradientTo})` }} />
+                </CardContent>
+              </Card>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg">Preview Gradasi</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-muted-foreground">Tema Janda</p>
+                      <div className="h-24 rounded-xl shadow-lg" style={{ background: `linear-gradient(135deg, ${themeForm.widowTheme.gradientFrom} 0%, ${themeForm.widowTheme.primaryColor} 50%, ${themeForm.widowTheme.gradientTo} 100%)` }} />
+                      <div className="mt-2 flex gap-1">
+                        {themeForm.widowTheme.chartColors.map((c, i) => (
+                          <div key={i} className="h-6 flex-1 rounded" style={{ backgroundColor: c }} title={c} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-muted-foreground">Tema Non-Janda</p>
+                      <div className="h-24 rounded-xl shadow-lg" style={{ background: `linear-gradient(135deg, ${themeForm.publicTheme.gradientFrom} 0%, ${themeForm.publicTheme.primaryColor} 50%, ${themeForm.publicTheme.gradientTo} 100%)` }} />
+                      <div className="mt-2 flex gap-1">
+                        {themeForm.publicTheme.chartColors.map((c, i) => (
+                          <div key={i} className="h-6 flex-1 rounded" style={{ backgroundColor: c }} title={c} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end">
+                <Button onClick={() => updateSettings({ themeSettings: themeForm })} disabled={!themeDirty || savingSettings}>
+                  {savingSettings ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  Simpan Pengaturan Tema
+                </Button>
+              </div>
+            </>
+          )}
         </TabsContent>
       </Tabs>
 
