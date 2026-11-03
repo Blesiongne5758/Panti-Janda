@@ -12054,12 +12054,12 @@ const MIDTRANS_DEFAULT_SERVER_KEY = "SB-Mid-server-jcVEcyaxetYl.CUA3m3pgffR";
 const MIDTRANS_DEFAULT_CLIENT_KEY = "SB-Mid-client-l7_nLQr-8pZBaVV1CCmLR~p-";
 
 // Default Cloudinary credentials — overridable via Supabase secrets / env vars or Admin Settings
-const CLOUDINARY_DEFAULT_CLOUD_NAME = "mlup4hpq";
-const CLOUDINARY_DEFAULT_API_KEY = "942243774775565";
-const CLOUDINARY_DEFAULT_API_SECRET = "T3BRjCK-1u4q91TAYGg3mkWefXM";
+const CLOUDINARY_DEFAULT_CLOUD_NAME = "";
+const CLOUDINARY_DEFAULT_API_KEY = "";
+const CLOUDINARY_DEFAULT_API_SECRET = "";
 const CLOUDINARY_DEFAULT_KEYNAME = "Multimedia";
 const CLOUDINARY_DEFAULT_FOLDER = "Multimedia";
-const CLOUDINARY_DEFAULT_URL = "cloudinary://942243774775565:T3BRjCK-1u4q91TAYGg3mkWefXM@mlup4hpq";
+const CLOUDINARY_DEFAULT_URL = "";
 
 const APP_SETTINGS = {
   payment: {
