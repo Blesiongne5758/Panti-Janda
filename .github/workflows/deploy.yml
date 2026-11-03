@@ -40,16 +40,25 @@ jobs:
         with:
           version: latest
 
+      - name: Derive Supabase project ref
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          if [[ "$SUPABASE_URL" =~ ^https://([a-z0-9]+)\.supabase\.co/?$ ]]; then
+            echo "SUPABASE_PROJECT_REF=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
+          else
+            echo "SUPABASE_URL must be a standard https://<project-ref>.supabase.co URL"
+            exit 1
+          fi
+
       - name: Configure Supabase function secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Add SUPABASE_ACCESS_TOKEN to the production GitHub Environment}"
-          : "${SUPABASE_PROJECT_REF:?Add SUPABASE_PROJECT_REF to the production GitHub Environment}"
           : "${CLOUDINARY_CLOUD_NAME:?Add CLOUDINARY_CLOUD_NAME to the production GitHub Environment}"
           : "${CLOUDINARY_API_KEY:?Add CLOUDINARY_API_KEY to the production GitHub Environment}"
           : "${CLOUDINARY_API_SECRET:?Add CLOUDINARY_API_SECRET to the production GitHub Environment}"
@@ -61,7 +70,6 @@ jobs:
       - name: Deploy Supabase Edge Function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase functions deploy app --project-ref "$SUPABASE_PROJECT_REF" --use-api
 
       - name: Sync files
