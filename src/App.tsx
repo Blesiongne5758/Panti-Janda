@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "@/lib/session";
 import { WIDOW_ROLES } from "@/lib/constants";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { Toaster } from "@/components/ui/sonner";
 import { LandingPage } from "@/pages/landing";
 import { ExplorePage } from "@/pages/explore";
@@ -154,6 +155,7 @@ export default function App() {
           <AppShell>
             <Routes />
           </AppShell>
+          <MobileNav />
           <Toaster position="top-center" richColors closeButton />
         </AuthProvider>
       </RouterProvider>

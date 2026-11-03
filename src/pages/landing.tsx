@@ -114,10 +114,6 @@ export function LandingPage() {
   const reducedMotion = usePrefersReducedMotion();
   const [slide, setSlide] = useState(0);
 
-  if (account) {
-    return <FeedPage />;
-  }
-
   useEffect(() => {
     if (reducedMotion) return;
     const timer = window.setInterval(() => setSlide((current) => (current + 1) % HERO_SLIDES.length), 7000);

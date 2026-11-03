@@ -69,148 +69,91 @@
   --glass-border-strong: rgba(255, 255, 255, 0.5);
 }
 
-/* ── Tema non-janda: Orange-to-Green Gradient & Deep Forest Green (#0B6623) dengan aksen Golden Orange (#F5A623) ──
+/* ── Tema non-janda: Putih Bersih & Pastel Lembut (#029456 & #A1CCA6) ──
    Diterapkan otomatis via class .theme-public pada <html> (lihat ThemeSync di App.tsx).
-   Semua utility Tailwind (bg-*, text-*, border-*) membaca var(--color-*), palet
-   di bawah mengusung tema oranye-hijau hutan gelap berkelas dengan gradasi dinamis. */
+   Tema ini menggunakan dasar putih dengan aksen hijau lembut untuk kesan bersih, profesional, dan ramah. */
 html.theme-public {
-  color-scheme: dark;
-  --background: #071a0e;
-  --foreground: #faf7f2;
-  --card: #0f2a18;
-  --card-foreground: #faf7f2;
-  --popover: #132e1d;
-  --popover-foreground: #faf7f2;
-  --primary: #0b6623;
-  --primary-foreground: #faf7f2;
-  --secondary: #1a3520;
-  --secondary-foreground: #e2ede5;
-  --muted: #132b1b;
-  --muted-foreground: #a3b8a8;
-  --accent: #e8830c;
-  --accent-foreground: #fed7aa;
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1a2e23;
+  --card: #fcfdfc;
+  --card-foreground: #1a2e23;
+  --popover: #ffffff;
+  --popover-foreground: #1a2e23;
+  --primary: #029456;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f7f3;
+  --secondary-foreground: #2d5a41;
+  --muted: #f4f9f6;
+  --muted-foreground: #6b8e7c;
+  --accent: #A1CCA6;
+  --accent-foreground: #2d5a41;
   --destructive: #ef4444;
-  --border: #1e4a2e;
-  --input: #1e4a2e;
-  --ring: #f5a623;
-  --chart-1: #f5a623;
-  --chart-2: #0b6623;
-  --chart-3: #e8830c;
-  --chart-4: #2d8b4e;
-  --chart-5: #d4740c;
-  --sidebar: #0d2314;
-  --sidebar-foreground: #faf7f2;
-  --sidebar-primary: #0b6623;
-  --sidebar-primary-foreground: #faf7f2;
-  --sidebar-accent: #15331e;
-  --sidebar-accent-foreground: #e2ede5;
-  --sidebar-border: #1e4a2e;
-  --sidebar-ring: #f5a623;
+  --border: #e2ede8;
+  --input: #e2ede8;
+  --ring: #029456;
+  --chart-1: #029456;
+  --chart-2: #A1CCA6;
+  --chart-3: #7ab895;
+  --chart-4: #dcf2e6;
+  --chart-5: #4a8c6c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a2e23;
+  --sidebar-primary: #029456;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f7f3;
+  --sidebar-accent-foreground: #2d5a41;
+  --sidebar-border: #e2ede8;
+  --sidebar-ring: #029456;
   --card-gradient: linear-gradient(
     135deg,
-    color-mix(in srgb, #e8830c 18%, transparent) 0%,
-    color-mix(in srgb, #0f2a18 90%, transparent) 45%,
-    color-mix(in srgb, #2d8b4e 12%, transparent) 100%
+    color-mix(in srgb, #029456 12%, transparent) 0%,
+    transparent 45%,
+    color-mix(in srgb, #A1CCA6 15%, transparent) 100%
   );
-  --neu-shadow: rgba(5, 15, 8, 0.65);
-  --neu-shadow-soft: rgba(5, 15, 8, 0.45);
-  --neu-shadow-strong: rgba(4, 12, 6, 0.85);
-  --neu-highlight: rgba(200, 220, 180, 0.08);
-  --neu-highlight-strong: rgba(200, 220, 180, 0.14);
-  --glass-border: rgba(245, 166, 35, 0.22);
-  --glass-border-soft: rgba(255, 255, 255, 0.09);
-  --glass-border-strong: rgba(245, 166, 35, 0.35);
+  --neu-shadow: rgba(2, 148, 86, 0.08);
+  --neu-shadow-soft: rgba(2, 148, 86, 0.05);
+  --neu-shadow-strong: rgba(2, 148, 86, 0.12);
+  --neu-highlight: rgba(255, 255, 255, 0.9);
+  --neu-highlight-strong: rgba(255, 255, 255, 1);
+  --glass-border: rgba(2, 148, 86, 0.15);
+  --glass-border-soft: rgba(161, 204, 166, 0.2);
+  --glass-border-strong: rgba(2, 148, 86, 0.25);
 
-  /* Oranye hangat (True warm oranges) */
-  --color-orange-50: #261307;
-  --color-orange-100: #361b0a;
-  --color-orange-200: #54280e;
-  --color-orange-300: #753813;
-  --color-orange-600: #f5921e;
-  --color-orange-700: #fb9e47;
-  --color-orange-800: #fdba74;
-  --color-orange-900: #fed7aa;
+  /* Background Marvel Superhero */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
+    url('https://images.unsplash.com/photo-1612036782180-6f0b677566bf?auto=format&fit=crop&q=80&w=1920');
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
 
-  /* Amber → kuning keemasan (golden yellow) */
-  --color-amber-50: #241b06;
-  --color-amber-100: #362708;
-  --color-amber-200: #543d0d;
-  --color-amber-300: #785712;
-  --color-amber-600: #f5c22b;
-  --color-amber-700: #f8ce52;
-  --color-amber-800: #fadf7c;
-  --color-amber-900: #fceeab;
+  /* Palette Pendukung Lembut */
+  --color-green-50: #f0f7f3;
+  --color-green-100: #e2ede8;
+  --color-green-200: #b8d8c5;
+  --color-green-300: #8ebca8;
+  --color-green-600: #029456;
+  --color-green-700: #027a46;
+  --color-green-800: #015a34;
+  --color-green-900: #013d22;
 
-  /* Rose → coral / salmon hangat */
-  --color-rose-50: #260e0e;
-  --color-rose-100: #381414;
-  --color-rose-200: #571f1f;
-  --color-rose-300: #7b2e2d;
-  --color-rose-600: #f06b5b;
-  --color-rose-700: #f38476;
-  --color-rose-800: #f7a398;
-  --color-rose-900: #fbc7c0;
+  --color-sage-50: #f9fcf9;
+  --color-sage-100: #f1f7f2;
+  --color-sage-200: #e3ede6;
+  --color-sage-300: #c6d6ca;
+  --color-sage-600: #A1CCA6;
+  --color-sage-700: #8bb598;
+  --color-sage-800: #72967d;
+  --color-sage-900: #5a7a63;
 
-  /* Emerald */
-  --color-emerald-50: #0a1f14;
-  --color-emerald-100: #0e2b1d;
-  --color-emerald-200: #16422d;
-  --color-emerald-300: #1e5c3e;
-  --color-emerald-600: #34c08c;
-  --color-emerald-700: #3ecf9a;
-  --color-emerald-800: #49dda7;
-  --color-emerald-900: #55ecb4;
-
-  /* Sky / Blue */
-  --color-sky-50: #0f1624;
-  --color-sky-100: #142036;
-  --color-sky-300: #22385c;
-  --color-sky-600: #4fa8e8;
-  --color-sky-700: #66b4ec;
-  --color-sky-800: #7ec1f0;
-  --color-sky-900: #95cdf4;
-  --color-blue-50: #121024;
-  --color-blue-200: #211c46;
-  --color-blue-300: #2e265c;
-  --color-blue-600: #6d6fe8;
-  --color-blue-700: #8183ec;
-  --color-blue-800: #9798f0;
-  --color-blue-900: #afb0f4;
-
-  /* Violet / Indigo / Purple / Pink */
-  --color-violet-50: #1f0b18;
-  --color-violet-100: #2e1025;
-  --color-violet-200: #471a39;
-  --color-violet-300: #61234e;
-  --color-violet-600: #c269a8;
-  --color-violet-700: #d07cb7;
-  --color-violet-800: #dc92c5;
-  --color-violet-900: #e8a9d4;
-  --color-indigo-100: #220f1e;
-  --color-indigo-600: #a96ec7;
-  --color-indigo-900: #dab9ec;
-  --color-purple-600: #c263a2;
-  --color-pink-600: #e8587d;
-
-  /* Status lain */
-  --color-green-600: #38b96d;
-  --color-red-600: #e0314b;
-  --color-yellow-600: #f5a623;
-
-  /* Netral dingin & hangat: permukaan hijau hutan pekat → teks sage cerah */
-  --color-slate-100: #0d1e14;
-  --color-slate-200: #14291d;
-  --color-slate-300: #1e3b2b;
-  --color-slate-400: #2d523d;
-  --color-slate-500: #8fa695;
-  --color-slate-600: #b2c5b7;
-  --color-slate-700: #d3e0d7;
-  --color-stone-100: #0e1d13;
-  --color-stone-200: #17291b;
-  --color-stone-300: #223826;
-  --color-stone-500: #93a697;
-  --color-stone-600: #b7c7bb;
-  --color-stone-700: #d9e3dc;
+  --color-slate-100: #f8fafc;
+  --color-slate-200: #f1f5f9;
+  --color-slate-300: #e2e8f0;
+  --color-slate-400: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
 }
 
 @theme inline {
@@ -284,7 +227,7 @@ body {
 .hero-glow {
   background:
     radial-gradient(60% 70% at 15% 0%, color-mix(in srgb, var(--ring) 18%, transparent) 0%, transparent 60%),
-    radial-gradient(50% 60% at 90% 10%, color-mix(in srgb, var(--chart-1) 16%, transparent) 0%, transparent 55%),
+    radial-gradient(50% 60% at 90% 10%, color-mix(in srgb, var(--ring) 16%, transparent) 0%, transparent 55%),
     radial-gradient(40% 50% at 60% 100%, color-mix(in srgb, var(--chart-2) 10%, transparent) 0%, transparent 60%);
 }
 
@@ -369,8 +312,8 @@ body {
 
 .neu-flat:hover {
   box-shadow:
-    8px 8px 18px var(--neu-shadow-strong),
-    -8px -8px 18px var(--neu-highlight-strong);
+  	8px 8px 18px var(--neu-shadow-strong),
+  	-8px -8px 18px var(--neu-highlight-strong);
 }
 
 .neu-pressed {
@@ -494,7 +437,7 @@ body {
     color-mix(in srgb, var(--accent) 100%, transparent) 50%,
     color-mix(in srgb, var(--muted) 100%, transparent) 100%
   );
-  background-size: 200% 100%;
+  background-size: 200% 100%
   animation: shimmer-sweep 2s ease-in-out infinite;
 }
 
@@ -522,7 +465,6 @@ body {
 .stagger > *:nth-child(7) { animation-delay: 360ms; }
 .stagger > *:nth-child(8) { animation-delay: 420ms; }
 
-/* ── Adaptive UI ── */
 @media (pointer: coarse) {
   .touch-target {
     min-height: 44px;
@@ -535,7 +477,7 @@ body {
   .animate-drift,
   .animate-pulse-soft,
   .animate-bounce-in,
-  .shimmer-bg,
+  .shimmer-out,
   .stagger > *,
   .hero-slide.is-active img {
     animation: none;
