@@ -14,6 +14,7 @@ export default defineConfig({
     alias: [
       { find: "@/components/ui", replacement: path.resolve(rootDir, "components/ui") },
       { find: "@/lib/utils", replacement: path.resolve(rootDir, "lib/utils.ts") },
+      { find: "@/hooks", replacement: path.resolve(rootDir, "hooks") },
       { find: "@", replacement: srcDir },
     ],
   },

@@ -22,6 +22,9 @@
       "@/lib/utils": [
         "./lib/utils.ts"
       ],
+      "@/hooks/*": [
+        "./hooks/*"
+      ],
       "@/*": [
         "./src/*"
       ]
