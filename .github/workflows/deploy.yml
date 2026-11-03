@@ -38,7 +38,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2
+          version: latest
 
       - name: Configure Supabase function secrets
         env:
