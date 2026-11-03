@@ -11,9 +11,11 @@ const proxy = { "/functions/v1/app": "http://127.0.0.1:8000" };
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@/components/ui", replacement: path.resolve(rootDir, "components/ui") },
+      { find: "@/lib/utils", replacement: path.resolve(rootDir, "lib/utils.ts") },
+      { find: "@", replacement: srcDir },
+    ],
   },
   server: { host: "127.0.0.1", proxy },
   preview: { host: "127.0.0.1", proxy },
