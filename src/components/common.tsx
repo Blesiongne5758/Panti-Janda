@@ -255,7 +255,7 @@ export function PageBanner({
   className?: string;
 }) {
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full pt-6 sm:pt-8", className)}>
       <div
         className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-chart-1/15 via-card to-chart-2/15 px-5 py-7 shadow-sm sm:px-8"
       >
