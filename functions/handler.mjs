@@ -6165,6 +6165,13 @@ const ROUTES = {
   "storage.presignedUpload": storagePresignedUpload,
   "storage.presignedDownload": storagePresignedDownload,
   "storage.validateFile": storageValidateFile,
+  "media.feed": mediaFeed,
+  "media.userPosts": mediaUserPosts,
+  "media.create": mediaCreate,
+  "media.like": mediaLike,
+  "media.comment": mediaComment,
+  "media.share": mediaShare,
+  "media.delete": mediaDelete,
 
   "ai.mentor.chat": aiMentorChat,
 
@@ -12482,7 +12489,7 @@ const APP_SETTINGS = {
       privateBucket: "panti-janda-private",
       cdnUrl: "",
       maxFileSizeMB: 10,
-      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "application/pdf"],
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "video/webm", "application/pdf"],
     },
     cloudinary: {
       cloudName: CLOUDINARY_DEFAULT_CLOUD_NAME,
@@ -14023,6 +14030,132 @@ async function coinSettingsPublic(ctx) {
 
 // ---------- cloud storage ----------
 
+async function mediaRead(ctx, accountId = null) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  let query = ctx.supabase.from("media_posts").select("*").order("created_at", { ascending: false }).limit(100);
+  if (accountId) query = query.eq("account_id", accountId);
+  const { data: rows, error } = await query;
+  if (error) return fail(500, "server_error");
+  const posts = rows ?? [];
+  if (!posts.length) return ok({ items: [] });
+  const ids = posts.map((post) => post.id);
+  const { data: likes, error: likesError } = await ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids);
+  const { data: comments, error: commentsError } = await ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true });
+  if (likesError || commentsError) return fail(500, "server_error");
+  const names = await namesFor(ctx.supabase, [
+    ...posts.map((post) => post.account_id),
+    ...(comments ?? []).map((comment) => comment.account_id),
+  ]);
+  const commentsByPost = new Map();
+  for (const comment of comments ?? []) {
+    const author = names.get(comment.account_id);
+    const list = commentsByPost.get(comment.post_id) ?? [];
+    list.push({ id: comment.id, postId: comment.post_id, accountId: comment.account_id,
+      authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+      body: comment.body, createdAt: comment.created_at });
+    commentsByPost.set(comment.post_id, list);
+  }
+  return ok({ items: posts.map((post) => {
+    const author = names.get(post.account_id);
+    return { id: post.id, accountId: post.account_id,
+      authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+      authorTier: author?.tier ?? "wonder_woman", type: post.type, mediaUrl: post.media_url, caption: post.caption,
+      likes: (likes ?? []).filter((like) => like.post_id === post.id).map((like) => like.account_id),
+      comments: commentsByPost.get(post.id) ?? [], shares: post.share_count ?? 0, duration: post.duration, createdAt: post.created_at };
+  }) });
+}
+
+async function mediaFeed(ctx) { return await mediaRead(ctx); }
+
+async function mediaUserPosts(ctx) {
+  const accountId = text(ctx.body.accountId, 60);
+  if (!accountId) return fail(400, "invalid_input");
+  return await mediaRead(ctx, accountId);
+}
+
+async function mediaCreate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const type = ctx.body.type;
+  const mediaUrl = text(ctx.body.mediaUrl, 2000);
+  const caption = text(ctx.body.caption, 1000) || null;
+  const duration = Number(ctx.body.duration);
+  if (!["photo", "video"].includes(type) || !mediaUrl) return fail(400, "invalid_input");
+  let url;
+  try { url = new URL(mediaUrl); } catch { return fail(400, "invalid_input"); }
+  const cloudName = ctx.env("CLOUDINARY_CLOUD_NAME") || APP_SETTINGS.storage.cloudinary?.cloudName || CLOUDINARY_DEFAULT_CLOUD_NAME;
+  const resourceType = type === "video" ? "video" : "image";
+  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !url.pathname.startsWith(`/${cloudName}/${resourceType}/upload/`)) return fail(400, "invalid_input");
+  if (type === "video" && (!Number.isInteger(duration) || duration < 1 || duration > 6)) return fail(400, "video_too_long");
+  const { data: post, error } = await ctx.supabase.from("media_posts").insert({
+    id: crypto.randomUUID(), account_id: auth.account.id, type, media_url: mediaUrl, caption,
+    duration: type === "video" ? duration : null, share_count: 0, created_at: now(),
+  }).select("*").single();
+  if (error || !post) return fail(500, "server_error");
+  const names = await namesFor(ctx.supabase, [auth.account.id]);
+  const author = names.get(auth.account.id);
+  return ok({ post: { id: post.id, accountId: post.account_id,
+    authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+    authorTier: author?.tier ?? "wonder_woman", type: post.type, mediaUrl: post.media_url, caption: post.caption,
+    likes: [], comments: [], shares: post.share_count ?? 0, duration: post.duration, createdAt: post.created_at } });
+}
+
+async function mediaLike(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const postId = text(ctx.body.postId, 60);
+  if (!postId) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase.from("media_post_likes").select("id").eq("post_id", postId).eq("account_id", auth.account.id).maybeSingle();
+  if (existing) await ctx.supabase.from("media_post_likes").delete().eq("id", existing.id);
+  else {
+    const { error } = await ctx.supabase.from("media_post_likes").insert({ id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, created_at: now() });
+    if (error) return fail(404, "not_found");
+  }
+  const { data: rows, error } = await ctx.supabase.from("media_post_likes").select("account_id").eq("post_id", postId);
+  if (error) return fail(500, "server_error");
+  return ok({ likes: (rows ?? []).map((row) => row.account_id) });
+}
+
+async function mediaComment(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const postId = text(ctx.body.postId, 60);
+  const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
+  if (!postId || !body) return fail(400, "invalid_input");
+  const { data: comment, error } = await ctx.supabase.from("media_post_comments").insert({ id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, body, created_at: now() }).select("*").single();
+  if (error || !comment) return fail(404, "not_found");
+  const names = await namesFor(ctx.supabase, [auth.account.id]);
+  const author = names.get(auth.account.id);
+  return ok({ comment: { id: comment.id, postId: comment.post_id, accountId: comment.account_id,
+    authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+    body: comment.body, createdAt: comment.created_at } });
+}
+
+async function mediaShare(ctx) {
+  const auth = await actor(ctx, 1);
+  const postId = text(ctx.body.postId, 60);
+  if (auth.error) return auth.error;
+  if (!postId) return fail(400, "invalid_input");
+  const { data: post } = await ctx.supabase.from("media_posts").select("id,share_count").eq("id", postId).maybeSingle();
+  if (!post) return fail(404, "not_found");
+  const shares = (post.share_count ?? 0) + 1;
+  const { error } = await ctx.supabase.from("media_posts").update({ share_count: shares }).eq("id", postId);
+  if (error) return fail(500, "server_error");
+  return ok({ shares });
+}
+
+async function mediaDelete(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const postId = text(ctx.body.postId, 60);
+  if (!postId) return fail(400, "invalid_input");
+  const { data, error } = await ctx.supabase.from("media_posts").delete().eq("id", postId).eq("account_id", auth.account.id).select("id").maybeSingle();
+  if (error) return fail(500, "server_error");
+  if (!data) return fail(404, "not_found");
+  return ok({ deleted: true });
+}
+
 async function storagePresignedUpload(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
@@ -14058,7 +14191,7 @@ async function storagePresignedUpload(ctx) {
     const publicId = `${folder}/${auth.account.id}/${Date.now()}_${cleanFileName}`;
 
     // Generate signed upload parameters
-    const toSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
+    const toSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}&upload_preset=${uploadPreset}${apiSecret}`;
     const signature = await sha1Hex(toSign);
 
     const presignedUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
@@ -14160,6 +14293,7 @@ function validateMagicBytes(mimeType, magicBytes) {
     "image/webp": ["52494646"],
     "image/gif": ["47494638"],
     "video/mp4": ["0000001c", "00000020", "66747970"],
+    "video/webm": ["1a45dfa3"],
     "application/pdf": ["25504446"],
   };
   const expected = signatures[mimeType];

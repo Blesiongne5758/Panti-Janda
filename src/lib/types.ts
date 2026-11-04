@@ -807,7 +807,7 @@ export interface MediaPost {
   accountId: string;
   authorName: string;
   authorPhoto: string | null;
-  authorTier: WidowRole;
+  authorTier: string;
   type: MediaPostType;
   mediaUrl: string;
   caption: string | null;
