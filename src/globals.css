@@ -120,14 +120,6 @@ html.theme-public {
   --glass-border-soft: rgba(161, 204, 166, 0.2);
   --glass-border-strong: rgba(2, 148, 86, 0.25);
 
-  /* Background Marvel Superhero */
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
-    url('https://images.unsplash.com/photo-1612036782180-6f0b677566bf?auto=format&fit=crop&q=80&w=1920');
-  background-attachment: fixed;
-  background-size: cover;
-  background-position: center;
-
   /* Palette Pendukung Lembut */
   --color-green-50: #f0f7f3;
   --color-green-100: #e2ede8;
@@ -205,10 +197,19 @@ html, body {
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+html.theme-public body {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.82)),
+    url("https://images.unsplash.com/photo-1612036782180-6f0b677566bf?auto=format&fit=crop&q=80&w=1920");
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
 }
 
 #root {
