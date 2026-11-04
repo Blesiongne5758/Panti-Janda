@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle, Search, SlidersHorizontal } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
-import { ROLE_RANK, TIER_META, WIDOW_ROLES } from "@/lib/constants";
+import { TIER_META, WIDOW_ROLES } from "@/lib/constants";
 import type { ListResult, Profile, WidowRole } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +15,7 @@ const PER_PAGE = 12;
 
 export function ExplorePage() {
   const { account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
-  const canFilterTier = rank >= 2;
+  const canFilterTier = Boolean(account && WIDOW_ROLES.includes(account.role as WidowRole));
 
   const [query, setQuery] = useState("");
   const [applied, setApplied] = useState("");
@@ -40,7 +39,8 @@ export function ExplorePage() {
           q: q || undefined,
           tier: tierFilter || undefined,
         });
-        setItems((prev) => (replace ? data.items : [...prev, ...data.items]));
+        const validProfiles = data.items.filter((profile) => WIDOW_ROLES.includes(profile.tier));
+        setItems((prev) => (replace ? validProfiles : [...prev, ...validProfiles]));
         setHasMore(Boolean(data.hasMore));
         setPage(pageNo);
       } catch (error) {

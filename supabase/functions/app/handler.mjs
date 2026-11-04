@@ -353,13 +353,12 @@ async function ownProfile(supabase, accountId) {
   return data ?? null;
 }
 
-// Widow profiles visible to a viewer: guests/public see verified wonder-woman
-// profiles only; widow members see all verified tiers; admin sees everything.
+// Guests and non-widow accounts see verified Wonder Woman profiles only.
+// Widow members see every verified tier; admins may review all profiles.
 function profileVisible(row, account) {
-  const rank = ROLE_RANK[account?.role] ?? 0;
-  if (rank >= 6) return true;
+  if (account?.role === "admin") return true;
   if (row.account_id === account?.id) return true;
-  if (rank >= 2) return true;
+  if (account && WIDOW_ROLES.includes(account.role)) return true;
   return row.tier === "wonder_woman" && row.status === "verified";
 }
 
@@ -6449,19 +6448,20 @@ async function profilesList(ctx) {
   const { body, supabase } = ctx;
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
+  const isAdmin = account?.role === "admin";
+  const isWidowMember = Boolean(account && WIDOW_ROLES.includes(account.role));
   const pageNo = Math.max(1, intOrNull(body.page, 1, 500) ?? 1);
   const perPage = Math.min(24, Math.max(4, intOrNull(body.perPage, 4, 24) ?? 12));
 
   let query = supabase.from("profiles").select("*");
-  if (rank >= 6 && (body.status === "pending" || body.status === "rejected" || body.status === "verified")) {
+  if (isAdmin && (body.status === "pending" || body.status === "rejected" || body.status === "verified")) {
     query = query.eq("status", body.status);
   } else {
     query = query.eq("status", "verified");
-    if (rank < 2) query = query.eq("tier", "wonder_woman");
+    if (!isWidowMember && !isAdmin) query = query.eq("tier", "wonder_woman");
   }
   const tier = body.tier;
-  if (rank >= 2 && WIDOW_ROLES.includes(tier)) query = query.eq("tier", tier);
+  if (isWidowMember && WIDOW_ROLES.includes(tier)) query = query.eq("tier", tier);
   const city = text(body.city, 80);
   if (city) query = query.eq("city", city);
   const { data, error } = await query
