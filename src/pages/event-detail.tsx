@@ -45,6 +45,7 @@ import { MemberAvatar } from "@/components/common";
 import { ErrorNote, LoadingGrid } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PaymentQris } from "@/components/payment-qris";
 
 export default function EventDetailPage({ id }: { id: string }) {
   const { account } = useAuth();
@@ -170,6 +171,7 @@ export default function EventDetailPage({ id }: { id: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
+      {data.ticketPrice ? <PaymentQris amount={data.ticketPrice} compact /> : null}
       <Button asChild variant="ghost" size="sm" className="self-start">
         <Link to="/event">
           <ArrowLeft className="size-4" aria-hidden />

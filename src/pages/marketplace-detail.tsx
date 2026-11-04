@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MemberAvatar, PageBanner } from "@/components/common";
 import { LISTING_KIND_LABEL, LISTING_STATUS_LABEL } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
+import { PaymentQris } from "@/components/payment-qris";
 
 function formatRupiah(amount: number | null) {
   if (amount === null) return "Hubungi penjual";
@@ -92,6 +93,7 @@ export default function MarketplaceDetailPage() {
       </PageBanner>
 
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+        {listing.price !== null && <div className="mb-4"><PaymentQris amount={listing.price} compact /></div>}
         <Card>
           <CardHeader>
             <CardTitle className="font-display text-2xl">

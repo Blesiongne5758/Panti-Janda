@@ -15,6 +15,7 @@ import { PageBanner } from "@/components/common";
 import { COIN_PACKAGES, COIN_TRANSACTION_TYPE_LABEL } from "@/lib/constants";
 import type { CoinBalance, CoinTransaction, CoinFeature, AppSettings, CryptoSupportedCoin, CryptoWallet, CryptoTransaction } from "@/lib/types";
 import { toast } from "sonner";
+import { PaymentQris } from "@/components/payment-qris";
 
 type CoinSettings = AppSettings["coinSettings"];
 
@@ -422,6 +423,7 @@ export default function CoinsPage() {
               </TabsList>
 
               <TabsContent value="buy">
+                <div className="mb-6"><PaymentQris compact /></div>
                 {enabledPurchaseMethods.length > 0 && (
                   <Card className="mb-6">
                     <CardHeader>

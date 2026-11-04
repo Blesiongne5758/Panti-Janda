@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Heart, Calendar, Users, TrendingUp } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { ROLE_RANK } from "@/lib/constants";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { MemberAvatar, PageBanner } from "@/components/common";
 import { SEO } from "@/components/seo";
 import type { Campaign, CampaignDetail } from "@/lib/types";
+import { PaymentQris } from "@/components/payment-qris";
+import { toast } from "sonner";
 
 export function CampaignsPage() {
   const { account, profile } = useAuth();
@@ -161,22 +163,45 @@ function CampaignDetailDialog({
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [donationMethod, setDonationMethod] = useState<"idr" | "coins">("idr");
+  const [coinAmount, setCoinAmount] = useState("");
+  const [coinConversionRate, setCoinConversionRate] = useState(100);
+
+  useEffect(() => {
+    let active = true;
+    api<{ coinSettings: { conversionRate: number } }>("coinSettings.settings")
+      .then((res) => { if (active) setCoinConversionRate(res.coinSettings.conversionRate); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   const donate = async () => {
     const amt = Number(amount);
-    if (!amt || amt < 10000) return;
+    const coins = Number(coinAmount);
+    if (donationMethod === "idr" && (!amt || amt < 10000)) return;
+    if (donationMethod === "coins" && (!coins || coins < 1)) return;
     setBusy(true);
-    const res = await api<{ redirectUrl: string | null }>("campaigns.donate", {
-      campaignId: campaign.id,
-      amount: amt,
-      supporterName: name || undefined,
-      supporterEmail: email || undefined,
-      message: message || undefined,
-    });
-    setBusy(false);
-    if (res?.redirectUrl) {
-      window.open(res.redirectUrl, "_blank");
-      onDonated();
+    try {
+      const res = await api<{ redirectUrl?: string | null; donated?: boolean }>("campaigns.donate", {
+        campaignId: campaign.id,
+        paymentMethod: donationMethod === "coins" ? "coins" : "qris",
+        amount: amt,
+        coinAmount: coins,
+        supporterName: name || undefined,
+        supporterEmail: email || undefined,
+        message: message || undefined,
+      });
+      if (res?.redirectUrl) {
+        window.open(res.redirectUrl, "_blank");
+        onDonated();
+      } else if (res?.donated) {
+        toast.success("Donasi koin berhasil dikirim ke kampanye.");
+        onDonated();
+      }
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -249,15 +274,39 @@ function CampaignDetailDialog({
         {account && (
           <div className="mb-4 space-y-3">
             <h3 className="font-semibold">Berdonasi</h3>
-            <input
-              type="number"
-              min={10000}
-              step={10000}
-              placeholder="Jumlah donasi (min. Rp 10.000)"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            />
+            <div className="flex gap-2">
+              <Button type="button" variant={donationMethod === "idr" ? "default" : "outline"} onClick={() => setDonationMethod("idr")}>Uang (QRIS)</Button>
+              <Button type="button" variant={donationMethod === "coins" ? "default" : "outline"} onClick={() => setDonationMethod("coins")}>Koin</Button>
+            </div>
+            {donationMethod === "idr" ? (
+              <>
+                <input
+                  type="number"
+                  min={10000}
+                  step={10000}
+                  placeholder="Jumlah donasi (min. Rp 10.000)"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+                {Number(amount) >= 10000 ? <PaymentQris amount={Number(amount)} compact /> : null}
+              </>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="Jumlah koin yang didonasikan"
+                  value={coinAmount}
+                  onChange={(e) => setCoinAmount(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Perkiraan nilai donasi: Rp{Math.floor((Number(coinAmount || 0) * 1000) / coinConversionRate).toLocaleString("id-ID")}
+                </p>
+              </>
+            )}
             <input
               type="text"
               placeholder="Nama (opsional)"
@@ -279,7 +328,7 @@ function CampaignDetailDialog({
               rows={2}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
             />
-            <Button onClick={() => void donate()} disabled={busy || !amount} className="w-full">
+            <Button onClick={() => void donate()} disabled={busy || (donationMethod === "idr" ? !amount : !coinAmount)} className="w-full">
               {busy ? "Memproses..." : "Donasi Sekarang"}
             </Button>
           </div>
@@ -296,7 +345,7 @@ function CampaignDetailDialog({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold">{d.supporterName}</p>
                     <p className="text-xs text-muted-foreground">
-                      Rp{d.amount.toLocaleString("id-ID")} ·{" "}
+                      {d.currency === "coins" ? `${(d.coinAmount ?? 0).toLocaleString("id-ID")} koin (≈ Rp${d.amount.toLocaleString("id-ID")})` : `Rp${d.amount.toLocaleString("id-ID")}`} ·{" "}
                       {new Date(d.createdAt).toLocaleDateString("id-ID", {
                         day: "numeric",
                         month: "short",

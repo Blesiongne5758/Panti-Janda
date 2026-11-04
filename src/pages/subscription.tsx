@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { PageBanner } from "@/components/common";
 import { SUBSCRIPTION_STATUS_LABEL, TIER_META, PUBLIC_TIER_META } from "@/lib/constants";
 import type { Subscription } from "@/lib/types";
+import { PaymentQris } from "@/components/payment-qris";
 
 const JANDA_TIERS = ["sosialita", "high_society", "the_ceo"] as const;
 const NON_JANDA_TIERS = ["ceo", "sultan"] as const;
@@ -94,6 +95,7 @@ export default function SubscriptionPage() {
           </div>
         ) : (
           <>
+            <div className="mb-6"><PaymentQris compact /></div>
             {active && (
               <Card className="mb-8 border-primary/30 bg-primary/5">
                 <CardHeader>

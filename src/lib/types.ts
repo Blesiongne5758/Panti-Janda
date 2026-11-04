@@ -613,6 +613,8 @@ export interface CampaignDonation {
   id: string;
   supporterName: string;
   amount: number;
+  currency?: "idr" | "coins";
+  coinAmount?: number | null;
   message: string | null;
   status: DonationStatus;
   createdAt: string;
@@ -897,6 +899,9 @@ export interface AppSettings {
     midtransClientKey: string;
     midtransEnvironment: "sandbox" | "production";
     enabled: boolean;
+    qrisEnabled: boolean;
+    qrisImageUrl: string;
+    qrisAccountName: string;
   };
   shipping: {
     enabled: boolean;

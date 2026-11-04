@@ -87,6 +87,7 @@ import { RosterHistoryTimeline } from "@/components/esport/roster-history-timeli
 import { TransferDisputesPanel } from "@/components/esport/transfer-disputes-panel";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PaymentQris } from "@/components/payment-qris";
 
 type TabId = "pasar" | "pemain" | "kabar" | "saya" | "jendela";
 
@@ -838,6 +839,7 @@ export default function BursaTransferPage() {
               <DialogTitle>{actionCopy.title}</DialogTitle>
               <DialogDescription>{actionCopy.description}</DialogDescription>
             </DialogHeader>
+            {pending.kind === "pay" ? <PaymentQris amount={pending.transfer.fee} compact /> : null}
             <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setPending(null)} disabled={actionBusy || gatewayBusy}>
                 Batal

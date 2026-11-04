@@ -62,6 +62,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, Chip, ErrorNote, LoadingGrid, MemberAvatar, Stat, StatusPill } from "@/components/common";
 import { toast } from "sonner";
+import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
 interface AdminEventTicketStats {
   total: number;
@@ -270,6 +271,7 @@ function ApprovalDecisionDialog({
 }
 
 export default function AdminPage() {
+  const { uploadFile: uploadAdminFile, uploading: qrisUploading } = usePresignedUpload();
   const { ready, account } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [accounts, setAccounts] = useState<AdminAccount[] | null>(null);
@@ -285,7 +287,7 @@ export default function AdminPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Profile | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [paymentForm, setPaymentForm] = useState<{ serverKey: string; clientKey: string; environment: "sandbox" | "production"; enabled: boolean }>({ serverKey: "", clientKey: "", environment: "sandbox", enabled: true });
+  const [paymentForm, setPaymentForm] = useState<{ serverKey: string; clientKey: string; environment: "sandbox" | "production"; enabled: boolean; qrisEnabled: boolean; qrisImageUrl: string; qrisAccountName: string }>({ serverKey: "", clientKey: "", environment: "sandbox", enabled: true, qrisEnabled: false, qrisImageUrl: "", qrisAccountName: "" });
   const [shippingForm, setShippingForm] = useState<{ enabled: boolean; providers: { id: string; name: string; enabled: boolean; baseRate: number }[] }>({ enabled: false, providers: [] });
   const [subscriptionForm, setSubscriptionForm] = useState<{ sosialita: number; high_society: number; the_ceo: number; ceo: number; sultan: number }>({ sosialita: 100000, high_society: 500000, the_ceo: 1000000, ceo: 1000000, sultan: 2000000 });
   const [academyForm, setAcademyForm] = useState<{ enabled: boolean; title: string; description: string; schedule: string; location: string; modules: { id: string; title: string; duration: string; enabled: boolean }[] }>({ enabled: true, title: "", description: "", schedule: "", location: "", modules: [] });
@@ -478,6 +480,9 @@ export default function AdminPage() {
         clientKey: settingsData.settings.payment.midtransClientKey,
         environment: settingsData.settings.payment.midtransEnvironment,
         enabled: settingsData.settings.payment.enabled,
+        qrisEnabled: settingsData.settings.payment.qrisEnabled ?? false,
+        qrisImageUrl: settingsData.settings.payment.qrisImageUrl ?? "",
+        qrisAccountName: settingsData.settings.payment.qrisAccountName ?? "",
       });
       setShippingForm({
         enabled: settingsData.settings.shipping.enabled,
@@ -706,6 +711,9 @@ export default function AdminPage() {
           clientKey: res.settings.payment.midtransClientKey,
           environment: res.settings.payment.midtransEnvironment,
           enabled: res.settings.payment.enabled,
+          qrisEnabled: res.settings.payment.qrisEnabled ?? false,
+          qrisImageUrl: res.settings.payment.qrisImageUrl ?? "",
+          qrisAccountName: res.settings.payment.qrisAccountName ?? "",
         });
         setPaymentDirty(false);
       }
@@ -1552,6 +1560,83 @@ export default function AdminPage() {
                 </Select>
               </div>
 
+              <div className="space-y-4 rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">QRIS manual</p>
+                    <p className="text-xs text-muted-foreground">Unggah gambar QRIS merchant untuk ditampilkan sebagai opsi pembayaran.</p>
+                  </div>
+                  <Switch
+                    checked={paymentForm.qrisEnabled}
+                    onCheckedChange={(checked) => {
+                      setPaymentForm((prev) => ({ ...prev, qrisEnabled: checked }));
+                      setPaymentDirty(true);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="qris-account-name">Nama merchant</Label>
+                  <Input
+                    id="qris-account-name"
+                    value={paymentForm.qrisAccountName}
+                    placeholder="Nama yang tampil pada aplikasi pembayaran"
+                    onChange={(e) => {
+                      setPaymentForm((prev) => ({ ...prev, qrisAccountName: e.target.value }));
+                      setPaymentDirty(true);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="qris-image">Gambar QRIS (PNG, JPG, atau WebP)</Label>
+                  <Input
+                    id="qris-image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={qrisUploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("Ukuran gambar QRIS maksimal 5 MB.");
+                        e.currentTarget.value = "";
+                        return;
+                      }
+                      const uploaded = await uploadAdminFile(file, "public");
+                      if (uploaded?.publicUrl) {
+                        setPaymentForm((prev) => ({ ...prev, qrisImageUrl: uploaded.publicUrl! }));
+                        setPaymentDirty(true);
+                        toast.success("Gambar QRIS berhasil diunggah. Simpan pengaturan pembayaran untuk menerapkannya.");
+                      } else {
+                        toast.error("Gagal mengunggah gambar QRIS.");
+                      }
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">{qrisUploading ? "Mengunggah QRIS..." : "File diunggah ke penyimpanan publik yang dikonfigurasi."}</p>
+                </div>
+                {paymentForm.qrisImageUrl ? (
+                  <div className="flex flex-wrap items-center gap-4 rounded-lg bg-secondary/40 p-3">
+                    <img src={paymentForm.qrisImageUrl} alt="Pratinjau QRIS merchant" className="size-36 rounded-lg border bg-white object-contain p-2" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{paymentForm.qrisAccountName || "QRIS merchant"}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setPaymentForm((prev) => ({ ...prev, qrisImageUrl: "", qrisEnabled: false }));
+                          setPaymentDirty(true);
+                        }}
+                      >
+                        Hapus QRIS
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Belum ada gambar QRIS.</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Prefix Order ID</Label>
                 <div className="grid gap-2 text-sm">
@@ -1583,6 +1668,9 @@ export default function AdminPage() {
                       midtransClientKey: paymentForm.clientKey,
                       midtransEnvironment: paymentForm.environment,
                       enabled: paymentForm.enabled,
+                      qrisEnabled: paymentForm.qrisEnabled,
+                      qrisImageUrl: paymentForm.qrisImageUrl,
+                      qrisAccountName: paymentForm.qrisAccountName,
                     },
                   })
                 }

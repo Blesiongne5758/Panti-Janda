@@ -69,6 +69,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, ErrorNote, LoadingGrid, MemberAvatar, PageBanner } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PaymentQris } from "@/components/payment-qris";
 
 const shortDateTime = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
@@ -268,6 +269,7 @@ export default function EsportDetailPage({ id }: { id: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
+      {t.entryFee > 0 ? <PaymentQris amount={t.entryFee} compact /> : null}
       <SEO
         title={`${t.title} — Turnamen E-Sport Panti Janda`}
         description={t.description || `Ikuti kompetisi ${t.title} di platform komunitas Panti Janda.`}

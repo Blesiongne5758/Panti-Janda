@@ -6161,6 +6161,7 @@ const ROUTES = {
   "aiTradingAgent.prompts.update": aiPromptsUpdate,
   "aiTradingAgent.prompts.delete": aiPromptsDelete,
   "coinSettings.settings": coinSettingsPublic,
+  "payment.qrisSettings": paymentQrisSettings,
 
   "storage.presignedUpload": storagePresignedUpload,
   "storage.presignedDownload": storagePresignedDownload,
@@ -12085,6 +12086,9 @@ const APP_SETTINGS = {
     midtransClientKey: MIDTRANS_DEFAULT_CLIENT_KEY,
     midtransEnvironment: "sandbox",
     enabled: true,
+    qrisEnabled: false,
+    qrisImageUrl: "",
+    qrisAccountName: "",
   },
   shipping: {
     enabled: false,
@@ -12587,6 +12591,9 @@ async function adminSettingsUpdate(ctx) {
       APP_SETTINGS.payment.midtransEnvironment = payment.midtransEnvironment;
     }
     if (typeof payment.enabled === "boolean") APP_SETTINGS.payment.enabled = payment.enabled;
+    if (typeof payment.qrisEnabled === "boolean") APP_SETTINGS.payment.qrisEnabled = payment.qrisEnabled;
+    if (typeof payment.qrisImageUrl === "string") APP_SETTINGS.payment.qrisImageUrl = text(payment.qrisImageUrl, 2000);
+    if (typeof payment.qrisAccountName === "string") APP_SETTINGS.payment.qrisAccountName = text(payment.qrisAccountName, 120);
   }
   if (shipping) {
     if (typeof shipping.enabled === "boolean") APP_SETTINGS.shipping.enabled = shipping.enabled;
@@ -13155,6 +13162,8 @@ async function campaignsGet(ctx) {
       id: d.id,
       supporterName: d.supporter_name,
       amount: d.amount,
+      currency: d.currency ?? "idr",
+      coinAmount: d.coin_amount ?? null,
       message: d.message ?? null,
       status: d.status,
       createdAt: d.created_at,
@@ -13191,11 +13200,13 @@ async function campaignsCreate(ctx) {
 async function campaignsDonate(ctx) {
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
-  if (!serverKey) return fail(503, "service_not_configured");
   const campaignId = text(ctx.body.campaignId, 60);
-  const amount = intOrNull(ctx.body.amount, 10000, 100000000000);
-  if (!campaignId || !amount) return fail(400, "invalid_input");
+  const method = ctx.body.paymentMethod === "coins" ? "coins" : "qris";
+  const coinAmount = method === "coins" ? intOrNull(ctx.body.coinAmount, 1, 100000000) : null;
+  const amount = method === "coins"
+    ? coinAmount ? Math.floor((coinAmount * 1000) / APP_SETTINGS.coinSettings.conversionRate) : null
+    : intOrNull(ctx.body.amount, 10000, 100000000000);
+  if (!campaignId || !amount || (method === "coins" && !account)) return fail(400, "invalid_input");
   const { data: campaign } = await ctx.supabase
     .from("campaigns")
     .select("id,title,status,profile_id")
@@ -13203,11 +13214,32 @@ async function campaignsDonate(ctx) {
     .maybeSingle();
   if (!campaign || campaign.status !== "open") return fail(404, "not_found");
   const orderId = `PJC-${Date.now()}-${b64url(crypto.getRandomValues(new Uint8Array(4)))}`;
+  const supporterName = text(ctx.body.supporterName, 80) || account?.display_name || "Sahabat Panti Janda";
+  const supporterEmail = email(ctx.body.supporterEmail) ?? account?.email ?? null;
+  const message = textOrNull(ctx.body.message, 200);
+  if (method === "coins") {
+    const { error: donationError } = await ctx.supabase.rpc("donate_campaign_with_coins", {
+      p_account_id: account.id,
+      p_campaign_id: campaignId,
+      p_coin_amount: coinAmount,
+      p_rupiah_amount: amount,
+      p_order_id: orderId,
+      p_supporter_name: supporterName,
+      p_supporter_email: supporterEmail,
+      p_message: message,
+    });
+    if (donationError) {
+      if (donationError.message?.includes("insufficient_coins")) return fail(400, "insufficient_coins");
+      if (donationError.message?.includes("campaign_not_open")) return fail(404, "not_found");
+      return fail(500, "server_error");
+    }
+    return ok({ donated: true, method, amount, coinAmount, orderId });
+  }
+  const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
+  if (!serverKey) return fail(503, "service_not_configured");
   const base = ctx.env("MIDTRANS_ENV") === "production"
     ? "https://app.midtrans.com"
     : "https://app.sandbox.midtrans.com";
-  const supporterName = text(ctx.body.supporterName, 80) || account?.display_name || "Sahabat Panti Janda";
-  const supporterEmail = email(ctx.body.supporterEmail) ?? account?.email ?? null;
   let redirectUrl = null;
   let gatewayError = false;
   try {
@@ -13236,9 +13268,12 @@ async function campaignsDonate(ctx) {
     campaign_id: campaignId,
     order_id: orderId,
     amount,
+    currency: "idr",
+    coin_amount: null,
+    supporter_account_id: account?.id ?? null,
     supporter_name: supporterName,
     supporter_email: supporterEmail,
-    message: textOrNull(ctx.body.message, 200),
+    message,
     status: "pending",
     created_at: now(),
   });
@@ -14027,6 +14062,11 @@ async function aiPromptsDelete(ctx) {
 
 async function coinSettingsPublic(ctx) {
   return ok({ coinSettings: APP_SETTINGS.coinSettings });
+}
+
+async function paymentQrisSettings(ctx) {
+  const { qrisEnabled, qrisImageUrl, qrisAccountName } = APP_SETTINGS.payment;
+  return ok({ qrisEnabled, qrisImageUrl, qrisAccountName });
 }
 
 // ---------- cloud storage ----------
