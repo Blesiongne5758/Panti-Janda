@@ -27,7 +27,7 @@ import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { formatRupiah } from "@/lib/format";
-import { SUPPORT_META, TIER_META, BADGE_META } from "@/lib/constants";
+import { ROLE_LABEL, SUPPORT_META, TIER_META, BADGE_META } from "@/lib/constants";
 import type { Badge, ProfileDetail as ProfileDetailData, SupportType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -515,7 +515,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { profile, support } = data;
   const isOwn = account?.id === profile.accountId;
   const canComment = Boolean(account);
-  const canFollow = account !== null && !isOwn;
+  const canFollow = account !== null && !isOwn && profile.tier !== null;
+  const canMessage = account !== null && !isOwn;
 
   const facts = [
     { icon: MapPin, label: "Kota", value: profile.city },
@@ -536,7 +537,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
       <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
         <div className="space-y-6">
           <Card className="overflow-hidden py-0">
-            <div className="h-2 w-full" style={{ backgroundColor: TIER_META[profile.tier].accent }} aria-hidden />
+            <div className="h-2 w-full" style={{ backgroundColor: profile.tier ? TIER_META[profile.tier].accent : "var(--primary)" }} aria-hidden />
             <CardHeader className="gap-4 pt-6">
               <div className="flex flex-wrap items-start gap-4">
                 <MemberAvatar
@@ -550,7 +551,11 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">
                       {profile.nickname}
                     </h1>
-                    <TierBadge tier={profile.tier} size="md" />
+                    {profile.tier ? <TierBadge tier={profile.tier} size="md" /> : (
+                      <span className="rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
+                        {ROLE_LABEL[data.accountRole] ?? "Pengguna"}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     {profile.status === "verified" ? (
@@ -602,7 +607,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       {follow.following ? "Mengikuti" : "Ikuti"}
                     </Button>
                   ) : null}
-                  {canFollow ? (
+                  {canMessage ? (
                     <Button asChild variant="outline" size="sm">
                       <Link to={`/pesan?with=${profile.accountId}`}>
                         <MessageCircle className="size-3.5" aria-hidden />
@@ -727,7 +732,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <Card className="py-0">
+          {profile.tier ? <Card className="py-0">
             <CardContent className="space-y-5 px-5 py-6">
               <div className="flex items-center justify-between">
                 <p className="font-display text-lg font-semibold text-foreground">Dukung {profile.nickname}</p>
@@ -796,7 +801,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card> : null}
 
           {isOwn && ownProfile ? (
             <Card className="border-primary/20 bg-primary/5 py-0">

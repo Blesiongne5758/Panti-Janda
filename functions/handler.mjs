@@ -353,13 +353,13 @@ async function ownProfile(supabase, accountId) {
   return data ?? null;
 }
 
-// Guests and non-widow accounts see verified Wonder Woman profiles only.
-// Widow members see every verified tier; admins may review all profiles.
+// Guests and non-widow accounts can see verified public profiles; members and
+// admins may also inspect profiles that are not publicly verified yet.
 function profileVisible(row, account) {
   if (account?.role === "admin") return true;
   if (row.account_id === account?.id) return true;
   if (account && WIDOW_ROLES.includes(account.role)) return true;
-  return row.tier === "wonder_woman" && row.status === "verified";
+  return row.status === "verified" && (row.tier === "wonder_woman" || row.tier == null);
 }
 
 async function namesFor(supabase, accountIds) {
@@ -6499,6 +6499,7 @@ async function profilesGet(ctx) {
   if (!id) return fail(400, "invalid_input");
   const { data: row } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
   if (!row || !profileVisible(row, account)) return fail(404, "not_found");
+  const { data: owner } = await supabase.from("accounts").select("role").eq("id", row.account_id).maybeSingle();
 
   const { data: donationRows } = await supabase
     .from("donations")
@@ -6514,11 +6515,11 @@ async function profilesGet(ctx) {
     .select("follower_account_id")
     .eq("followed_account_id", row.account_id);
   const followers = followRows ?? [];
-  const viewerFollows =
-    Boolean(account) && ROLE_RANK[account.role] >= 2 && followers.some((f) => f.follower_account_id === account.id);
+  const viewerFollows = Boolean(account) && followers.some((f) => f.follower_account_id === account.id);
 
   return ok({
     profile: publicProfile(row),
+    accountRole: owner?.role ?? "public",
     support: { donationTotal, pledgeCount, updateCount },
     follow: { followerCount: followers.length, viewerFollows },
     paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
@@ -11676,7 +11677,7 @@ async function chatContacts(ctx) {
   const items = (profileRows ?? [])
     .map((p) => ({
       accountId: p.account_id,
-      profileId: p.id,
+      profileId: profileVisible(p, auth.account) ? p.id : null,
       nickname: p.nickname,
       tier: p.tier,
       photoData: p.photo_data ?? null,

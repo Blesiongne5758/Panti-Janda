@@ -85,7 +85,8 @@ export interface HomeSummary {
 }
 
 export interface ProfileDetail {
-  profile: Profile;
+  profile: Omit<Profile, "tier"> & { tier: WidowRole | null };
+  accountRole: Role;
   support: { donationTotal: number; pledgeCount: number; updateCount: number };
   paymentEnabled: boolean;
   follow: { followerCount: number; viewerFollows: boolean };
