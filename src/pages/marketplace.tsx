@@ -50,7 +50,7 @@ export default function MarketplacePage() {
         title="Marketplace UMKM — Produk & Jasa Komunitas Panti Janda"
         description="Belanja produk kerajinan, kuliner, busana, dan sewa jasa profesional dari para pelaku usaha dan wanita mandiri anggota Panti Janda."
       />
-      <PageBanner art="/images/banner-event.svg">
+      <PageBanner art="/images/banner-event.svg" className="mb-8">
         <h1 className="font-display text-3xl font-bold">Marketplace</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
           Temukan produk dan jasa dari anggota Panti Janda. Dukung usaha mereka langsung.

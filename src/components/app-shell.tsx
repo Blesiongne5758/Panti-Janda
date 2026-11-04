@@ -38,7 +38,7 @@ function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberO
             to={item.to}
             onClick={onNavigate}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors",
               active
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
