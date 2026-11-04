@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Lock, MessageCircle, MessagesSquare, Send, Users } from "lucide-react";
+import { ArrowLeft, Loader2, MessageCircle, MessagesSquare, Send, Users } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useQueryParam } from "@/lib/router";
-import { ROLE_RANK, TIER_META } from "@/lib/constants";
+import { ROLE_LABEL, ROLE_RANK, TIER_META } from "@/lib/constants";
 import type { ChatContact, ChatMessage, GroupItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +67,7 @@ export default function ChatPage() {
     try {
       const [contactData, groupData] = await Promise.all([
         api<{ items: ChatContact[] }>("chat.contacts"),
-        api<{ items: GroupItem[] }>("groups.list"),
+        rank >= 2 ? api<{ items: GroupItem[] }>("groups.list") : Promise.resolve({ items: [] as GroupItem[] }),
       ]);
       setContacts(contactData.items);
       setGroups(groupData.items.filter((group) => group.joined));
@@ -77,14 +77,14 @@ export default function ChatPage() {
     } finally {
       setLoadingLists(false);
     }
-  }, []);
+  }, [rank]);
 
   useEffect(() => {
     if (rank >= 2) void loadLists();
   }, [loadLists, rank]);
 
   useEffect(() => {
-    if (rank < 2 || loadingLists) return;
+    if (rank < 1 || loadingLists) return;
     if (thread || (!withParam && !groupParam)) return;
     if (withParam) setThread({ kind: "dm", accountId: withParam });
     else if (groupParam) setThread({ kind: "group", id: groupParam });
@@ -174,31 +174,14 @@ export default function ChatPage() {
     );
   }
 
-  if (rank < 2) {
-    return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-16">
-        <EmptyState
-          icon={<Lock className="size-5" aria-hidden />}
-          title="Pesan khusus anggota"
-          description="Fitur chat pribadi dan grup chat hanya tersedia untuk akun janda terverifikasi. Akun non janda tidak dapat mengakses percakapan anggota."
-          action={
-            <Button asChild variant="outline">
-              <Link to="/jelajah">Jelajahi profil Wonder Woman</Link>
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl space-y-1.5">
-          <p className="text-xs font-semibold tracking-[0.18em] text-accent-foreground uppercase">Komunikasi anggota</p>
-          <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">Pesan</h1>
+          <p className="text-xs font-semibold tracking-[0.18em] text-accent-foreground uppercase">Komunikasi komunitas</p>
+          <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">Chat</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Chat pribadi sesama anggota janda dan grup chat minat — semuanya dalam satu ruang.
+            Chat pribadi dengan pengguna lain; ruang grup tersedia untuk anggota.
           </p>
         </div>
       </div>
@@ -252,7 +235,7 @@ export default function ChatPage() {
                         <span className="block truncate text-xs text-muted-foreground">
                           {contact.lastMessage
                             ? `${contact.lastMessage.fromMe ? "Anda: " : ""}${contact.lastMessage.body}`
-                            : `${TIER_META[contact.tier].label} — mulai percakapan`}
+                            : `${contact.tier ? ROLE_LABEL[contact.tier] : "Pengguna"} — mulai percakapan`}
                         </span>
                       </span>
                     </button>
@@ -322,7 +305,7 @@ export default function ChatPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-foreground">{activeContact.nickname}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {TIER_META[activeContact.tier].label}
+                        {activeContact.tier ? ROLE_LABEL[activeContact.tier] : "Pengguna"}
                         {activeContact.status !== "verified" ? " — belum terverifikasi" : ""}
                       </p>
                     </div>

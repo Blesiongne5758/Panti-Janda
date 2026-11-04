@@ -369,7 +369,7 @@ async function namesFor(supabase, accountIds) {
   const { data: accounts } = await supabase.from("accounts").select("id,display_name").in("id", ids);
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("account_id,nickname,tier,photo_data")
+    .select("id,account_id,nickname,tier,photo_data")
     .in("account_id", ids);
   const profilesByAccount = new Map((profiles ?? []).map((p) => [p.account_id, p]));
   for (const a of accounts ?? []) {
@@ -377,6 +377,7 @@ async function namesFor(supabase, accountIds) {
     map.set(a.id, {
       displayName: a.display_name ?? null,
       nickname: p?.nickname ?? null,
+      profileId: p?.id ?? null,
       tier: p?.tier ?? null,
       photoData: p?.photo_data ?? null,
     });
@@ -11546,7 +11547,7 @@ async function groupsSend(ctx) {
 // ---------- follows ----------
 
 async function followsToggle(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const targetId = text(ctx.body.accountId, 60);
   if (!targetId) return fail(400, "invalid_input");
@@ -11579,7 +11580,7 @@ async function followsToggle(ctx) {
 }
 
 async function followsMine(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const { data: rows } = await ctx.supabase
     .from("follows")
@@ -11589,20 +11590,29 @@ async function followsMine(ctx) {
     .limit(200);
   const { data: followerRows } = await ctx.supabase
     .from("follows")
-    .select("follower_account_id")
-    .eq("followed_account_id", auth.account.id);
-  const names = await namesFor(ctx.supabase, (rows ?? []).map((r) => r.followed_account_id));
+    .select("follower_account_id,created_at")
+    .eq("followed_account_id", auth.account.id)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const names = await namesFor(ctx.supabase, [
+    ...(rows ?? []).map((r) => r.followed_account_id),
+    ...(followerRows ?? []).map((r) => r.follower_account_id),
+  ]);
+  const publicItems = (followRows) => followRows.map((r) => {
+    const id = r.followed_account_id ?? r.follower_account_id;
+    const info = names.get(id);
+    return {
+      accountId: id,
+      profileId: info?.profileId ?? null,
+      nickname: info?.nickname ?? info?.displayName ?? "Anggota",
+      tier: info?.tier ?? null,
+      photoData: info?.photoData ?? null,
+      followedAt: r.created_at,
+    };
+  });
   return ok({
-    items: (rows ?? []).map((r) => {
-      const info = names.get(r.followed_account_id);
-      return {
-        accountId: r.followed_account_id,
-        nickname: info?.nickname ?? info?.displayName ?? "Anggota",
-        tier: info?.tier ?? null,
-        photoData: info?.photoData ?? null,
-        followedAt: r.created_at,
-      };
-    }),
+    items: publicItems(rows ?? []),
+    followers: publicItems(followerRows ?? []),
     followerCount: (followerRows ?? []).length,
   });
 }
@@ -11625,7 +11635,7 @@ const messagePublic = (row, names) => {
 };
 
 async function chatContacts(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const { data: profileRows } = await ctx.supabase
     .from("profiles")
@@ -11676,7 +11686,7 @@ async function chatContacts(ctx) {
 }
 
 async function chatThread(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const withId = text(ctx.body.withAccountId, 60);
   if (!withId) return fail(400, "invalid_input");
@@ -11685,7 +11695,7 @@ async function chatThread(ctx) {
     .select("id,role,status")
     .eq("id", withId)
     .maybeSingle();
-  if (!target || target.status !== "active" || !WIDOW_ROLES.includes(target.role)) return fail(404, "not_found");
+  if (!target || target.status !== "active" || target.id === auth.account.id) return fail(404, "not_found");
   const { data: profileRow } = await ctx.supabase
     .from("profiles")
     .select("id,nickname,tier,photo_data")
@@ -11724,7 +11734,7 @@ async function chatThread(ctx) {
 }
 
 async function chatSend(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const withId = text(ctx.body.withAccountId, 60);
   const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
@@ -11735,7 +11745,7 @@ async function chatSend(ctx) {
     .select("id,role,status")
     .eq("id", withId)
     .maybeSingle();
-  if (!target || target.status !== "active" || !WIDOW_ROLES.includes(target.role)) return fail(404, "not_found");
+  if (!target || target.status !== "active") return fail(404, "not_found");
   const row = {
     id: crypto.randomUUID(),
     thread_kind: "dm",
@@ -12528,6 +12538,30 @@ const APP_SETTINGS = {
   },
 };
 
+function applySettingsSnapshot(target, source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return;
+  for (const key of Object.keys(target)) {
+    const value = source[key];
+    if (value === undefined) continue;
+    if (target[key] && typeof target[key] === "object" && !Array.isArray(target[key])) {
+      applySettingsSnapshot(target[key], value);
+    } else if (Array.isArray(target[key]) && Array.isArray(value)) {
+      target[key] = value;
+    } else if (typeof value === typeof target[key]) {
+      target[key] = value;
+    }
+  }
+}
+
+async function loadPersistedSettings(supabase) {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("settings")
+    .eq("setting_key", "global")
+    .maybeSingle();
+  if (!error && data?.settings) applySettingsSnapshot(APP_SETTINGS, data.settings);
+}
+
 async function adminSettingsGet(ctx) {
   const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
@@ -12869,6 +12903,12 @@ async function adminSettingsUpdate(ctx) {
       if (parsed) APP_SETTINGS.themeSettings.publicTheme = parsed;
     }
   }
+  const { error: saveError } = await ctx.supabase.from("app_settings").upsert({
+    setting_key: "global",
+    settings: APP_SETTINGS,
+    updated_at: now(),
+  });
+  if (saveError) return fail(500, "settings_save_failed");
   return ok({ settings: APP_SETTINGS });
 }
 
@@ -14147,6 +14187,7 @@ export async function handleApp({ request, supabase }) {
     const action = typeof body.action === "string" ? body.action : "";
     const run = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null;
     if (!run) return fail(400, "invalid_action");
+    await loadPersistedSettings(supabase);
     return await run(ctx);
   } catch {
     return fail(500, "server_error");

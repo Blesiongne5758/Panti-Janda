@@ -31,7 +31,17 @@ export function FeedPage() {
   const { uploading, uploadFile, error: uploadError, clearError } = usePresignedUpload();
 
   useEffect(() => {
+    const openComposer = () => {
+      sessionStorage.removeItem("feed-compose");
+      setUploadDialogOpen(true);
+    };
+    if (sessionStorage.getItem("feed-compose") === "1") {
+      sessionStorage.removeItem("feed-compose");
+      setUploadDialogOpen(true);
+    }
+    window.addEventListener("feed:compose", openComposer);
     loadFeed();
+    return () => window.removeEventListener("feed:compose", openComposer);
   }, []);
 
   async function loadFeed() {

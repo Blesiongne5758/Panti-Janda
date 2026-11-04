@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const member = rank >= 2;
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden pb-20 sm:pb-0">
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="texture-grain absolute inset-0" />
         <div className="animate-drift absolute -top-40 -left-32 size-[30rem] rounded-full bg-chart-3/10 blur-3xl" />

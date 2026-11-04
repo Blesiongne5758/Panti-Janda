@@ -27,7 +27,7 @@ import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { formatRupiah } from "@/lib/format";
-import { ROLE_RANK, SUPPORT_META, TIER_META, BADGE_META } from "@/lib/constants";
+import { SUPPORT_META, TIER_META, BADGE_META } from "@/lib/constants";
 import type { Badge, ProfileDetail as ProfileDetailData, SupportType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -515,7 +515,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { profile, support } = data;
   const isOwn = account?.id === profile.accountId;
   const canComment = Boolean(account);
-  const canFollow = account !== null && ROLE_RANK[account.role] >= 2 && !isOwn;
+  const canFollow = account !== null && !isOwn;
 
   const facts = [
     { icon: MapPin, label: "Kota", value: profile.city },

@@ -55,6 +55,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   invalid_json: "Permintaan tidak valid.",
   invalid_action: "Permintaan tidak valid.",
   server_error: "Terjadi kendala di server. Coba lagi sebentar lagi.",
+  settings_save_failed: "Konfigurasi belum tersimpan. Pastikan migrasi app_settings sudah diterapkan di Supabase, lalu coba lagi.",
   write_rejected: "Perubahan ditolak saat disimpan.",
   network_error: "Koneksi bermasalah. Periksa jaringan lalu coba lagi.",
   invalid_response: "Layanan mengembalikan respons tak terduga.",

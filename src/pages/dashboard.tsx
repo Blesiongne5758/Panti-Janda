@@ -36,7 +36,7 @@ import {
   SIM_CLASS_OPTIONS,
   SUPPORT_META,
 } from "@/lib/constants";
-import type { DonationItem, KpiSummary, PledgeItem, Profile } from "@/lib/types";
+import type { DonationItem, FollowsMine, KpiSummary, PledgeItem, Profile } from "@/lib/types";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareProfilePhoto, prepareVerificationDoc } from "@/lib/verify-doc";
 import type { VerificationDocType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -378,6 +378,33 @@ function WriteUpdateDialog({ onCreated }: { onCreated: () => void }) {
 
 const NONE = "none";
 
+function FollowListDialog({ title, description, items }: { title: string; description: string; items: FollowsMine["items"] }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="h-auto justify-start gap-3 rounded-2xl px-4 py-3 text-left">
+          <Users className="size-5 text-primary" aria-hidden />
+          <span><span className="block text-lg font-bold leading-tight">{items.length}</span><span className="text-xs text-muted-foreground">{title}</span></span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[82vh] overflow-hidden sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[55vh] space-y-1 overflow-y-auto pr-1">
+          {items.length === 0 ? (
+            <p className="rounded-xl bg-muted px-4 py-8 text-center text-sm text-muted-foreground">Belum ada akun di daftar ini.</p>
+          ) : items.map((item) => {
+            const content = <><MemberAvatar name={item.nickname} tier={item.tier} photoData={item.photoData} size={42} /><span className="min-w-0 flex-1 truncate font-semibold">{item.nickname}</span><span className="text-xs text-muted-foreground">Lihat profil</span></>;
+            return item.profileId ? <Link key={item.accountId} to={`/janda/${item.profileId}`} className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted">{content}</Link> : <div key={item.accountId} className="flex items-center gap-3 rounded-xl px-3 py-2.5">{content}</div>;
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SettingsDialog({ profile, onSaved }: { profile: Profile; onSaved: (next: Profile) => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -684,6 +711,7 @@ export default function DashboardPage() {
   const [pledges, setPledges] = useState<PledgeItem[] | null>(null);
   const [donations, setDonations] = useState<DonationItem[] | null>(null);
   const [kpi, setKpi] = useState<KpiSummary | null>(null);
+  const [follows, setFollows] = useState<FollowsMine | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
   const rank = account ? ROLE_RANK[account.role] : 0;
@@ -712,6 +740,13 @@ export default function DashboardPage() {
   useEffect(() => {
     void loadSupport();
   }, [loadSupport]);
+
+  useEffect(() => {
+    if (rank < 1) return;
+    api<FollowsMine>("follows.mine")
+      .then(setFollows)
+      .catch(() => setFollows({ items: [], followers: [], followerCount: 0 }));
+  }, [rank]);
 
   if (!ready) {
     return (
@@ -835,6 +870,19 @@ export default function DashboardPage() {
       )}
 
       {rank >= 2 ? <DashboardCalendar /> : null}
+
+      {account && follows ? (
+        <Card className="border-border/80">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 font-display text-lg"><Users className="size-5 text-primary" aria-hidden />Jaringan saya</CardTitle>
+            <CardDescription>Kelola koneksi dan temukan kembali profil yang kamu ikuti.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <FollowListDialog title="Mengikuti" description="Akun yang kamu ikuti." items={follows.items} />
+            <FollowListDialog title="Pengikut" description="Akun yang mengikuti kamu." items={follows.followers} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {rank >= 2 && kpi ? (
         <Card>

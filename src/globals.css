@@ -85,7 +85,7 @@ html.theme-public {
   --secondary: #f0f7f3;
   --secondary-foreground: #2d5a41;
   --muted: #f4f9f6;
-  --muted-foreground: #6b8e7c;
+  --muted-foreground: #527362;
   --accent: #A1CCA6;
   --accent-foreground: #2d5a41;
   --destructive: #ef4444;
@@ -201,6 +201,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 html.theme-public body {

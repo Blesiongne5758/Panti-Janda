@@ -93,14 +93,16 @@ export interface ProfileDetail {
 
 export interface FollowItem {
   accountId: string;
+  profileId: string | null;
   nickname: string;
-  tier: WidowRole;
+  tier: WidowRole | null;
   photoData: string | null;
   followedAt: string;
 }
 
 export interface FollowsMine {
   items: FollowItem[];
+  followers: FollowItem[];
   followerCount: number;
 }
 
@@ -108,7 +110,7 @@ export interface ChatContact {
   accountId: string;
   profileId: string | null;
   nickname: string;
-  tier: WidowRole;
+  tier: WidowRole | PublicRole | null;
   photoData: string | null;
   status: ProfileStatus;
   lastMessage: { body: string; createdAt: string; fromMe: boolean } | null;
@@ -127,7 +129,7 @@ export interface ChatMessage {
 }
 
 export interface ChatThread {
-  contact: { accountId: string; profileId: string | null; nickname: string; tier: WidowRole; photoData: string | null };
+  contact: { accountId: string; profileId: string | null; nickname: string; tier: WidowRole | PublicRole | null; photoData: string | null };
   items: ChatMessage[];
 }
 
