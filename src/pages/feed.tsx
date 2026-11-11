@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/session";
+import { Link, useRoute } from "@/lib/router";
 import { api, errorText } from "@/lib/api";
 import { TIER_META } from "@/lib/constants";
 import type { MediaPost, WidowRole } from "@/lib/types";
@@ -15,6 +16,7 @@ import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
 export function FeedPage() {
   const auth = useAuth();
+  const { navigate } = useRoute();
   const [posts, setPosts] = useState<MediaPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -57,6 +59,11 @@ export function FeedPage() {
   }
 
   async function handleLike(postId: string) {
+    if (!auth.account) {
+      toast.info("Silakan masuk untuk menyukai postingan");
+      navigate("/masuk");
+      return;
+    }
     try {
       const data = await api<{ likes: string[] }>("media.like", { postId });
       setPosts((prev) =>
@@ -68,6 +75,11 @@ export function FeedPage() {
   }
 
   async function handleComment(postId: string) {
+    if (!auth.account) {
+      toast.info("Silakan masuk untuk memberikan komentar");
+      navigate("/masuk");
+      return;
+    }
     const text = commentText[postId]?.trim();
     if (!text) return;
 
@@ -210,22 +222,6 @@ export function FeedPage() {
     return date.toLocaleDateString("id-ID");
   }
 
-  if (!auth.account) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <User className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <h2 className="mb-2 text-xl font-semibold">Masuk untuk melihat feed</h2>
-            <p className="text-muted-foreground">
-              Anda perlu masuk untuk melihat dan berinteraksi dengan postingan
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -246,117 +242,140 @@ export function FeedPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Feed</h1>
-          <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>Posting Foto/Video</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Buat Postingan Baru</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium">Tipe Media</label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={uploadForm.type === "photo" ? "default" : "outline"}
-                      onClick={() => {
-                        if (uploadForm.type !== "photo") {
-                          clearFileSelection();
-                          setUploadForm((prev) => ({ ...prev, type: "photo" }));
-                        }
-                      }}
-                    >
-                      Foto
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={uploadForm.type === "video" ? "default" : "outline"}
-                      onClick={() => {
-                        if (uploadForm.type !== "video") {
-                          clearFileSelection();
-                          setUploadForm((prev) => ({ ...prev, type: "video" }));
-                        }
-                      }}
-                    >
-                      Video Pendek
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium">Upload {uploadForm.type === "photo" ? "Foto" : "Video"}</label>
-                  {filePreview ? (
-                    <div className="relative">
-                      {uploadForm.type === "photo" ? (
-                        <img src={filePreview} alt="Preview" className="max-h-64 w-full rounded-lg object-contain" />
-                      ) : (
-                        <video src={filePreview} controls className="max-h-64 w-full rounded-lg" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={clearFileSelection}
-                        className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-destructive text-white"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/30 px-6 py-8 transition-colors hover:border-primary/50 hover:bg-muted/50">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept={uploadForm.type === "photo" ? "image/*" : "video/*"}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                      />
-                      <Upload className="size-8 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        Klik untuk pilih {uploadForm.type === "photo" ? "foto" : "video"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {uploadForm.type === "photo" ? "JPG, PNG, atau WebP (maks 10 MB)" : "MP4 atau WebM (maks 10 MB, durasi 6 detik)"}
-                      </span>
-                    </label>
-                  )}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium">Caption</label>
-                  <Textarea
-                    value={uploadForm.caption}
-                    onChange={(e) => setUploadForm({ ...uploadForm, caption: e.target.value })}
-                    placeholder="Tulis caption..."
-                    rows={3}
-                  />
-                </div>
-
-                {uploadForm.type === "video" && (
+          {auth.account ? (
+            <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>Posting Foto/Video</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Buat Postingan Baru</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium">
-                      Durasi Video (detik, maks 6)
-                    </label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={6}
-                      value={uploadForm.duration}
-                      onChange={(e) =>
-                        setUploadForm({ ...uploadForm, duration: parseInt(e.target.value) || 6 })
-                      }
+                    <label className="mb-2 block text-sm font-medium">Tipe Media</label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={uploadForm.type === "photo" ? "default" : "outline"}
+                        onClick={() => {
+                          if (uploadForm.type !== "photo") {
+                            clearFileSelection();
+                            setUploadForm((prev) => ({ ...prev, type: "photo" }));
+                          }
+                        }}
+                      >
+                        Foto
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={uploadForm.type === "video" ? "default" : "outline"}
+                        onClick={() => {
+                          if (uploadForm.type !== "video") {
+                            clearFileSelection();
+                            setUploadForm((prev) => ({ ...prev, type: "video" }));
+                          }
+                        }}
+                      >
+                        Video Pendek
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Upload {uploadForm.type === "photo" ? "Foto" : "Video"}</label>
+                    {filePreview ? (
+                      <div className="relative">
+                        {uploadForm.type === "photo" ? (
+                          <img src={filePreview} alt="Preview" className="max-h-64 w-full rounded-lg object-contain" />
+                        ) : (
+                          <video src={filePreview} controls className="max-h-64 w-full rounded-lg" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={clearFileSelection}
+                          className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-destructive text-white"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/30 px-6 py-8 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept={uploadForm.type === "photo" ? "image/*" : "video/*"}
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+                        <Upload className="size-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          Klik untuk pilih {uploadForm.type === "photo" ? "foto" : "video"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {uploadForm.type === "photo" ? "JPG, PNG, atau WebP (maks 10 MB)" : "MP4 atau WebM (maks 10 MB, durasi 6 detik)"}
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Caption</label>
+                    <Textarea
+                      value={uploadForm.caption}
+                      onChange={(e) => setUploadForm({ ...uploadForm, caption: e.target.value })}
+                      placeholder="Tulis caption..."
+                      rows={3}
                     />
                   </div>
-                )}
 
-                <Button onClick={handleUpload} className="w-full" disabled={uploading}>
-                  {uploading && <Loader2 className="mr-2 size-4 animate-spin" />}
-                  {uploading ? "Mengunggah..." : "Posting"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                  {uploadForm.type === "video" && (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">
+                        Durasi Video (detik, maks 6)
+                      </label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={6}
+                        value={uploadForm.duration}
+                        onChange={(e) =>
+                          setUploadForm({ ...uploadForm, duration: parseInt(e.target.value) || 6 })
+                        }
+                      />
+                    </div>
+                  )}
+
+                  <Button onClick={handleUpload} className="w-full" disabled={uploading}>
+                    {uploading && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    {uploading ? "Mengunggah..." : "Posting"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button onClick={() => navigate("/masuk")}>Posting Foto/Video</Button>
+          )}
         </div>
+
+        {!auth.account && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <LogIn className="size-5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold">Selamat datang di Feed Komunitas</p>
+                  <p className="text-xs text-muted-foreground">Masuk untuk memposting foto/video, memberi like, dan berkomentar.</p>
+                </div>
+              </div>
+              <Button asChild size="sm">
+                <Link to="/masuk">Masuk Akun</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {posts.length === 0 ? (
           <Card>
@@ -366,13 +385,16 @@ export function FeedPage() {
           </Card>
         ) : (
           posts.map((post) => {
-            const isLiked = post.likes.includes(auth.account!.id);
-            const isOwner = post.accountId === auth.account!.id;
+            const isLiked = auth.account ? post.likes.includes(auth.account.id) : false;
+            const isOwner = auth.account ? post.accountId === auth.account.id : false;
 
             return (
               <Card key={post.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div className="flex items-center gap-3">
+                  <Link
+                    to={`/janda/${post.authorProfileId ?? post.accountId}`}
+                    className="flex items-center gap-3 transition-opacity hover:opacity-85"
+                  >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
                       {post.authorPhoto ? (
                         <img src={post.authorPhoto} alt={post.authorName} className="h-full w-full object-cover" />
@@ -381,7 +403,7 @@ export function FeedPage() {
                       )}
                     </div>
                     <div>
-                      <p className="font-semibold">{post.authorName}</p>
+                      <p className="font-semibold text-foreground hover:underline">{post.authorName}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Badge variant="secondary">
                           {TIER_META[post.authorTier as WidowRole]?.label ?? (post.authorTier === "public" ? "Mitra" : post.authorTier)}
@@ -390,7 +412,7 @@ export function FeedPage() {
                         <span>{formatTime(post.createdAt)}</span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                   {isOwner && (
                     <Button
                       variant="ghost"

@@ -1283,12 +1283,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       ) : null}
-
-      <Separator />
-      <p className="text-xs text-muted-foreground">
-        Akun terdaftar {account.displayName ? `atas nama ${account.displayName}` : account.email} ·{" "}
-        {formatDate(new Date().toISOString())}
-      </p>
     </div>
   );
 }

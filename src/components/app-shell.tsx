@@ -231,8 +231,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Button>
                 <NotificationBell />
                 <Link
-                  to="/dasbor"
+                  to="/feed"
+                  onClick={() => {
+                    sessionStorage.setItem("feed-compose", "1");
+                    window.dispatchEvent(new Event("feed:compose"));
+                  }}
                   className="flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pr-2 pl-0.5 transition-colors hover:bg-secondary sm:gap-2 sm:py-1 sm:pr-3 sm:pl-1"
+                  title="Posting gambar/foto/video"
                 >
                   <MemberAvatar
                     name={profile?.nickname ?? account.displayName ?? "Anggota"}
@@ -373,75 +378,77 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1 min-w-0 overflow-x-hidden">{children}</main>
 
-      <footer className="relative mt-16 overflow-hidden border-t border-border">
-        <div aria-hidden className="absolute inset-0">
-          <img
-            src="/images/hero-community.webp"
-            alt=""
-            className="h-full w-full object-cover object-[center_32%] opacity-[0.16]"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background/70" />
-        </div>
-        <div className="relative mx-auto grid w-full max-w-6xl gap-6 px-3 py-8 sm:gap-8 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
-          <div className="space-y-3">
-            <p className="font-display text-lg font-semibold text-foreground">{PLATFORM_NAME}</p>
-            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{PLATFORM_TAGLINE}</p>
-            <div className="flex flex-wrap gap-2">
-              <TierBadge tier="high_society" size="sm" />
-              <TierBadge tier="sosialita" size="sm" />
-              <TierBadge tier="wonder_woman" size="sm" />
+      {!account && (
+        <footer className="relative mt-16 overflow-hidden border-t border-border">
+          <div aria-hidden className="absolute inset-0">
+            <img
+              src="/images/hero-community.webp"
+              alt=""
+              className="h-full w-full object-cover object-[center_32%] opacity-[0.16]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background/70" />
+          </div>
+          <div className="relative mx-auto grid w-full max-w-6xl gap-6 px-3 py-8 sm:gap-8 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
+            <div className="space-y-3">
+              <p className="font-display text-lg font-semibold text-foreground">{PLATFORM_NAME}</p>
+              <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{PLATFORM_TAGLINE}</p>
+              <div className="flex flex-wrap gap-2">
+                <TierBadge tier="high_society" size="sm" />
+                <TierBadge tier="sosialita" size="sm" />
+                <TierBadge tier="wonder_woman" size="sm" />
+              </div>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p className="font-semibold text-foreground">{t("footer.explore")}</p>
+              <ul className="space-y-1.5 text-muted-foreground">
+                <li>
+                  <Link to="/jelajah" className="hover:text-foreground">
+                    {t("footer.memberProfiles")}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/program" className="hover:text-foreground">
+                    {t("footer.academy")}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/event" className="hover:text-foreground">
+                    {t("footer.communityEvents")}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/marketplace" className="hover:text-foreground">
+                    {t("nav.marketplace")}
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p className="font-semibold text-foreground">{t("footer.forMembers")}</p>
+              <ul className="space-y-1.5 text-muted-foreground">
+                <li>
+                  <Link to="/daftar" className="hover:text-foreground">
+                    {t("footer.registerMember")}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/dasbor" className="hover:text-foreground">
+                    {t("footer.memberDashboard")}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/masuk" className="hover:text-foreground">
+                    {t("footer.login")}
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
-          <div className="space-y-2 text-sm">
-            <p className="font-semibold text-foreground">{t("footer.explore")}</p>
-            <ul className="space-y-1.5 text-muted-foreground">
-              <li>
-                <Link to="/jelajah" className="hover:text-foreground">
-                  {t("footer.memberProfiles")}
-                </Link>
-              </li>
-              <li>
-                <Link to="/program" className="hover:text-foreground">
-                  {t("footer.academy")}
-                </Link>
-              </li>
-              <li>
-                <Link to="/event" className="hover:text-foreground">
-                  {t("footer.communityEvents")}
-                </Link>
-              </li>
-              <li>
-                <Link to="/marketplace" className="hover:text-foreground">
-                  {t("nav.marketplace")}
-                </Link>
-              </li>
-            </ul>
+          <div className="relative border-t border-border/70 py-4 text-center text-xs text-muted-foreground">
+            {PLATFORM_NAME} — dibangun bersama untuk saling menguatkan.
           </div>
-          <div className="space-y-2 text-sm">
-            <p className="font-semibold text-foreground">{t("footer.forMembers")}</p>
-            <ul className="space-y-1.5 text-muted-foreground">
-              <li>
-                <Link to="/daftar" className="hover:text-foreground">
-                  {t("footer.registerMember")}
-                </Link>
-              </li>
-              <li>
-                <Link to="/dasbor" className="hover:text-foreground">
-                  {t("footer.memberDashboard")}
-                </Link>
-              </li>
-              <li>
-                <Link to="/masuk" className="hover:text-foreground">
-                  {t("footer.login")}
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="relative border-t border-border/70 py-4 text-center text-xs text-muted-foreground">
-          {PLATFORM_NAME} — dibangun bersama untuk saling menguatkan.
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

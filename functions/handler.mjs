@@ -6498,31 +6498,58 @@ async function profilesGet(ctx) {
   const account = auth.error ? null : auth.account;
   const id = text(body.id, 60);
   if (!id) return fail(400, "invalid_input");
-  const { data: row } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+  let { data: row } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
+  if (!row) {
+    const { data: byAccount } = await supabase.from("profiles").select("*").eq("account_id", id).maybeSingle();
+    row = byAccount;
+  }
+  if (!row) {
+    const { data: acc } = await supabase.from("accounts").select("id,display_name,role,status,created_at").eq("id", id).maybeSingle();
+    if (acc && acc.status === "active") {
+      const defaultName = acc.display_name || "Pengguna";
+      const newProf = {
+        id: crypto.randomUUID(),
+        account_id: acc.id,
+        nickname: defaultName,
+        tier: null,
+        full_name: defaultName,
+        status: "verified",
+        created_at: acc.created_at || now(),
+        updated_at: now(),
+      };
+      await supabase.from("profiles").insert(newProf);
+      row = newProf;
+    }
+  }
   if (!row || !profileVisible(row, account)) return fail(404, "not_found");
   const { data: owner } = await supabase.from("accounts").select("role").eq("id", row.account_id).maybeSingle();
 
   const { data: donationRows } = await supabase
     .from("donations")
     .select("gross_amount,status")
-    .eq("profile_id", id);
+    .eq("profile_id", row.id);
   const donationTotal = (donationRows ?? [])
     .filter((d) => d.status === "settled")
     .reduce((sum, d) => sum + Number(d.gross_amount ?? 0), 0);
-  const pledgeCount = await countRows(supabase, "pledges", (q) => q.eq("profile_id", id).neq("status", "ditolak"));
-  const updateCount = await countRows(supabase, "updates", (q) => q.eq("profile_id", id).eq("status", "visible"));
+  const pledgeCount = await countRows(supabase, "pledges", (q) => q.eq("profile_id", row.id).neq("status", "ditolak"));
+  const updateCount = await countRows(supabase, "updates", (q) => q.eq("profile_id", row.id).eq("status", "visible"));
   const { data: followRows } = await supabase
     .from("follows")
     .select("follower_account_id")
     .eq("followed_account_id", row.account_id);
   const followers = followRows ?? [];
   const viewerFollows = Boolean(account) && followers.some((f) => f.follower_account_id === account.id);
+  const { data: followingRows } = await supabase
+    .from("follows")
+    .select("followed_account_id")
+    .eq("follower_account_id", row.account_id);
+  const followingCount = (followingRows ?? []).length;
 
   return ok({
     profile: publicProfile(row),
     accountRole: owner?.role ?? "public",
     support: { donationTotal, pledgeCount, updateCount },
-    follow: { followerCount: followers.length, viewerFollows },
+    follow: { followerCount: followers.length, followingCount, viewerFollows },
     paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
   });
 }
@@ -11558,14 +11585,18 @@ async function groupsSend(ctx) {
 async function followsToggle(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
-  const targetId = text(ctx.body.accountId, 60);
+  let targetId = text(ctx.body.accountId, 60);
+  if (!targetId && ctx.body.profileId) {
+    const { data: prof } = await ctx.supabase.from("profiles").select("account_id").eq("id", text(ctx.body.profileId, 60)).maybeSingle();
+    targetId = prof?.account_id;
+  }
   if (!targetId) return fail(400, "invalid_input");
   const { data: target } = await ctx.supabase
     .from("accounts")
     .select("id,role,status")
     .eq("id", targetId)
     .maybeSingle();
-  if (!target || target.status !== "active" || !WIDOW_ROLES.includes(target.role)) return fail(404, "not_found");
+  if (!target || target.status !== "active") return fail(404, "not_found");
   if (target.id === auth.account.id) return fail(400, "cannot_follow_self");
   const { data: existing } = await ctx.supabase
     .from("follows")
@@ -14072,18 +14103,16 @@ async function paymentQrisSettings(ctx) {
 // ---------- cloud storage ----------
 
 async function mediaRead(ctx, accountId = null) {
-  const auth = await actor(ctx, 1);
-  if (auth.error) return auth.error;
-  let query = ctx.supabase.from("media_posts").select("*").order("created_at", { ascending: false }).limit(100);
+  const auth = await actor(ctx, 0);
+  let query = ctx.supabase.from("media_posts").select("*").order("created_at", { ascending: false }).limit(200);
   if (accountId) query = query.eq("account_id", accountId);
   const { data: rows, error } = await query;
   if (error) return fail(500, "server_error");
   const posts = rows ?? [];
   if (!posts.length) return ok({ items: [] });
   const ids = posts.map((post) => post.id);
-  const { data: likes, error: likesError } = await ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids);
-  const { data: comments, error: commentsError } = await ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true });
-  if (likesError || commentsError) return fail(500, "server_error");
+  const { data: likes } = await ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids);
+  const { data: comments } = await ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true });
   const names = await namesFor(ctx.supabase, [
     ...posts.map((post) => post.account_id),
     ...(comments ?? []).map((comment) => comment.account_id),
@@ -14101,6 +14130,7 @@ async function mediaRead(ctx, accountId = null) {
     const author = names.get(post.account_id);
     return { id: post.id, accountId: post.account_id,
       authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+      authorProfileId: author?.profileId ?? null,
       authorTier: author?.tier ?? "wonder_woman", type: post.type, mediaUrl: post.media_url, caption: post.caption,
       likes: (likes ?? []).filter((like) => like.post_id === post.id).map((like) => like.account_id),
       comments: commentsByPost.get(post.id) ?? [], shares: post.share_count ?? 0, duration: post.duration, createdAt: post.created_at };
@@ -14119,18 +14149,17 @@ async function mediaCreate(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const type = ctx.body.type;
-  const mediaUrl = text(ctx.body.mediaUrl, 2000);
+  const rawUrl = typeof ctx.body.mediaUrl === "string" ? ctx.body.mediaUrl.trim() : "";
   const caption = text(ctx.body.caption, 1000) || null;
   const duration = Number(ctx.body.duration);
-  if (!["photo", "video"].includes(type) || !mediaUrl) return fail(400, "invalid_input");
-  let url;
-  try { url = new URL(mediaUrl); } catch { return fail(400, "invalid_input"); }
-  const cloudName = ctx.env("CLOUDINARY_CLOUD_NAME") || APP_SETTINGS.storage.cloudinary?.cloudName || CLOUDINARY_DEFAULT_CLOUD_NAME;
-  const resourceType = type === "video" ? "video" : "image";
-  const validPath = cloudName
-    ? url.pathname.startsWith(`/${cloudName}/${resourceType}/upload/`)
-    : new RegExp(`^/[a-zA-Z0-9_-]+/${resourceType}/upload/`).test(url.pathname);
-  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !validPath) return fail(400, "invalid_input");
+  if (!["photo", "video"].includes(type) || !rawUrl) return fail(400, "invalid_input");
+  if (!rawUrl.startsWith("data:")) {
+    let url;
+    try { url = new URL(rawUrl); } catch { return fail(400, "invalid_input"); }
+    if (url.protocol !== "https:") return fail(400, "invalid_input");
+  }
+  const mediaUrl = rawUrl;
+  if (type === "video" && (!Number.isInteger(duration) || duration < 1 || duration > 6)) return fail(400, "video_too_long");
   if (type === "video" && (!Number.isInteger(duration) || duration < 1 || duration > 6)) return fail(400, "video_too_long");
   const { data: post, error } = await ctx.supabase.from("media_posts").insert({
     id: crypto.randomUUID(), account_id: auth.account.id, type, media_url: mediaUrl, caption,

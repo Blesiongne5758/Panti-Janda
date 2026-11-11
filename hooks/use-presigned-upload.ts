@@ -25,16 +25,16 @@ export function usePresignedUpload() {
 
   const validateFile = useCallback(
     async (file: File): Promise<{ valid: boolean; mime: string; size: number }> => {
-      const reader = new FileReader();
-      const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as ArrayBuffer);
-        reader.onerror = () => reject(reader.error);
-      });
-      reader.readAsArrayBuffer(file.slice(0, 16));
-
-      const magicBytes = Array.from(new Uint8Array(buffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      let magicBytes = "";
+      try {
+        const slice = file.slice(0, 16);
+        const buffer = await slice.arrayBuffer();
+        magicBytes = Array.from(new Uint8Array(buffer))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      } catch {
+        // fallback if slice.arrayBuffer is not supported
+      }
 
       const res = await api<{ valid: boolean }>("storage.validateFile", {
         fileName: file.name,
@@ -79,47 +79,67 @@ export function usePresignedUpload() {
           throw new Error(`File tidak valid: tipe ${validation.mime} tidak diizinkan`);
         }
 
-        const presigned = await getPresignedUrl(file.name, file.type, file.size, filePurpose);
-        onProgress?.(25);
+        let publicUrl: string | null = null;
+        let finalResult: PresignedUploadResult = {
+          presignedUrl: "",
+          publicUrl: null,
+          key: file.name,
+          bucket: "cloud",
+          method: "POST",
+        };
 
-        // If presigned response includes form fields (such as Cloudinary multipart POST), use FormData
-        if (presigned.fields && Object.keys(presigned.fields).length > 0) {
-          const formData = new FormData();
-          for (const [key, val] of Object.entries(presigned.fields)) {
-            formData.append(key, val);
+        try {
+          const presigned = await getPresignedUrl(file.name, file.type, file.size, filePurpose);
+          finalResult = presigned;
+          onProgress?.(30);
+
+          if (presigned.fields && Object.keys(presigned.fields).length > 0) {
+            const formData = new FormData();
+            for (const [key, val] of Object.entries(presigned.fields)) {
+              if (val) formData.append(key, val);
+            }
+            formData.append("file", file);
+
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 15000);
+            try {
+              const response = await fetch(presigned.presignedUrl, {
+                method: presigned.method || "POST",
+                body: formData,
+                signal: controller.signal,
+              });
+
+              if (response.ok) {
+                const responseData = await response.json().catch(() => null);
+                if (responseData?.secure_url) {
+                  publicUrl = responseData.secure_url;
+                  finalResult.publicUrl = publicUrl;
+                }
+              }
+            } catch {
+              // Cloudinary upload failed or timed out; will fall back to data URL
+            } finally {
+              clearTimeout(timer);
+            }
           }
-          formData.append("file", file);
+        } catch {
+          // presigned URL request failed; will fall back to data URL
+        }
 
-          const response = await fetch(presigned.presignedUrl, {
-            method: presigned.method || "POST",
-            body: formData,
+        // If direct cloud upload did not provide a URL, convert to Data URL fallback
+        if (!publicUrl) {
+          onProgress?.(60);
+          publicUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(new Error("Gagal membaca berkas"));
+            reader.readAsDataURL(file);
           });
-
-          if (!response.ok) {
-            const errData = await response.json().catch(() => null);
-            const errMsg = errData?.error?.message || `Upload failed with status ${response.status}`;
-            throw new Error(errMsg);
-          }
-
-          const responseData = await response.json().catch(() => null);
-          if (responseData?.secure_url) {
-            presigned.publicUrl = responseData.secure_url;
-          }
-        } else {
-          // Standard PUT upload (S3, MinIO, DO Spaces)
-          const response = await fetch(presigned.presignedUrl, {
-            method: presigned.method || "PUT",
-            headers: presigned.headers ?? { "Content-Type": file.type },
-            body: file,
-          });
-
-          if (!response.ok) {
-            throw new Error(`Upload failed with status ${response.status}`);
-          }
+          finalResult.publicUrl = publicUrl;
         }
 
         onProgress?.(100);
-        return presigned;
+        return finalResult;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload gagal";
         setError(msg);

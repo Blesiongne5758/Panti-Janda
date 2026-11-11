@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
-import { Link } from "@/lib/router";
+import { Link, useRoute } from "@/lib/router";
 import { formatRupiah } from "@/lib/format";
 import { ROLE_LABEL, SUPPORT_META, TIER_META, BADGE_META } from "@/lib/constants";
 import type { Badge, ProfileDetail as ProfileDetailData, SupportType } from "@/lib/types";
@@ -431,13 +431,14 @@ function PledgeDialog({
 
 export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { account, profile: ownProfile } = useAuth();
+  const { navigate } = useRoute();
   const [data, setData] = useState<ProfileDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
   const [donationOpen, setDonationOpen] = useState(false);
   const [pledgeOpen, setPledgeOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [follow, setFollow] = useState({ following: false, count: 0 });
+  const [follow, setFollow] = useState({ following: false, followerCount: 0, followingCount: 0 });
   const [followBusy, setFollowBusy] = useState(false);
   const [badges, setBadges] = useState<Badge[]>([]);
 
@@ -456,7 +457,11 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
 
   useEffect(() => {
     if (!data) return;
-    setFollow({ following: data.follow.viewerFollows, count: data.follow.followerCount });
+    setFollow({
+      following: data.follow.viewerFollows,
+      followerCount: data.follow.followerCount ?? 0,
+      followingCount: data.follow.followingCount ?? 0,
+    });
     api<{ items: Badge[] }>("kpi.badges", { accountId: data.profile.accountId })
       .then((result) => setBadges(result.items))
       .catch(() => setBadges([]));
@@ -469,15 +474,22 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
 
   const toggleFollow = async () => {
     if (!data) return;
+    if (!account) {
+      toast.info("Silakan masuk untuk mengikuti akun ini");
+      navigate("/masuk");
+      return;
+    }
     setFollowBusy(true);
     try {
       const result = await api<{ following: boolean }>("follows.toggle", {
         accountId: data.profile.accountId,
       });
       setFollow((current) => ({
+        ...current,
         following: result.following,
-        count: Math.max(0, current.count + (result.following ? 1 : -1)),
+        followerCount: Math.max(0, current.followerCount + (result.following ? 1 : -1)),
       }));
+      toast.success(result.following ? "Berhasil mengikuti akun ini" : "Batal mengikuti akun ini");
     } catch (error) {
       toast.error(errorText(error));
     } finally {
@@ -565,7 +577,25 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </span>
                     ) : null}
                     <span>Bergabung {new Date(profile.createdAt).getFullYear()}</span>
-                    {follow.count > 0 ? <span>{follow.count} pengikut</span> : null}
+                    <span className="inline-flex items-center gap-1">
+                      <strong className="text-foreground">{follow.followerCount}</strong> pengikut
+                    </span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1">
+                      <strong className="text-foreground">{follow.followingCount}</strong> mengikuti
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 pt-1 text-xs">
+                    <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 shadow-xs">
+                      <Users className="size-3.5 text-primary" aria-hidden />
+                      <span className="font-bold text-foreground">{follow.followerCount}</span>
+                      <span className="text-muted-foreground">Pengikut</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 shadow-xs">
+                      <UserRound className="size-3.5 text-primary" aria-hidden />
+                      <span className="font-bold text-foreground">{follow.followingCount}</span>
+                      <span className="text-muted-foreground">Mengikuti</span>
+                    </div>
                   </div>
                   {badges.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
@@ -590,7 +620,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {canFollow ? (
+                  {!isOwn ? (
                     <Button
                       variant={follow.following ? "outline" : "default"}
                       size="sm"

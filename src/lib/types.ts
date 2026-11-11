@@ -89,7 +89,7 @@ export interface ProfileDetail {
   accountRole: Role;
   support: { donationTotal: number; pledgeCount: number; updateCount: number };
   paymentEnabled: boolean;
-  follow: { followerCount: number; viewerFollows: boolean };
+  follow: { followerCount: number; followingCount?: number; viewerFollows: boolean };
 }
 
 export interface FollowItem {
@@ -810,6 +810,7 @@ export interface MediaPost {
   accountId: string;
   authorName: string;
   authorPhoto: string | null;
+  authorProfileId?: string | null;
   authorTier: string;
   type: MediaPostType;
   mediaUrl: string;
