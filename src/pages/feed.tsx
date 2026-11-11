@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/session";
-import { api } from "@/lib/api";
-import type { MediaPost } from "@/lib/types";
+import { api, errorText } from "@/lib/api";
+import { TIER_META } from "@/lib/constants";
+import type { MediaPost, WidowRole } from "@/lib/types";
 import { toast } from "sonner";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
@@ -62,7 +63,7 @@ export function FeedPage() {
         prev.map((p) => (p.id === postId ? { ...p, likes: data.likes } : p))
       );
     } catch (error) {
-      toast.error("Gagal memberikan like");
+      toast.error(errorText(error) || "Gagal memberikan like");
     }
   }
 
@@ -80,7 +81,7 @@ export function FeedPage() {
       setCommentText((prev) => ({ ...prev, [postId]: "" }));
       toast.success("Komentar ditambahkan");
     } catch (error) {
-      toast.error("Gagal menambahkan komentar");
+      toast.error(errorText(error) || "Gagal menambahkan komentar");
     }
   }
 
@@ -92,7 +93,7 @@ export function FeedPage() {
       );
       toast.success("Postingan dibagikan");
     } catch (error) {
-      toast.error("Gagal membagikan postingan");
+      toast.error(errorText(error) || "Gagal membagikan postingan");
     }
   }
 
@@ -104,7 +105,7 @@ export function FeedPage() {
       setPosts((prev) => prev.filter((p) => p.id !== postId));
       toast.success("Postingan dihapus");
     } catch (error) {
-      toast.error("Gagal menghapus postingan");
+      toast.error(errorText(error) || "Gagal menghapus postingan");
     }
   }
 
@@ -125,18 +126,36 @@ export function FeedPage() {
       return;
     }
 
-    setUploadForm({ ...uploadForm, type: isVideo ? "video" : "photo" });
     selectedFileRef.current = file;
 
     const previewUrl = URL.createObjectURL(file);
     setFilePreview(previewUrl);
+
+    if (isVideo) {
+      setUploadForm((prev) => ({ ...prev, type: "video" }));
+      const tempVideo = document.createElement("video");
+      tempVideo.preload = "metadata";
+      tempVideo.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(tempVideo.src);
+        const dur = Math.round(tempVideo.duration);
+        if (dur > 0) {
+          setUploadForm((prev) => ({
+            ...prev,
+            duration: Math.min(6, Math.max(1, dur)),
+          }));
+        }
+      };
+      tempVideo.src = previewUrl;
+    } else {
+      setUploadForm((prev) => ({ ...prev, type: "photo" }));
+    }
   }
 
   function clearFileSelection() {
     if (filePreview) URL.revokeObjectURL(filePreview);
     setFilePreview(null);
     selectedFileRef.current = null;
-    setUploadForm({ ...uploadForm, mediaUrl: "" });
+    setUploadForm((prev) => ({ ...prev, mediaUrl: "" }));
     clearError();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -172,7 +191,7 @@ export function FeedPage() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success("Postingan berhasil ditambahkan");
     } catch (error) {
-      toast.error("Gagal menambahkan postingan");
+      toast.error(errorText(error) || "Gagal menambahkan postingan");
     }
   }
 
@@ -242,14 +261,24 @@ export function FeedPage() {
                     <Button
                       type="button"
                       variant={uploadForm.type === "photo" ? "default" : "outline"}
-                      onClick={() => setUploadForm({ ...uploadForm, type: "photo" })}
+                      onClick={() => {
+                        if (uploadForm.type !== "photo") {
+                          clearFileSelection();
+                          setUploadForm((prev) => ({ ...prev, type: "photo" }));
+                        }
+                      }}
                     >
                       Foto
                     </Button>
                     <Button
                       type="button"
                       variant={uploadForm.type === "video" ? "default" : "outline"}
-                      onClick={() => setUploadForm({ ...uploadForm, type: "video" })}
+                      onClick={() => {
+                        if (uploadForm.type !== "video") {
+                          clearFileSelection();
+                          setUploadForm((prev) => ({ ...prev, type: "video" }));
+                        }
+                      }}
                     >
                       Video Pendek
                     </Button>
@@ -344,13 +373,19 @@ export function FeedPage() {
               <Card key={post.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-5 w-5 text-primary" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
+                      {post.authorPhoto ? (
+                        <img src={post.authorPhoto} alt={post.authorName} className="h-full w-full object-cover" />
+                      ) : (
+                        <User className="h-5 w-5 text-primary" />
+                      )}
                     </div>
                     <div>
                       <p className="font-semibold">{post.authorName}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Badge variant="secondary">{post.authorTier}</Badge>
+                        <Badge variant="secondary">
+                          {TIER_META[post.authorTier as WidowRole]?.label ?? (post.authorTier === "public" ? "Mitra" : post.authorTier)}
+                        </Badge>
                         <span>•</span>
                         <span>{formatTime(post.createdAt)}</span>
                       </div>
@@ -380,9 +415,9 @@ export function FeedPage() {
                     <video
                       src={post.mediaUrl}
                       controls
-                      className="w-full rounded-lg"
+                      playsInline
+                      className="w-full rounded-lg bg-black"
                       style={{ maxHeight: "500px" }}
-                      poster=""
                     >
                       Video tidak didukung
                     </video>

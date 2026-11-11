@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, FileUp, Flower2, Loader2, ShieldCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
-import { TIER_META } from "@/lib/constants";
+import { TIER_META, WIDOW_ROLES } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareVerificationDoc } from "@/lib/verify-doc";
 import { PjLogo } from "@/components/common";
 import { useTranslation } from "@/lib/i18n-context";
@@ -26,12 +26,25 @@ type Step = "account" | "question" | "form";
 type Kind = "member" | "public";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { account, register } = useAuth();
   const { navigate } = useRoute();
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (account) {
+      const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
+      if (account.role === "admin") {
+        navigate("/admin");
+      } else if (isWidow) {
+        navigate("/dasbor");
+      } else {
+        navigate("/feed");
+      }
+    }
+  }, [account, navigate]);
 
   const [step, setStep] = useState<Step>("account");
   const [kind, setKind] = useState<Kind | null>(null);
@@ -140,7 +153,14 @@ export default function RegisterPage() {
         navigate("/admin");
         return;
       }
-      navigate("/dasbor");
+      const isWidow = (WIDOW_ROLES as readonly string[]).includes(result.account.role);
+      if (result.account.role === "admin") {
+        navigate("/admin");
+      } else if (isWidow) {
+        navigate("/dasbor");
+      } else {
+        navigate("/feed");
+      }
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -159,7 +179,7 @@ export default function RegisterPage() {
       </div>
 
       {step === "account" && (
-        <Card className="border-border/70">
+        <Card className="w-full border-border/70 shadow-sm">
           <CardHeader className="gap-1.5">
             <CardTitle className="font-display text-xl">{t("auth.stepAccount")}</CardTitle>
             <CardDescription>{t("auth.stepAccountDesc")}</CardDescription>
@@ -229,7 +249,7 @@ export default function RegisterPage() {
       )}
 
       {step === "question" && (
-        <Card className="border-border/70">
+        <Card className="w-full border-border/70 shadow-sm">
           <CardHeader className="gap-1.5">
             <CardTitle className="font-display text-xl">{t("auth.stepQuestion")}</CardTitle>
             <CardDescription>
@@ -242,13 +262,15 @@ export default function RegisterPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col items-start gap-2 py-4 text-left"
+                className="h-auto w-full flex-col items-start gap-3 p-4 text-left whitespace-normal transition-all hover:border-primary/50 hover:bg-primary/5 active:scale-[0.99]"
                 onClick={() => handleQuestionAnswer("member")}
               >
-                <Flower2 className="size-5 text-primary" />
-                <div>
-                  <p className="font-semibold">{t("auth.yesWidow")}</p>
-                  <p className="text-xs text-muted-foreground">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Flower2 className="size-5" />
+                </div>
+                <div className="w-full min-w-0 space-y-1">
+                  <p className="font-semibold text-foreground">{t("auth.yesWidow")}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground break-words">
                     {t("auth.yesWidowDesc")}
                   </p>
                 </div>
@@ -256,13 +278,15 @@ export default function RegisterPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto flex-col items-start gap-2 py-4 text-left"
+                className="h-auto w-full flex-col items-start gap-3 p-4 text-left whitespace-normal transition-all hover:border-primary/50 hover:bg-primary/5 active:scale-[0.99]"
                 onClick={() => handleQuestionAnswer("public")}
               >
-                <UserPlus className="size-5 text-primary" />
-                <div>
-                  <p className="font-semibold">{t("auth.noWidow")}</p>
-                  <p className="text-xs text-muted-foreground">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <UserPlus className="size-5" />
+                </div>
+                <div className="w-full min-w-0 space-y-1">
+                  <p className="font-semibold text-foreground">{t("auth.noWidow")}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground break-words">
                     {t("auth.noWidowDesc")}
                   </p>
                 </div>
@@ -282,7 +306,7 @@ export default function RegisterPage() {
       )}
 
       {step === "form" && kind === "member" && (
-        <Card className="border-border/70">
+        <Card className="w-full border-border/70 shadow-sm">
           <CardHeader className="gap-1.5">
             <CardTitle className="font-display text-xl">
               {t("auth.stepMember")} — tier {TIER_META.wonder_woman.label}
@@ -509,7 +533,7 @@ export default function RegisterPage() {
       )}
 
       {step === "form" && kind === "public" && (
-        <Card className="border-border/70">
+        <Card className="w-full border-border/70 shadow-sm">
           <CardHeader className="gap-1.5">
             <CardTitle className="font-display text-xl">{t("auth.stepPublic")}</CardTitle>
             <CardDescription>

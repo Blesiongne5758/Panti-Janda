@@ -14127,7 +14127,10 @@ async function mediaCreate(ctx) {
   try { url = new URL(mediaUrl); } catch { return fail(400, "invalid_input"); }
   const cloudName = ctx.env("CLOUDINARY_CLOUD_NAME") || APP_SETTINGS.storage.cloudinary?.cloudName || CLOUDINARY_DEFAULT_CLOUD_NAME;
   const resourceType = type === "video" ? "video" : "image";
-  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !url.pathname.startsWith(`/${cloudName}/${resourceType}/upload/`)) return fail(400, "invalid_input");
+  const validPath = cloudName
+    ? url.pathname.startsWith(`/${cloudName}/${resourceType}/upload/`)
+    : new RegExp(`^/[a-zA-Z0-9_-]+/${resourceType}/upload/`).test(url.pathname);
+  if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !validPath) return fail(400, "invalid_input");
   if (type === "video" && (!Number.isInteger(duration) || duration < 1 || duration > 6)) return fail(400, "video_too_long");
   const { data: post, error } = await ctx.supabase.from("media_posts").insert({
     id: crypto.randomUUID(), account_id: auth.account.id, type, media_url: mediaUrl, caption,
@@ -14335,11 +14338,15 @@ function validateMagicBytes(mimeType, magicBytes) {
     "image/gif": ["47494638"],
     "video/mp4": ["0000001c", "00000020", "66747970"],
     "video/webm": ["1a45dfa3"],
+    "video/quicktime": ["66747970", "00000014", "00000020"],
     "application/pdf": ["25504446"],
   };
   const expected = signatures[mimeType];
   if (!expected) return true;
-  const bytes = magicBytes.toLowerCase().replace(/s/g, "");
+  const bytes = magicBytes.toLowerCase().replace(/\s/g, "");
+  if (mimeType === "video/mp4" || mimeType === "video/quicktime") {
+    return expected.some((sig) => bytes.startsWith(sig)) || bytes.includes("66747970");
+  }
   return expected.some((sig) => bytes.startsWith(sig));
 }
 

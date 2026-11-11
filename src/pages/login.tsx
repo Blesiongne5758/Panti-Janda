@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,10 @@ import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
 import { PjLogo } from "@/components/common";
 import { useTranslation } from "@/lib/i18n-context";
+import { WIDOW_ROLES } from "@/lib/constants";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { account, login } = useAuth();
   const { navigate } = useRoute();
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
@@ -19,13 +20,33 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (account) {
+      const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
+      if (account.role === "admin") {
+        navigate("/admin");
+      } else if (isWidow) {
+        navigate("/dasbor");
+      } else {
+        navigate("/feed");
+      }
+    }
+  }, [account, navigate]);
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const account = await login(email.trim(), password);
-      navigate(account.role === "admin" ? "/admin" : "/dasbor");
+      const loggedAccount = await login(email.trim(), password);
+      const isWidow = (WIDOW_ROLES as readonly string[]).includes(loggedAccount.role);
+      if (loggedAccount.role === "admin") {
+        navigate("/admin");
+      } else if (isWidow) {
+        navigate("/dasbor");
+      } else {
+        navigate("/feed");
+      }
     } catch (err) {
       setError(errorText(err));
     } finally {
