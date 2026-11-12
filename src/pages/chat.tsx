@@ -1249,7 +1249,7 @@ export default function ChatPage() {
           {thread ? (
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Header */}
-              <header className="flex shrink-0 items-center gap-1.5 sm:gap-2 border-b border-border px-2 sm:px-4 py-2 sm:py-3 bg-card z-10 overflow-hidden">
+              <header className="flex shrink-0 items-center gap-1.5 sm:gap-2 border-b border-border px-2 sm:px-4 py-2 sm:py-3 bg-card z-10">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1334,7 +1334,8 @@ export default function ChatPage() {
                         </>
                       )}
 
-                      {activeContact.profileId ? (
+                      {/* Tombol Lihat Profil — selalu tampil jika ada profileId atau accountId */}
+                      {(activeContact.profileId || activeContact.accountId) ? (
                         <Button
                           asChild
                           variant="outline"
@@ -1342,7 +1343,10 @@ export default function ChatPage() {
                           className="h-8 w-8 shrink-0 rounded-full border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
                           title="Lihat Profil"
                         >
-                          <Link to={`/janda/${activeContact.profileId}`} aria-label="Lihat Profil">
+                          <Link
+                            to={activeContact.profileId ? `/janda/${activeContact.profileId}` : `/janda/${activeContact.accountId}`}
+                            aria-label="Lihat Profil"
+                          >
                             <Eye className="size-3.5" />
                           </Link>
                         </Button>
