@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, MessageCircle, MessagesSquare, Phone, Send, Users } from "lucide-react";
+import { ArrowLeft, Loader2, MessageCircle, MessagesSquare, Phone, Send, Users, Video } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useVoiceCall } from "@/lib/call-context";
@@ -318,17 +318,42 @@ export default function ChatPage() {
                         size="sm"
                         className="gap-1.5 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                         onClick={() =>
-                          void startCall({
-                            accountId: activeContact.accountId,
-                            name: activeContact.nickname,
-                            photoData: activeContact.photoData,
-                          })
+                          void startCall(
+                            {
+                              accountId: activeContact.accountId,
+                              name: activeContact.nickname,
+                              photoData: activeContact.photoData,
+                            },
+                            "audio",
+                          )
                         }
                         title="Mulai Panggilan Suara"
                       >
                         <Phone className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="hidden sm:inline">Panggilan Suara</span>
+                        <span className="hidden sm:inline">Suara</span>
                       </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 rounded-full border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/40"
+                        onClick={() =>
+                          void startCall(
+                            {
+                              accountId: activeContact.accountId,
+                              name: activeContact.nickname,
+                              photoData: activeContact.photoData,
+                            },
+                            "video",
+                          )
+                        }
+                        title="Mulai Panggilan Video"
+                      >
+                        <Video className="size-3.5 text-violet-600 dark:text-violet-400" />
+                        <span className="hidden sm:inline">Video</span>
+                      </Button>
+
                       {activeContact.profileId ? (
                         <Button asChild variant="ghost" size="sm">
                           <Link to={`/janda/${activeContact.profileId}`}>Lihat profil</Link>

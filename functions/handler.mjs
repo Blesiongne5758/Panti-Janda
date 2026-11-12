@@ -11807,7 +11807,7 @@ async function chatSend(ctx) {
   return ok({ message: messagePublic(row, names) });
 }
 
-// ---------- voice calling (WebRTC signaling) ----------
+// ---------- voice & video calling (WebRTC signaling) ----------
 
 const activeCalls = new Map();
 
@@ -11825,6 +11825,7 @@ async function callStart(ctx) {
   if (auth.error) return auth.error;
   const recipientAccountId = text(ctx.body.recipientAccountId, 60);
   const offer = ctx.body.offer;
+  const mode = ctx.body.mode === "video" ? "video" : "audio";
   if (!recipientAccountId || !offer) return fail(400, "invalid_input");
   if (recipientAccountId === auth.account.id) return fail(400, "cannot_message_self");
 
@@ -11844,6 +11845,7 @@ async function callStart(ctx) {
 
   const callData = {
     id: callId,
+    mode,
     callerAccountId: auth.account.id,
     callerName: callerInfo?.nickname ?? callerInfo?.displayName ?? "Pengguna",
     callerPhoto: callerInfo?.photoData ?? null,
@@ -11862,18 +11864,20 @@ async function callStart(ctx) {
 
   activeCalls.set(callId, callData);
 
+  const callTypeLabel = mode === "video" ? "Panggilan video" : "Panggilan suara";
   await notify(
     ctx.supabase,
     recipientAccountId,
     "call",
     auth.account.id,
-    "Panggilan suara dari " + (callerInfo?.nickname ?? "Pengguna"),
+    callTypeLabel + " dari " + (callerInfo?.nickname ?? "Pengguna"),
     "#/pesan?with=" + auth.account.id
   );
 
   return ok({
     call: {
       id: callData.id,
+      mode: callData.mode,
       callerAccountId: callData.callerAccountId,
       callerName: callData.callerName,
       callerPhoto: callData.callerPhoto,
@@ -11902,6 +11906,7 @@ async function callPoll(ctx) {
     return ok({
       call: {
         id: call.id,
+        mode: call.mode || "audio",
         callerAccountId: call.callerAccountId,
         callerName: call.callerName,
         callerPhoto: call.callerPhoto,
@@ -11923,6 +11928,7 @@ async function callPoll(ctx) {
         return ok({
           incomingCall: {
             id: call.id,
+            mode: call.mode || "audio",
             callerAccountId: call.callerAccountId,
             callerName: call.callerName,
             callerPhoto: call.callerPhoto,
@@ -11996,16 +12002,18 @@ async function callEnd(ctx) {
     call.duration = duration;
 
     const otherAccountId = call.callerAccountId === auth.account.id ? call.recipientAccountId : call.callerAccountId;
-    let messageBody = "📞 Panggilan suara selesai";
+    const isVideo = call.mode === "video";
+    const prefix = isVideo ? "📹 Panggilan video" : "📞 Panggilan suara";
+    let messageBody = prefix + " selesai";
     if (call.status === "rejected") {
-      messageBody = "📞 Panggilan suara ditolak";
+      messageBody = prefix + " ditolak";
     } else if (call.status === "missed") {
-      messageBody = "📞 Panggilan suara tak terjawab";
+      messageBody = prefix + " tak terjawab";
     } else if (duration > 0) {
       const minutes = Math.floor(duration / 60);
       const seconds = duration % 60;
       const formatted = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
-      messageBody = "📞 Panggilan suara selesai (" + formatted + ")";
+      messageBody = prefix + " selesai (" + formatted + ")";
     }
 
     try {
@@ -12025,7 +12033,6 @@ async function callEnd(ctx) {
 
   return ok({ ok: true });
 }
-
 
 // ---------- programs ----------
 
