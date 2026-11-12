@@ -12,6 +12,8 @@ import {
   UserCheck,
   UserPlus,
   Users,
+  LogOut,
+  Plus,
   Video,
   X,
 } from "lucide-react";
@@ -22,6 +24,8 @@ import { useQueryParam } from "@/lib/router";
 import { ROLE_LABEL, ROLE_RANK, TIER_META } from "@/lib/constants";
 import type { ChatContact, ChatMessage, FriendItem, FriendshipStatus, GroupItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { AccountGate, EmptyState, ErrorNote, MemberAvatar, TierBadge } from "@/components/common";
 import { Link } from "@/lib/router";
@@ -38,6 +42,15 @@ function lastSeenLabel(iso: string): string {
   const today = new Date();
   const sameDay = date.toDateString() === today.toDateString();
   return sameDay ? timeOf(iso) : date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+
+// Format nama panggilan: hanya nama depan tanpa spasi, dibatasi maksimal karakter
+function formatCallName(rawName?: string | null, maxChars = 8): string {
+  if (!rawName) return "Pengguna";
+  const firstWord = rawName.trim().split(/\s+/)[0] || "Pengguna";
+  const clean = firstWord.replace(/\s+/g, "");
+  return clean.length > maxChars ? `${clean.slice(0, maxChars)}…` : clean;
 }
 
 function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
@@ -88,6 +101,17 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = useState<FriendItem[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Group creation & member management states
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [groupFormName, setGroupFormName] = useState("");
+  const [groupFormDesc, setGroupFormDesc] = useState("");
+  const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
+  const [creatingGroup, setCreatingGroup] = useState(false);
+
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [selectedAddMembers, setSelectedAddMembers] = useState<Set<string>>(new Set());
+  const [addingMembers, setAddingMembers] = useState(false);
+
   // Active Thread state
   const [thread, setThread] = useState<Thread | null>(null);
   const [threadContact, setThreadContact] = useState<ChatContact | null>(null);
@@ -104,7 +128,7 @@ export default function ChatPage() {
     try {
       const [contactData, groupData] = await Promise.all([
         api<{ items: ChatContact[]; incomingCount?: number }>("chat.contacts"),
-        rank >= 2 ? api<{ items: GroupItem[] }>("groups.list") : Promise.resolve({ items: [] as GroupItem[] }),
+        api<{ items: GroupItem[] }>("groups.list").catch(() => ({ items: [] as GroupItem[] })),
       ]);
       setContacts(contactData.items);
       setGroups(groupData.items.filter((group) => group.joined));
@@ -253,6 +277,69 @@ export default function ChatPage() {
       }
     } catch (error) {
       toast.error(errorText(error));
+    }
+  };
+
+
+  // Group Actions
+  const handleCreateGroup = async () => {
+    const name = groupFormName.trim();
+    if (name.length < 3) {
+      toast.error("Nama grup minimal 3 karakter.");
+      return;
+    }
+    setCreatingGroup(true);
+    try {
+      const res = await api<{ group: GroupItem }>("groups.create", {
+        name,
+        description: groupFormDesc.trim() || null,
+        memberAccountIds: Array.from(selectedFriends),
+      });
+      toast.success(`Grup "${res.group.name}" berhasil dibuat!`);
+      setShowCreateGroupModal(false);
+      setGroupFormName("");
+      setGroupFormDesc("");
+      setSelectedFriends(new Set());
+      await loadLists();
+      setThread({ kind: "group", id: res.group.id });
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal membuat grup.");
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  const handleAddMembers = async () => {
+    if (!activeGroup || selectedAddMembers.size === 0) return;
+    setAddingMembers(true);
+    try {
+      await api("groups.addMembers", {
+        id: activeGroup.id,
+        memberAccountIds: Array.from(selectedAddMembers),
+      });
+      toast.success("Anggota berhasil ditambahkan ke grup!");
+      setShowAddMemberModal(false);
+      setSelectedAddMembers(new Set());
+      await loadLists();
+      void loadThread(true);
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal menambahkan anggota.");
+    } finally {
+      setAddingMembers(false);
+    }
+  };
+
+  const handleLeaveGroup = async (groupId: string, groupName: string) => {
+    if (!window.confirm(`Apakah Anda yakin ingin keluar dari grup "${groupName}"?`)) {
+      return;
+    }
+    try {
+      await api("groups.leave", { id: groupId });
+      toast.success(`Anda telah keluar dari grup "${groupName}".`);
+      setThread(null);
+      await loadLists();
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal keluar dari grup.");
     }
   };
 
@@ -460,39 +547,68 @@ export default function ChatPage() {
                       })
                     )}
 
-                    {rank >= 2 && (
-                      <>
-                        <p className="px-4 pt-4 pb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                          Grup chat
-                        </p>
-                        {groups.length === 0 ? (
-                          <p className="px-4 pb-3 text-xs text-muted-foreground">Belum bergabung dengan grup.</p>
-                        ) : (
-                          groups.map((group) => {
-                            const active = thread?.kind === "group" && thread.id === group.id;
-                            return (
-                              <button
-                                key={group.id}
-                                type="button"
-                                onClick={() => setThread({ kind: "group", id: group.id })}
-                                className={`flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors ${
-                                  active ? "bg-secondary" : "hover:bg-secondary/60"
-                                }`}
-                              >
-                                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                  <Users className="size-4" aria-hidden />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-medium text-foreground">{group.name}</span>
-                                  <span className="block truncate text-xs text-muted-foreground">
-                                    {group.memberCount} anggota — {TIER_META[group.audienceMinRole]?.label ?? "Anggota"}
-                                  </span>
-                                </span>
-                              </button>
-                            );
-                          })
-                        )}
-                      </>
+                    {/* Daftar Grup Chat */}
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                      <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        Grup Chat ({groups.length})
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] rounded-full gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          setGroupFormName("");
+                          setGroupFormDesc("");
+                          setSelectedFriends(new Set());
+                          setShowCreateGroupModal(true);
+                        }}
+                      >
+                        <Plus className="size-3" />
+                        <span>Buat Grup</span>
+                      </Button>
+                    </div>
+
+                    {groups.length === 0 ? (
+                      <div className="px-4 pb-4 pt-1">
+                        <p className="text-xs text-muted-foreground">Belum bergabung dengan grup.</p>
+                        <button
+                          type="button"
+                          className="text-xs text-primary font-medium hover:underline mt-1 block"
+                          onClick={() => {
+                            setGroupFormName("");
+                            setGroupFormDesc("");
+                            setSelectedFriends(new Set());
+                            setShowCreateGroupModal(true);
+                          }}
+                        >
+                          + Buat grup baru sekarang
+                        </button>
+                      </div>
+                    ) : (
+                      groups.map((group) => {
+                        const active = thread?.kind === "group" && thread.id === group.id;
+                        return (
+                          <button
+                            key={group.id}
+                            type="button"
+                            onClick={() => setThread({ kind: "group", id: group.id })}
+                            className={`flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors ${
+                              active ? "bg-secondary" : "hover:bg-secondary/60"
+                            }`}
+                          >
+                            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <Users className="size-4" aria-hidden />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">{group.name}</span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {group.memberCount} anggota
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -748,18 +864,23 @@ export default function ChatPage() {
 
                 {activeContact ? (
                   <>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <MemberAvatar
                         name={activeContact.nickname}
                         tier={activeContact.tier}
                         photoData={activeContact.photoData}
                         size={36}
                       />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">{activeContact.nickname}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">
+                      <div className="min-w-0 flex-1 max-w-[80px] xs:max-w-[110px] sm:max-w-[160px] md:max-w-xs">
+                        <p
+                          className="truncate text-xs sm:text-sm font-semibold text-foreground leading-tight"
+                          title={activeContact.nickname}
+                        >
+                          {formatCallName(activeContact.nickname, 8)}
+                        </p>
+                        <p className="truncate text-[10px] sm:text-[11px] text-muted-foreground leading-tight">
                           {activeContact.tier ? ROLE_LABEL[activeContact.tier] : "Pengguna"}
-                          {threadFriendship === "accepted" ? " • Teman" : " • Belum Berteman"}
+                          {threadFriendship === "accepted" ? " • Teman" : ""}
                         </p>
                       </div>
                     </div>
@@ -771,7 +892,7 @@ export default function ChatPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-8 sm:h-9 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                            className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:py-2 gap-1.5 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40 shrink-0"
                             onClick={() =>
                               void startCall(
                                 {
@@ -792,7 +913,7 @@ export default function ChatPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-8 sm:h-9 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-full border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/40"
+                            className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:py-2 gap-1.5 rounded-full border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/40 shrink-0"
                             onClick={() =>
                               void startCall(
                                 {
@@ -812,7 +933,7 @@ export default function ChatPage() {
                       )}
 
                       {activeContact.profileId ? (
-                        <Button asChild variant="ghost" size="sm" className="h-8 sm:h-9 px-2 sm:px-2.5 text-xs">
+                        <Button asChild variant="ghost" size="sm" className="h-8 px-2 sm:px-2.5 text-xs shrink-0 rounded-full">
                           <Link to={`/janda/${activeContact.profileId}`}>
                             <span className="hidden sm:inline">Lihat profil</span>
                             <span className="sm:hidden">Profil</span>
@@ -823,12 +944,50 @@ export default function ChatPage() {
                   </>
                 ) : activeGroup ? (
                   <>
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Users className="size-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">{activeGroup.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{activeGroup.memberCount} anggota</p>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Users className="size-4" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1 max-w-[100px] xs:max-w-[140px] sm:max-w-[220px]">
+                        <p
+                          className="truncate text-xs sm:text-sm font-semibold text-foreground leading-tight"
+                          title={activeGroup.name}
+                        >
+                          {activeGroup.name}
+                        </p>
+                        <p className="truncate text-[10px] sm:text-[11px] text-muted-foreground leading-tight">
+                          {activeGroup.memberCount} anggota
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 sm:px-3 text-xs rounded-full gap-1 border-border shrink-0"
+                        onClick={() => {
+                          setSelectedAddMembers(new Set());
+                          setShowAddMemberModal(true);
+                        }}
+                        title="Tambah Anggota"
+                      >
+                        <UserPlus className="size-3.5 text-muted-foreground" />
+                        <span className="hidden sm:inline">Tambah</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 sm:px-3 text-xs rounded-full gap-1 border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40 shrink-0"
+                        onClick={() => void handleLeaveGroup(activeGroup.id, activeGroup.name)}
+                        title="Keluar dari Grup"
+                      >
+                        <LogOut className="size-3.5" />
+                        <span className="hidden sm:inline">Keluar</span>
+                      </Button>
                     </div>
                   </>
                 ) : null}

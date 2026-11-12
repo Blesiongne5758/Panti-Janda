@@ -6081,6 +6081,7 @@ const ROUTES = {
   "groups.list": groupsList,
   "groups.get": groupsGet,
   "groups.create": groupsCreate,
+  "groups.addMembers": groupsAddMembers,
   "groups.join": groupsJoin,
   "groups.leave": groupsLeave,
   "groups.messages": groupsMessages,
@@ -11424,7 +11425,7 @@ const groupPublic = (row) => ({
 });
 
 async function groupsList(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("groups")
@@ -11432,7 +11433,7 @@ async function groupsList(ctx) {
     .order("created_at", { ascending: false })
     .limit(60);
   const rows = (data ?? []).filter(
-    (row) => (ROLE_RANK[row.audience_min_role] ?? 2) <= auth.rank,
+    (row) => (ROLE_RANK[row.audience_min_role] ?? 1) <= auth.rank,
   );
   const ids = rows.map((r) => r.id);
   const memberCounts = new Map();
@@ -11457,12 +11458,12 @@ async function groupsList(ctx) {
 }
 
 async function groupsGet(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const { data: row } = await ctx.supabase.from("groups").select("*").eq("id", id).maybeSingle();
   if (!row) return fail(404, "not_found");
-  if ((ROLE_RANK[row.audience_min_role] ?? 2) > auth.rank) return fail(403, "forbidden");
+  if ((ROLE_RANK[row.audience_min_role] ?? 1) > auth.rank) return fail(403, "forbidden");
   const { data: members } = await ctx.supabase
     .from("group_members")
     .select("account_id")
@@ -11480,15 +11481,16 @@ async function groupsGet(ctx) {
 }
 
 async function groupsCreate(ctx) {
-  const auth = await actor(ctx, 3);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const name = text(ctx.body.name, 100);
   if (name.length < 3) return fail(400, "invalid_input");
-  const audienceMinRole = WIDOW_ROLES.includes(ctx.body.audienceMinRole)
+  const audienceMinRole = ctx.body.audienceMinRole && (ROLE_RANK[ctx.body.audienceMinRole] !== undefined)
     ? ctx.body.audienceMinRole
-    : "wonder_woman";
+    : "public";
+  const groupId = crypto.randomUUID();
   const row = {
-    id: crypto.randomUUID(),
+    id: groupId,
     name,
     description: textOrNull(ctx.body.description, 1000),
     audience_min_role: audienceMinRole,
@@ -11498,16 +11500,81 @@ async function groupsCreate(ctx) {
   };
   const { error } = await ctx.supabase.from("groups").insert(row);
   if (error) return fail(500, "server_error");
-  return ok({ group: groupPublic(row) });
+
+  // Automatically add creator to group_members
+  const memberRows = [{
+    id: crypto.randomUUID(),
+    group_id: groupId,
+    account_id: auth.account.id,
+    created_at: now(),
+  }];
+
+  // Initial members if provided
+  const initialMembers = Array.isArray(ctx.body.memberAccountIds)
+    ? ctx.body.memberAccountIds
+    : Array.isArray(ctx.body.members) ? ctx.body.members : [];
+
+  for (const mId of initialMembers) {
+    const cleanId = text(mId, 60);
+    if (cleanId && cleanId !== auth.account.id && !memberRows.some((r) => r.account_id === cleanId)) {
+      memberRows.push({
+        id: crypto.randomUUID(),
+        group_id: groupId,
+        account_id: cleanId,
+        created_at: now(),
+      });
+    }
+  }
+
+  await ctx.supabase.from("group_members").insert(memberRows);
+
+  return ok({
+    group: {
+      ...groupPublic(row),
+      joined: true,
+      memberCount: memberRows.length,
+    },
+  });
+}
+
+async function groupsAddMembers(ctx) {
+  const guard = await groupChatGuard(ctx);
+  if (guard.error) return guard.error;
+  const rawMembers = Array.isArray(ctx.body.memberAccountIds)
+    ? ctx.body.memberAccountIds
+    : Array.isArray(ctx.body.members)
+    ? ctx.body.members
+    : ctx.body.accountId
+    ? [ctx.body.accountId]
+    : [];
+  const added = [];
+  for (const mId of rawMembers) {
+    const cleanId = text(mId, 60);
+    if (!cleanId) continue;
+    const existing = await isEnrolled(ctx.supabase, "group_members", "group_id", guard.group.id, cleanId);
+    if (!existing) {
+      added.push({
+        id: crypto.randomUUID(),
+        group_id: guard.group.id,
+        account_id: cleanId,
+        created_at: now(),
+      });
+    }
+  }
+  if (added.length) {
+    const { error } = await ctx.supabase.from("group_members").insert(added);
+    if (error) return fail(500, "server_error");
+  }
+  return ok({ addedCount: added.length });
 }
 
 async function groupsJoin(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const { data: row } = await ctx.supabase.from("groups").select("*").eq("id", id).maybeSingle();
   if (!row) return fail(404, "not_found");
-  if ((ROLE_RANK[row.audience_min_role] ?? 2) > auth.rank) return fail(403, "forbidden");
+  if ((ROLE_RANK[row.audience_min_role] ?? 1) > auth.rank) return fail(403, "forbidden");
   const existing = await isEnrolled(ctx.supabase, "group_members", "group_id", id, auth.account.id);
   if (existing) return ok({ joined: true });
   if (row.capacity) {
@@ -11525,7 +11592,7 @@ async function groupsJoin(ctx) {
 }
 
 async function groupsLeave(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const existing = await isEnrolled(ctx.supabase, "group_members", "group_id", id, auth.account.id);
@@ -11536,13 +11603,13 @@ async function groupsLeave(ctx) {
 // ---------- group chat ----------
 
 async function groupChatGuard(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return { error: auth.error };
   const id = text(ctx.body.id, 60);
   if (!id) return { error: fail(400, "invalid_input") };
   const { data: group } = await ctx.supabase.from("groups").select("*").eq("id", id).maybeSingle();
   if (!group) return { error: fail(404, "not_found") };
-  if ((ROLE_RANK[group.audience_min_role] ?? 2) > auth.rank) return { error: fail(403, "forbidden") };
+  if ((ROLE_RANK[group.audience_min_role] ?? 1) > auth.rank) return { error: fail(403, "forbidden") };
   const { data: member } = await ctx.supabase
     .from("group_members")
     .select("id")
