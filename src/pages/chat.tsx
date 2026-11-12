@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Check,
@@ -21,6 +22,8 @@ import {
   Paperclip,
   FileText,
   Download,
+  ZoomIn,
+  ZoomOut,
   Eye,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
@@ -76,6 +79,150 @@ function formatCallName(rawName?: string | null, maxChars = 8): string {
   return clean.length > maxChars ? `${clean.slice(0, maxChars)}…` : clean;
 }
 
+
+/** Download file dari URL � force-download via fetch+blob agar tidak sekadar buka tab baru */
+async function forceDownload(url: string, filename: string): Promise<void> {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename || "unduhan";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    }, 1500);
+  } catch {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "unduhan";
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+  }
+}
+
+/** Lightbox full-screen: pratinjau foto, zoom in/out, unduh ke perangkat */
+function ImageLightbox({
+  url,
+  name,
+  onClose,
+}: {
+  url: string;
+  name: string;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [downloading, setDownloading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handler);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    await forceDownload(url, name);
+    setDownloading(false);
+  };
+
+  const handleZoomIn  = () => setZoom((z) => Math.min(z + 0.5, 4));
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.5, 1));
+
+  const content = (
+    <div
+      className="fixed inset-0 z-[70] flex flex-col bg-black/95"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="flex shrink-0 items-center gap-2 px-3 py-2.5 bg-black/80 backdrop-blur-md border-b border-white/10">
+        <p className="truncate text-xs text-zinc-300 font-medium flex-1 min-w-0">{name || "Foto"}</p>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button type="button" onClick={handleZoomOut} disabled={zoom <= 1}
+            className="flex size-8 items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 disabled:opacity-30 transition-colors"
+            title="Perkecil" aria-label="Perkecil">
+            <ZoomOut className="size-4" />
+          </button>
+          <span className="text-[11px] font-mono text-zinc-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <button type="button" onClick={handleZoomIn} disabled={zoom >= 4}
+            className="flex size-8 items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 disabled:opacity-30 transition-colors"
+            title="Perbesar" aria-label="Perbesar">
+            <ZoomIn className="size-4" />
+          </button>
+          <button type="button" onClick={() => void handleDownload()} disabled={downloading}
+            className="flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 ml-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors"
+            title="Unduh ke perangkat">
+            {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            <span className="hidden sm:inline">Unduh</span>
+          </button>
+          <button type="button" onClick={onClose}
+            className="flex size-8 items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 transition-colors ml-1"
+            title="Tutup" aria-label="Tutup">
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="flex flex-1 min-h-0 items-center justify-center overflow-auto p-4 relative"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        {!loaded && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <Loader2 className="size-8 animate-spin text-white/40" />
+          </div>
+        )}
+        <img
+          src={url}
+          alt={name}
+          onLoad={() => setLoaded(true)}
+          className="rounded-xl object-contain select-none transition-transform duration-200 ease-out"
+          style={{
+            maxWidth: "90vw",
+            maxHeight: "calc(100dvh - 120px)",
+            transform: "scale(" + String(zoom) + ")",
+            transformOrigin: "center center",
+            cursor: zoom < 4 ? "zoom-in" : "zoom-out",
+            opacity: loaded ? 1 : 0,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (zoom < 4) handleZoomIn();
+            else setZoom(1);
+          }}
+          draggable={false}
+        />
+      </div>
+
+      <div className="flex shrink-0 items-center justify-center gap-4 px-4 py-3 bg-black/80 border-t border-white/10">
+        <button type="button" onClick={() => setZoom(1)}
+          className="text-xs text-zinc-500 hover:text-zinc-200 transition-colors">
+          Reset Zoom
+        </button>
+        <span className="text-zinc-700 text-xs">|</span>
+        <button type="button" onClick={() => void handleDownload()} disabled={downloading}
+          className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white transition-colors disabled:opacity-50">
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          Simpan ke Perangkat
+        </button>
+      </div>
+    </div>
+  );
+
+  return createPortal(content, document.body);
+}
+
 interface ParsedAttachment {
   type: "image" | "file";
   url: string;
@@ -119,32 +266,41 @@ function MessageBubble({
               : "rounded-bl-md border border-border bg-secondary text-secondary-foreground"
           }`}
         >
-          {/* Pratinjau Foto */}
+          {/* Pratinjau Foto — klik untuk perbesar, tombol unduh di sudut */}
           {parsed.attachment?.type === "image" && (
-            <div className="p-1">
+            <div className="p-1 relative group">
               <img
                 src={parsed.attachment.url}
                 alt={parsed.attachment.name || "Foto"}
-                className="max-h-60 sm:max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                className="max-h-60 sm:max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => onPreviewImage?.(parsed.attachment!.url, parsed.attachment!.name || "Foto")}
                 loading="lazy"
               />
+              {/* Tombol unduh foto — muncul saat hover */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); void forceDownload(parsed.attachment!.url, parsed.attachment!.name || "foto.jpg"); }}
+                className="absolute bottom-2.5 right-2.5 flex size-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-black/80"
+                title="Unduh foto ke perangkat"
+                aria-label="Unduh foto"
+              >
+                <Download className="size-3.5" />
+              </button>
             </div>
           )}
 
-          {/* Lampiran Dokumen */}
+          {/* Lampiran Dokumen — klik kartu untuk force-download ke perangkat */}
           {parsed.attachment?.type === "file" && (
             <div className="p-1.5">
-              <a
-                href={parsed.attachment.url}
-                download={parsed.attachment.name}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-2.5 p-2 rounded-xl transition-colors ${
+              <button
+                type="button"
+                onClick={() => void forceDownload(parsed.attachment!.url, parsed.attachment!.name)}
+                className={`flex w-full items-center gap-2.5 p-2 rounded-xl transition-colors text-left ${
                   mine
                     ? "bg-white/10 hover:bg-white/20 text-white"
                     : "bg-background/80 hover:bg-background text-foreground border border-border/60"
                 }`}
+                title={"Unduh " + parsed.attachment.name}
               >
                 <div className={`p-2 rounded-lg shrink-0 ${mine ? "bg-white/20" : "bg-primary/10 text-primary"}`}>
                   <FileText className="size-4" />
@@ -153,10 +309,11 @@ function MessageBubble({
                   <p className="truncate text-xs font-semibold">{parsed.attachment.name}</p>
                   <p className={`text-[10px] ${mine ? "text-white/80" : "text-muted-foreground"}`}>
                     {parsed.attachment.size ? formatFileSize(parsed.attachment.size) : "Berkas"}
+                    {" · Ketuk untuk unduh"}
                   </p>
                 </div>
-                <Download className="size-4 shrink-0 opacity-70 hover:opacity-100" />
-              </a>
+                <Download className="size-4 shrink-0 opacity-60 group-hover:opacity-100" />
+              </button>
             </div>
           )}
 
@@ -1475,32 +1632,14 @@ export default function ChatPage() {
         onCapture={handleCameraCapture}
       />
 
-      {/* Lightbox Pratinjau Foto Chat */}
-      <Dialog open={!!previewImageModal} onOpenChange={(open) => !open && setPreviewImageModal(null)}>
-        <DialogContent className="max-w-3xl p-3 bg-black/95 text-white border-zinc-800">
-          <DialogHeader className="p-2 flex flex-row items-center justify-between">
-            <DialogTitle className="text-xs truncate text-zinc-300">
-              {previewImageModal?.name || "Lihat Foto"}
-            </DialogTitle>
-            {previewImageModal && (
-              <Button asChild size="sm" variant="ghost" className="h-7 text-xs text-white hover:bg-zinc-800 gap-1">
-                <a href={previewImageModal.url} download={previewImageModal.name} target="_blank" rel="noopener noreferrer">
-                  <Download className="size-3.5" /> Unduh
-                </a>
-              </Button>
-            )}
-          </DialogHeader>
-          <div className="flex items-center justify-center max-h-[75dvh] overflow-hidden">
-            {previewImageModal && (
-              <img
-                src={previewImageModal.url}
-                alt={previewImageModal.name}
-                className="max-h-[70dvh] w-auto max-w-full object-contain rounded-lg"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Lightbox full-screen pratinjau foto: zoom in/out, unduh ke perangkat */}
+      {previewImageModal && (
+        <ImageLightbox
+          url={previewImageModal.url}
+          name={previewImageModal.name}
+          onClose={() => setPreviewImageModal(null)}
+        />
+      )}
 
       {/* Modal Buat Grup Chat */}
       <Dialog open={showCreateGroupModal} onOpenChange={setShowCreateGroupModal}>
