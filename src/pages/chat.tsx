@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
@@ -80,7 +80,7 @@ function formatCallName(rawName?: string | null, maxChars = 8): string {
 }
 
 
-/** Download file dari URL � force-download via fetch+blob agar tidak sekadar buka tab baru */
+/** Download file dari URL — force-download via fetch+blob agar tidak sekadar buka tab baru */
 async function forceDownload(url: string, filename: string): Promise<void> {
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -764,7 +764,7 @@ export default function ChatPage() {
     <div
       className={`mx-auto flex w-full max-w-6xl flex-col ${
         thread
-          ? "fixed inset-0 top-14 z-[60] flex flex-col bg-card sm:static sm:z-auto sm:top-auto sm:inset-auto sm:mx-auto sm:max-w-6xl sm:gap-6 sm:px-4 sm:py-8 lg:py-10"
+          ? "fixed inset-0 top-14 z-[60] flex flex-col bg-background sm:static sm:z-auto sm:top-auto sm:inset-auto sm:mx-auto sm:max-w-6xl sm:gap-6 sm:px-4 sm:py-8 lg:py-10"
           : "gap-4 sm:gap-6 px-3 py-4 sm:px-4 sm:py-8 lg:py-10"
       }`}
     >
@@ -781,14 +781,14 @@ export default function ChatPage() {
       <div
         className={`overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl ${
           thread
-            ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[330px_1fr] sm:h-[74dvh] overflow-hidden"
-            : "grid lg:grid-cols-[330px_1fr]"
+            ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[300px_1fr] sm:h-[74dvh] overflow-hidden"
+            : "grid lg:grid-cols-[300px_1fr]"
         }`}
       >
         {/* SIDEBAR */}
         <aside
           className={`flex flex-col border-border lg:border-r ${
-            thread ? "hidden lg:flex lg:h-[74dvh]" : "flex border-b h-[calc(100dvh-130px)] sm:h-[74dvh]"
+            thread ? "hidden lg:flex lg:h-[74dvh]" : "flex border-b h-[calc(100dvh-140px)] sm:h-[74dvh]"
           }`}
         >
           {/* TAB SWITCHER */}
@@ -1213,7 +1213,7 @@ export default function ChatPage() {
         </aside>
 
         {/* CHAT CONVERSATION SECTION */}
-        <section className={`flex flex-1 min-h-0 flex-col overflow-hidden sm:h-[74dvh] ${thread ? "flex" : "hidden lg:flex"}`}>
+        <section className={`flex flex-1 min-h-0 flex-col overflow-hidden ${thread ? "flex" : "hidden lg:flex"}`}>
           {thread ? (
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Header */}
@@ -1237,14 +1237,14 @@ export default function ChatPage() {
                         photoData={activeContact.photoData}
                         size={36}
                       />
-                      <div className="min-w-0 flex-1 max-w-[80px] xs:max-w-[110px] sm:max-w-[160px] md:max-w-xs">
+                      <div className="min-w-0 flex-1">
                         <p
-                          className="truncate text-xs sm:text-sm font-semibold text-foreground leading-tight"
+                          className="truncate text-sm font-semibold text-foreground leading-tight"
                           title={activeContact.nickname}
                         >
-                          {formatCallName(activeContact.nickname, 8)}
+                          {activeContact.nickname}
                         </p>
-                        <p className="truncate text-[10px] sm:text-[11px] text-muted-foreground leading-tight">
+                        <p className="truncate text-[11px] text-muted-foreground leading-tight">
                           {activeContact.tier ? ROLE_LABEL[activeContact.tier] : "Pengguna"}
                           {threadFriendship === "accepted" ? " • Teman" : ""}
                         </p>
@@ -1314,14 +1314,14 @@ export default function ChatPage() {
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <Users className="size-4" aria-hidden />
                       </span>
-                      <div className="min-w-0 flex-1 max-w-[100px] xs:max-w-[140px] sm:max-w-[220px]">
+                      <div className="min-w-0 flex-1">
                         <p
-                          className="truncate text-xs sm:text-sm font-semibold text-foreground leading-tight"
+                          className="truncate text-sm font-semibold text-foreground leading-tight"
                           title={activeGroup.name}
                         >
                           {activeGroup.name}
                         </p>
-                        <p className="truncate text-[10px] sm:text-[11px] text-muted-foreground leading-tight">
+                        <p className="truncate text-[11px] text-muted-foreground leading-tight">
                           {activeGroup.memberCount} anggota
                         </p>
                       </div>
@@ -1497,7 +1497,7 @@ export default function ChatPage() {
                             {pendingAttachment.file.name}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {pendingAttachment.type === "image" ? "Foto (terkompresi otomatis)" : "Dokumen"} • {formatFileSize(pendingAttachment.file.size)}
+                            {pendingAttachment.type === "image" ? "Foto" : "Dokumen"} · {formatFileSize(pendingAttachment.file.size)}
                           </p>
                         </div>
                       </div>
@@ -1516,7 +1516,7 @@ export default function ChatPage() {
 
                   {/* Form Input Chat */}
                   <form
-                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3"
+                    className="flex items-center gap-1 px-2 py-2 sm:px-3 sm:py-2.5"
                     onSubmit={(event) => {
                       event.preventDefault();
                       void send();
@@ -1527,7 +1527,7 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
+                      className="size-8 rounded-full shrink-0 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => setCameraDialogOpen(true)}
                       title="Ambil foto dari kamera perangkat"
                       aria-label="Kamera"
@@ -1540,7 +1540,7 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-foreground/80 hover:text-primary hover:bg-primary/10 transition-colors"
+                      className="size-8 rounded-full shrink-0 text-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => galleryInputRef.current?.click()}
                       title="Pilih foto dari galeri (otomatis dikompres)"
                       aria-label="Galeri Foto"
@@ -1553,7 +1553,7 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-foreground/80 hover:text-primary hover:bg-primary/10 transition-colors"
+                      className="size-8 rounded-full shrink-0 text-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => docInputRef.current?.click()}
                       title="Lampirkan berkas dokumen"
                       aria-label="Dokumen"
@@ -1584,12 +1584,12 @@ export default function ChatPage() {
                         pendingAttachment
                           ? "Keterangan foto/dokumen (opsional)…"
                           : activeGroup
-                          ? `Pesan ke ${activeGroup.name}`
+                          ? `Pesan ke ${activeGroup.name}…`
                           : "Tulis pesan…"
                       }
                       onChange={(event) => setDraft(event.target.value)}
                       aria-label="Tulis pesan"
-                      className="h-9 sm:h-10 text-xs sm:text-sm rounded-xl min-w-0 flex-1"
+                      className="h-9 text-sm rounded-xl min-w-0 flex-1"
                     />
 
                     <Button
