@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Banknote,
   Building,
@@ -59,13 +59,22 @@ export function ProfileSettingsDialog({
   trigger,
   defaultTab = "profil",
   onSaved,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   trigger?: React.ReactNode;
   defaultTab?: "profil" | "keamanan" | "bank" | "crypto";
   onSaved?: (profile: Profile) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { account, profile, setProfile } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled
+    ? (controlledOnOpenChange ?? setInternalOpen)
+    : setInternalOpen;
   const [tab, setTab] = useState<string>(defaultTab);
 
   // Profile Data Form

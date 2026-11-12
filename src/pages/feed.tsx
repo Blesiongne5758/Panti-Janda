@@ -266,22 +266,22 @@ export function FeedPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Feed</h1>
+          <h1 className="text-3xl font-bold sr-only">Feed</h1>
           {auth.account ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <Button
                 variant="outline"
-                className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                size="icon"
+                className="border-primary/40 text-primary hover:bg-primary/10"
                 onClick={() => setCameraDialogOpen(true)}
+                title="Kamera Langsung"
               >
-                <Camera className="size-4" />
-                <span>Kamera Langsung</span>
+                <Camera className="size-5" />
               </Button>
               <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Upload className="size-4" />
-                    <span>Posting Foto/Video</span>
+                  <Button size="icon" title="Posting Foto/Video">
+                    <Upload className="size-5" />
                   </Button>
                 </DialogTrigger>
               <DialogContent>

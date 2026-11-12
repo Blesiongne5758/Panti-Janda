@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+﻿import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
@@ -182,8 +182,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const rank = account ? ROLE_RANK[account.role] : 0;
   const member = rank >= 2;
+
+  function openProfileDialog() {
+    // Tutup sheet dulu, lalu buka dialog setelah animasi selesai
+    setMenuOpen(false);
+    setTimeout(() => setProfileDialogOpen(true), 300);
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden pb-20 sm:pb-0">
@@ -291,18 +298,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                       >
                         {t("nav.dashboard")}
                       </Link>
-                      <ProfileSettingsDialog
-                        trigger={
-                          <button
+                      <button
                             type="button"
-                            onClick={() => setMenuOpen(false)}
+                            onClick={openProfileDialog}
                             className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-secondary"
                           >
                             <Settings className="size-4" />
-                            Pengaturan Profil & Akun
+                            Pengaturan Profil &amp; Akun
                           </button>
-                        }
-                      />
                       {rank >= 5 ? (
                         <Link
                           to="/admin"
@@ -325,6 +328,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </div>
                   </SheetContent>
                 </Sheet>
+                {/* Dialog pengaturan profil dikontrol dari luar Sheet agar tidak hilang saat Sheet ditutup */}
+                <ProfileSettingsDialog
+                  open={profileDialogOpen}
+                  onOpenChange={setProfileDialogOpen}
+                />
               </>
             ) : (
               <>

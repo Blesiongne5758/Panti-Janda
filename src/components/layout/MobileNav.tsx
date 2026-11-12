@@ -39,7 +39,7 @@ export function MobileNav() {
             >
               <div className={cn(
                 "flex size-8 items-center justify-center rounded-xl transition-colors",
-                item.create && "-mt-3 size-11 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25",
+                item.create && "-mt-3 size-11 rounded-2xl bg-[#D4AF37] text-white shadow-lg shadow-yellow-500/40",
                 isActive ? "bg-primary/10 text-primary" : "bg-transparent"
               )}>
                 <Icon className="size-5" />
