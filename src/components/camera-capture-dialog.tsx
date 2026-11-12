@@ -75,24 +75,50 @@ export function CameraCaptureDialog({
       }
 
       try {
-        const constraints: MediaStreamConstraints = {
-          video: {
-            facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+        let mediaStream: MediaStream | null = null;
+        const attempts: MediaStreamConstraints[] = [
+          // 1. Ideal dengan facingMode dan audio jika video
+          {
+            video: {
+              facingMode: { ideal: facingMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: activeTab === "video",
           },
-          audio: activeTab === "video",
-        };
-
-        let mediaStream: MediaStream;
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (audioErr) {
-          // If audio access fails, try video-only
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          // 2. Ideal dengan facingMode tanpa audio
+          {
+            video: {
+              facingMode: { ideal: facingMode },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
             audio: false,
-          });
+          },
+          // 3. Fallback umum (sangat penting untuk webcam desktop / PC tanpa facingMode)
+          {
+            video: true,
+            audio: activeTab === "video",
+          },
+          // 4. Fallback absolut hanya video (kompatibel 100% semua webcam USB/desktop)
+          {
+            video: true,
+            audio: false,
+          },
+        ];
+
+        let lastErr: unknown = null;
+        for (const constraint of attempts) {
+          try {
+            mediaStream = await navigator.mediaDevices.getUserMedia(constraint);
+            if (mediaStream) break;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+
+        if (!mediaStream) {
+          throw lastErr || new Error("Tidak dapat mengakses kamera perangkat. Pastikan izin kamera diizinkan pada browser Anda.");
         }
 
         if (!isMounted) {
@@ -103,6 +129,9 @@ export function CameraCaptureDialog({
         setStream(mediaStream);
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(() => {});
+          };
           videoRef.current.play().catch(() => {});
         }
       } catch (err) {
@@ -110,7 +139,7 @@ export function CameraCaptureDialog({
         const msg =
           err instanceof Error
             ? err.message
-            : "Tidak dapat mengakses kamera perangkat. Pastikan izin kamera telah diberikan.";
+            : "Tidak dapat mengakses kamera perangkat. Pastikan izin kamera telah diberikan pada browser.";
         setCameraError(msg);
       } finally {
         if (isMounted) setLoadingCamera(false);

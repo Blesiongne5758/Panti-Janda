@@ -606,7 +606,9 @@ export default function ChatPage() {
   return (
     <div
       className={`mx-auto flex w-full max-w-6xl flex-col ${
-        thread ? "gap-0 p-0 sm:gap-6 sm:px-4 sm:py-8 lg:py-10" : "gap-4 sm:gap-6 px-3 py-4 sm:px-4 sm:py-8 lg:py-10"
+        thread
+          ? "fixed inset-0 top-14 z-30 flex flex-col bg-card sm:static sm:z-auto sm:top-auto sm:inset-auto sm:mx-auto sm:max-w-6xl sm:gap-6 sm:px-4 sm:py-8 lg:py-10"
+          : "gap-4 sm:gap-6 px-3 py-4 sm:px-4 sm:py-8 lg:py-10"
       }`}
     >
       {/* Outer Header (hidden when chat thread active on mobile) */}
@@ -619,7 +621,13 @@ export default function ChatPage() {
 
       {listError ? <ErrorNote message={listError} onRetry={loadLists} /> : null}
 
-      <div className="grid overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl lg:grid-cols-[330px_1fr]">
+      <div
+        className={`overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl ${
+          thread
+            ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[330px_1fr] sm:h-[74dvh]"
+            : "grid lg:grid-cols-[330px_1fr]"
+        }`}
+      >
         {/* SIDEBAR */}
         <aside
           className={`h-[calc(100dvh-130px)] sm:h-[74dvh] flex flex-col border-border lg:border-r ${
@@ -1048,7 +1056,7 @@ export default function ChatPage() {
         </aside>
 
         {/* CHAT CONVERSATION SECTION */}
-        <section className={`h-[calc(100dvh-70px)] sm:h-[74dvh] flex-col ${thread ? "flex" : "hidden lg:flex"}`}>
+        <section className={`flex flex-1 min-h-0 flex-col sm:h-[74dvh] ${thread ? "flex" : "hidden lg:flex"}`}>
           {thread ? (
             <>
               {/* Header */}
@@ -1351,7 +1359,7 @@ export default function ChatPage() {
 
                   {/* Form Input Chat */}
                   <form
-                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3"
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3"
                     onSubmit={(event) => {
                       event.preventDefault();
                       void send();
@@ -1362,9 +1370,10 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-primary hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => setCameraDialogOpen(true)}
                       title="Ambil foto dari kamera perangkat"
+                      aria-label="Kamera"
                     >
                       <Camera className="size-4" />
                     </Button>
@@ -1374,9 +1383,10 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-foreground/80 hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => galleryInputRef.current?.click()}
                       title="Pilih foto dari galeri (otomatis dikompres)"
+                      aria-label="Galeri Foto"
                     >
                       <Image className="size-4" />
                     </Button>
@@ -1386,9 +1396,10 @@ export default function ChatPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-foreground/80 hover:text-primary hover:bg-primary/10 transition-colors"
                       onClick={() => docInputRef.current?.click()}
                       title="Lampirkan berkas dokumen"
+                      aria-label="Dokumen"
                     >
                       <Paperclip className="size-4" />
                     </Button>
@@ -1414,14 +1425,14 @@ export default function ChatPage() {
                       maxLength={2000}
                       placeholder={
                         pendingAttachment
-                          ? "Tambahkan keterangan foto/dokumen (opsional)…"
+                          ? "Keterangan foto/dokumen (opsional)…"
                           : activeGroup
                           ? `Pesan ke ${activeGroup.name}`
                           : "Tulis pesan…"
                       }
                       onChange={(event) => setDraft(event.target.value)}
                       aria-label="Tulis pesan"
-                      className="h-9 text-xs sm:text-sm"
+                      className="h-9 sm:h-10 text-xs sm:text-sm rounded-xl min-w-0 flex-1"
                     />
 
                     <Button
@@ -1455,6 +1466,147 @@ export default function ChatPage() {
           )}
         </section>
       </div>
+
+      {/* Dialog Kamera Langsung untuk Chat */}
+      <CameraCaptureDialog
+        open={cameraDialogOpen}
+        onOpenChange={setCameraDialogOpen}
+        allowedModes="photo-only"
+        onCapture={handleCameraCapture}
+      />
+
+      {/* Lightbox Pratinjau Foto Chat */}
+      <Dialog open={!!previewImageModal} onOpenChange={(open) => !open && setPreviewImageModal(null)}>
+        <DialogContent className="max-w-3xl p-3 bg-black/95 text-white border-zinc-800">
+          <DialogHeader className="p-2 flex flex-row items-center justify-between">
+            <DialogTitle className="text-xs truncate text-zinc-300">
+              {previewImageModal?.name || "Lihat Foto"}
+            </DialogTitle>
+            {previewImageModal && (
+              <Button asChild size="sm" variant="ghost" className="h-7 text-xs text-white hover:bg-zinc-800 gap-1">
+                <a href={previewImageModal.url} download={previewImageModal.name} target="_blank" rel="noopener noreferrer">
+                  <Download className="size-3.5" /> Unduh
+                </a>
+              </Button>
+            )}
+          </DialogHeader>
+          <div className="flex items-center justify-center max-h-[75dvh] overflow-hidden">
+            {previewImageModal && (
+              <img
+                src={previewImageModal.url}
+                alt={previewImageModal.name}
+                className="max-h-[70dvh] w-auto max-w-full object-contain rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Buat Grup Chat */}
+      <Dialog open={showCreateGroupModal} onOpenChange={setShowCreateGroupModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="size-5 text-primary" />
+              <span>Buat Grup Chat Baru</span>
+            </DialogTitle>
+            <DialogDescription>
+              Buat ruang obrolan grup baru dan masukkan teman dari daftar kontak Anda.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="create-group-name" className="text-xs font-semibold">
+                Nama Grup <span className="text-destructive">*</span>
+              </Label>
+              <Input id="create-group-name" placeholder="Contoh: Diskusi Komunitas" value={groupFormName} onChange={(e) => setGroupFormName(e.target.value)} maxLength={60} className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="create-group-desc" className="text-xs font-semibold">Deskripsi (Opsional)</Label>
+              <Input id="create-group-desc" placeholder="Tujuan atau topik grup..." value={groupFormDesc} onChange={(e) => setGroupFormDesc(e.target.value)} maxLength={200} className="text-sm" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Tambahkan Teman ({selectedFriends.size} dipilih)</Label>
+              {contacts.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-3 px-4 border rounded-xl text-center bg-muted/20">
+                  Belum ada teman. Anda tetap bisa membuat grup dan mengundang nanti.
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1 rounded-xl border border-border p-2 bg-muted/10 divide-y divide-border/40">
+                  {contacts.map((contact) => {
+                    const selected = selectedFriends.has(contact.accountId);
+                    return (
+                      <label key={contact.accountId} className="flex items-center justify-between gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-secondary/60 transition-colors">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <MemberAvatar name={contact.nickname} tier={contact.tier} photoData={contact.photoData} size={28} />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-foreground">{contact.nickname}</p>
+                            <p className="text-[10px] text-muted-foreground">{contact.tier ? ROLE_LABEL[contact.tier] : "Pengguna"}</p>
+                          </div>
+                        </div>
+                        <input type="checkbox" checked={selected} onChange={(e) => { const next = new Set(selectedFriends); if (e.target.checked) next.add(contact.accountId); else next.delete(contact.accountId); setSelectedFriends(next); }} className="size-4 rounded accent-primary" />
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="ghost" onClick={() => setShowCreateGroupModal(false)} disabled={creatingGroup}>Batal</Button>
+            <Button type="button" onClick={() => void handleCreateGroup()} disabled={creatingGroup || groupFormName.trim().length < 3} className="gap-1.5">
+              {creatingGroup ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              <span>Buat Grup</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Tambah Anggota ke Grup */}
+      <Dialog open={showAddMemberModal} onOpenChange={setShowAddMemberModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="size-5 text-primary" />
+              <span>Tambah Anggota ke Grup</span>
+            </DialogTitle>
+            <DialogDescription>
+              Pilih teman dari kontak Anda untuk dimasukkan ke grup <strong>{activeGroup?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label className="text-xs font-semibold">Pilih Teman ({selectedAddMembers.size} dipilih)</Label>
+            {contacts.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 px-4 border rounded-xl text-center bg-muted/20">Belum ada teman di daftar kontak.</p>
+            ) : (
+              <div className="max-h-60 overflow-y-auto space-y-1 rounded-xl border border-border p-2 bg-muted/10 divide-y divide-border/40">
+                {contacts.map((contact) => {
+                  const selected = selectedAddMembers.has(contact.accountId);
+                  return (
+                    <label key={contact.accountId} className="flex items-center justify-between gap-2.5 p-2 rounded-lg cursor-pointer hover:bg-secondary/60 transition-colors">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <MemberAvatar name={contact.nickname} tier={contact.tier} photoData={contact.photoData} size={28} />
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-foreground">{contact.nickname}</p>
+                          <p className="text-[10px] text-muted-foreground">{contact.tier ? ROLE_LABEL[contact.tier] : "Pengguna"}</p>
+                        </div>
+                      </div>
+                      <input type="checkbox" checked={selected} onChange={(e) => { const next = new Set(selectedAddMembers); if (e.target.checked) next.add(contact.accountId); else next.delete(contact.accountId); setSelectedAddMembers(next); }} className="size-4 rounded accent-primary" />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="ghost" onClick={() => setShowAddMemberModal(false)} disabled={addingMembers}>Batal</Button>
+            <Button type="button" onClick={() => void handleAddMembers()} disabled={addingMembers || selectedAddMembers.size === 0} className="gap-1.5">
+              {addingMembers ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
+              <span>Tambahkan</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
