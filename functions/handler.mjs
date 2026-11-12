@@ -36,7 +36,7 @@ const SUPPORT_TYPES = ["dana", "jasa", "barang"];
 const VERIFICATION_DOC_TYPES = ["ktp", "pengadilan"];
 const MAX_DOC_CHARS = 900_000;
 const SIM_CLASSES = ["A", "B1", "B2", "C"];
-const MAX_MESSAGE_CHARS = 2000;
+const MAX_MESSAGE_CHARS = 500_000;
 const SESSION_DAYS = 30;
 const MAX_LEVEL = 50;
 

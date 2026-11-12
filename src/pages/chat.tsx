@@ -16,8 +16,17 @@ import {
   Plus,
   Video,
   X,
+  Camera,
+  Image,
+  Paperclip,
+  FileText,
+  Download,
+  Eye,
 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
+import { CameraCaptureDialog, type CapturedMedia } from "@/components/camera-capture-dialog";
+import { compressImage, formatFileSize } from "@/lib/image-compress";
+import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 import { useAuth } from "@/lib/session";
 import { useVoiceCall } from "@/lib/call-context";
 import { useQueryParam } from "@/lib/router";
@@ -46,6 +55,20 @@ function lastSeenLabel(iso: string): string {
 
 
 // Format nama panggilan: hanya nama depan tanpa spasi, dibatasi maksimal karakter
+
+function formatLastMessage(rawBody: string): string {
+  if (rawBody && rawBody.startsWith('{"__attachment":true')) {
+    try {
+      const parsed = JSON.parse(rawBody);
+      const prefix = parsed.attachment?.type === "image" ? "📷 [Foto]" : "📎 [Dokumen]";
+      return parsed.text ? `${prefix} ${parsed.text}` : prefix;
+    } catch {
+      // ignore
+    }
+  }
+  return rawBody;
+}
+
 function formatCallName(rawName?: string | null, maxChars = 8): string {
   if (!rawName) return "Pengguna";
   const firstWord = rawName.trim().split(/\s+/)[0] || "Pengguna";
@@ -53,20 +76,94 @@ function formatCallName(rawName?: string | null, maxChars = 8): string {
   return clean.length > maxChars ? `${clean.slice(0, maxChars)}…` : clean;
 }
 
-function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
+interface ParsedAttachment {
+  type: "image" | "file";
+  url: string;
+  name: string;
+  size?: number;
+}
+
+function MessageBubble({
+  message,
+  mine,
+  onPreviewImage,
+}: {
+  message: ChatMessage;
+  mine: boolean;
+  onPreviewImage?: (url: string, name: string) => void;
+}) {
+  const parsed = useMemo<{ text: string; attachment?: ParsedAttachment }>(() => {
+    if (message.body && message.body.startsWith('{"__attachment":true')) {
+      try {
+        const obj = JSON.parse(message.body);
+        return {
+          text: obj.text || "",
+          attachment: obj.attachment as ParsedAttachment,
+        };
+      } catch {
+        // fallback
+      }
+    }
+    return { text: message.body };
+  }, [message.body]);
+
   return (
     <div className={`flex w-full gap-2 ${mine ? "justify-end" : "justify-start"}`}>
       {!mine ? <MemberAvatar name={message.senderName} photoData={message.senderPhoto} size={28} /> : null}
       <div className={`max-w-[85%] sm:max-w-[78%] space-y-0.5 ${mine ? "items-end text-right" : ""}`}>
         {!mine ? <p className="px-1 text-[11px] font-medium text-muted-foreground">{message.senderName}</p> : null}
         <div
-          className={`inline-block rounded-2xl px-3.5 py-2 text-sm leading-relaxed whitespace-pre-line ${
+          className={`inline-block overflow-hidden rounded-2xl text-sm leading-relaxed ${
             mine
               ? "rounded-br-md bg-primary text-primary-foreground"
               : "rounded-bl-md border border-border bg-secondary text-secondary-foreground"
           }`}
         >
-          {message.body}
+          {/* Pratinjau Foto */}
+          {parsed.attachment?.type === "image" && (
+            <div className="p-1">
+              <img
+                src={parsed.attachment.url}
+                alt={parsed.attachment.name || "Foto"}
+                className="max-h-60 sm:max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                onClick={() => onPreviewImage?.(parsed.attachment!.url, parsed.attachment!.name || "Foto")}
+                loading="lazy"
+              />
+            </div>
+          )}
+
+          {/* Lampiran Dokumen */}
+          {parsed.attachment?.type === "file" && (
+            <div className="p-1.5">
+              <a
+                href={parsed.attachment.url}
+                download={parsed.attachment.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-2.5 p-2 rounded-xl transition-colors ${
+                  mine
+                    ? "bg-white/10 hover:bg-white/20 text-white"
+                    : "bg-background/80 hover:bg-background text-foreground border border-border/60"
+                }`}
+              >
+                <div className={`p-2 rounded-lg shrink-0 ${mine ? "bg-white/20" : "bg-primary/10 text-primary"}`}>
+                  <FileText className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-xs font-semibold">{parsed.attachment.name}</p>
+                  <p className={`text-[10px] ${mine ? "text-white/80" : "text-muted-foreground"}`}>
+                    {parsed.attachment.size ? formatFileSize(parsed.attachment.size) : "Berkas"}
+                  </p>
+                </div>
+                <Download className="size-4 shrink-0 opacity-70 hover:opacity-100" />
+              </a>
+            </div>
+          )}
+
+          {/* Teks Pesan */}
+          {parsed.text ? (
+            <p className="px-3.5 py-2 text-left whitespace-pre-line leading-relaxed">{parsed.text}</p>
+          ) : null}
         </div>
         <p className="px-1 text-[10px] text-muted-foreground">{timeOf(message.createdAt)}</p>
       </div>
@@ -111,6 +208,18 @@ export default function ChatPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedAddMembers, setSelectedAddMembers] = useState<Set<string>>(new Set());
   const [addingMembers, setAddingMembers] = useState(false);
+
+  // Attachment states (Kamera, Galeri, Dokumen)
+  const [pendingAttachment, setPendingAttachment] = useState<{
+    file: File;
+    type: "image" | "file";
+    previewUrl: string;
+  } | null>(null);
+  const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
+  const [previewImageModal, setPreviewImageModal] = useState<{ url: string; name: string } | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const docInputRef = useRef<HTMLInputElement | null>(null);
+  const { uploadFile, uploading: uploadingAttachment } = usePresignedUpload();
 
   // Active Thread state
   const [thread, setThread] = useState<Thread | null>(null);
@@ -329,6 +438,68 @@ export default function ChatPage() {
     }
   };
 
+
+  // Attachment Handlers
+  const handleCameraCapture = (media: CapturedMedia) => {
+    if (pendingAttachment?.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+    setPendingAttachment({
+      file: media.file,
+      type: "image",
+      previewUrl: media.previewUrl,
+    });
+    toast.success(`Foto kamera siap dikirim (${formatFileSize(media.file.size)})`);
+  };
+
+  const handleGallerySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      toast.loading("Mengompresi foto...", { id: "compress-chat" });
+      const compressed = await compressImage(file, { maxWidth: 1200, quality: 0.75 });
+      toast.success(
+        `Foto dikompresi: ${formatFileSize(file.size)} → ${formatFileSize(compressed.size)}`,
+        { id: "compress-chat" },
+      );
+      if (pendingAttachment?.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+      const previewUrl = URL.createObjectURL(compressed);
+      setPendingAttachment({
+        file: compressed,
+        type: "image",
+        previewUrl,
+      });
+    } catch {
+      toast.dismiss("compress-chat");
+      toast.error("Gagal memproses foto");
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Ukuran berkas dokumen maksimal 10 MB.");
+      return;
+    }
+    if (pendingAttachment?.previewUrl) URL.revokeObjectURL(pendingAttachment.previewUrl);
+    const previewUrl = URL.createObjectURL(file);
+    setPendingAttachment({
+      file,
+      type: "file",
+      previewUrl,
+    });
+    toast.success(`Berkas "${file.name}" (${formatFileSize(file.size)}) siap dikirim.`);
+    if (e.target) e.target.value = "";
+  };
+
+  const clearPendingAttachment = () => {
+    if (pendingAttachment?.previewUrl) {
+      URL.revokeObjectURL(pendingAttachment.previewUrl);
+    }
+    setPendingAttachment(null);
+  };
+
   const handleLeaveGroup = async (groupId: string, groupName: string) => {
     if (!window.confirm(`Apakah Anda yakin ingin keluar dari grup "${groupName}"?`)) {
       return;
@@ -358,8 +529,9 @@ export default function ChatPage() {
   };
 
   const send = async () => {
-    const body = draft.trim();
-    if (!body || !thread) return;
+    const textBody = draft.trim();
+    if (!textBody && !pendingAttachment) return;
+    if (!thread) return;
 
     if (thread.kind === "dm" && threadFriendship !== "accepted") {
       toast.error("Anda harus berteman terlebih dahulu untuk mengirim pesan.");
@@ -368,12 +540,41 @@ export default function ChatPage() {
 
     setSending(true);
     try {
+      let bodyToSend = textBody;
+
+      if (pendingAttachment) {
+        toast.loading("Mengunggah lampiran...", { id: "send-attach" });
+        const uploadRes = await uploadFile(pendingAttachment.file, "public");
+        const fileUrl = uploadRes?.publicUrl || uploadRes?.key;
+        toast.dismiss("send-attach");
+
+        if (!fileUrl) {
+          toast.error("Gagal mengunggah lampiran");
+          setSending(false);
+          return;
+        }
+
+        const attachmentData = {
+          type: pendingAttachment.type,
+          url: fileUrl,
+          name: pendingAttachment.file.name,
+          size: pendingAttachment.file.size,
+        };
+
+        bodyToSend = JSON.stringify({
+          __attachment: true,
+          text: textBody,
+          attachment: attachmentData,
+        });
+      }
+
       if (thread.kind === "dm") {
-        await api("chat.send", { withAccountId: thread.accountId, body });
+        await api("chat.send", { withAccountId: thread.accountId, body: bodyToSend });
       } else {
-        await api("groups.send", { id: thread.id, body });
+        await api("groups.send", { id: thread.id, body: bodyToSend });
       }
       setDraft("");
+      clearPendingAttachment();
       await loadThread(true);
       void loadLists();
     } catch (error) {
@@ -538,7 +739,7 @@ export default function ChatPage() {
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
                                 {contact.lastMessage
-                                  ? `${contact.lastMessage.fromMe ? "Anda: " : ""}${contact.lastMessage.body}`
+                                  ? `${contact.lastMessage.fromMe ? "Anda: " : ""}${formatLastMessage(contact.lastMessage.body)}`
                                   : "Teman terhubung — mulai obrolan"}
                               </span>
                             </span>
@@ -1099,6 +1300,7 @@ export default function ChatPage() {
                       key={message.id}
                       message={message}
                       mine={account ? message.senderAccountId === account.id : false}
+                      onPreviewImage={(url, name) => setPreviewImageModal({ url, name })}
                     />
                   ))}
                   <div ref={bottomRef} />
@@ -1107,28 +1309,136 @@ export default function ChatPage() {
 
               {/* Message Input Form */}
               {(thread.kind === "group" || threadFriendship === "accepted") && (
-                <form
-                  className="flex items-center gap-2 border-t border-border px-3 sm:px-4 py-2.5 sm:py-3 bg-card"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void send();
-                  }}
-                >
-                  <Input
-                    value={draft}
-                    maxLength={2000}
-                    placeholder={activeGroup ? `Pesan ke ${activeGroup.name}` : "Tulis pesan…"}
-                    onChange={(event) => setDraft(event.target.value)}
-                    aria-label="Tulis pesan"
-                  />
-                  <Button type="submit" size="icon" disabled={sending || !draft.trim()} aria-label="Kirim pesan">
-                    {sending ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Send className="size-4" aria-hidden />
-                    )}
-                  </Button>
-                </form>
+                <div className="flex flex-col border-t border-border bg-card">
+                  {/* Preview Lampiran Siap Kirim */}
+                  {pendingAttachment && (
+                    <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 sm:px-4 py-2 bg-muted/20">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {pendingAttachment.type === "image" ? (
+                          <div className="relative size-10 rounded-lg overflow-hidden border border-border shrink-0 bg-black/10">
+                            <img
+                              src={pendingAttachment.previewUrl}
+                              alt="Lampiran"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex size-9 rounded-lg items-center justify-center bg-primary/10 text-primary shrink-0">
+                            <FileText className="size-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-foreground">
+                            {pendingAttachment.file.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {pendingAttachment.type === "image" ? "Foto (terkompresi otomatis)" : "Dokumen"} • {formatFileSize(pendingAttachment.file.size)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 rounded-full text-muted-foreground hover:text-foreground shrink-0"
+                        onClick={clearPendingAttachment}
+                        title="Batalkan lampiran"
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Form Input Chat */}
+                  <form
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void send();
+                    }}
+                  >
+                    {/* Tombol Kamera Langsung */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={() => setCameraDialogOpen(true)}
+                      title="Ambil foto dari kamera perangkat"
+                    >
+                      <Camera className="size-4" />
+                    </Button>
+
+                    {/* Tombol Galeri Foto */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={() => galleryInputRef.current?.click()}
+                      title="Pilih foto dari galeri (otomatis dikompres)"
+                    >
+                      <Image className="size-4" />
+                    </Button>
+
+                    {/* Tombol Lampirkan Dokumen */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 sm:size-9 rounded-full shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={() => docInputRef.current?.click()}
+                      title="Lampirkan berkas dokumen"
+                    >
+                      <Paperclip className="size-4" />
+                    </Button>
+
+                    {/* Hidden file inputs */}
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleGallerySelect}
+                    />
+                    <input
+                      ref={docInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+                      className="hidden"
+                      onChange={handleDocSelect}
+                    />
+
+                    <Input
+                      value={draft}
+                      maxLength={2000}
+                      placeholder={
+                        pendingAttachment
+                          ? "Tambahkan keterangan foto/dokumen (opsional)…"
+                          : activeGroup
+                          ? `Pesan ke ${activeGroup.name}`
+                          : "Tulis pesan…"
+                      }
+                      onChange={(event) => setDraft(event.target.value)}
+                      aria-label="Tulis pesan"
+                      className="h-9 text-xs sm:text-sm"
+                    />
+
+                    <Button
+                      type="submit"
+                      size="icon"
+                      className="size-8 sm:size-9 shrink-0 rounded-full"
+                      disabled={sending || uploadingAttachment || (!draft.trim() && !pendingAttachment)}
+                      aria-label="Kirim pesan"
+                    >
+                      {sending || uploadingAttachment ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Send className="size-4" aria-hidden />
+                      )}
+                    </Button>
+                  </form>
+                </div>
               )}
             </>
           ) : (

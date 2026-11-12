@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
-import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn } from "lucide-react";
+import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn, Camera } from "lucide-react";
+import { CameraCaptureDialog, type CapturedMedia } from "@/components/camera-capture-dialog";
+import { compressImage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ export function FeedPage() {
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
   const [uploadForm, setUploadForm] = useState({
     type: "photo" as "photo" | "video",
     mediaUrl: "",
@@ -121,6 +124,19 @@ export function FeedPage() {
     }
   }
 
+
+  const handleCameraCapture = (media: CapturedMedia) => {
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    selectedFileRef.current = media.file;
+    setFilePreview(media.previewUrl);
+    setUploadForm((prev) => ({
+      ...prev,
+      type: media.type,
+      duration: media.duration ?? 6,
+    }));
+    setUploadDialogOpen(true);
+  };
+
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -142,6 +158,15 @@ export function FeedPage() {
 
     const previewUrl = URL.createObjectURL(file);
     setFilePreview(previewUrl);
+
+    if (isImage) {
+      const compressed = await compressImage(file, { maxWidth: 1200, quality: 0.78 });
+      selectedFileRef.current = compressed;
+      const previewUrl = URL.createObjectURL(compressed);
+      setFilePreview(previewUrl);
+      setUploadForm((prev) => ({ ...prev, type: "photo" }));
+      return;
+    }
 
     if (isVideo) {
       setUploadForm((prev) => ({ ...prev, type: "video" }));
@@ -240,13 +265,25 @@ export function FeedPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-3xl font-bold">Feed</h1>
           {auth.account ? (
-            <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>Posting Foto/Video</Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => setCameraDialogOpen(true)}
+              >
+                <Camera className="size-4" />
+                <span>Kamera Langsung</span>
+              </Button>
+              <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Upload className="size-4" />
+                    <span>Posting Foto/Video</span>
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Buat Postingan Baru</DialogTitle>
@@ -283,7 +320,20 @@ export function FeedPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium">Upload {uploadForm.type === "photo" ? "Foto" : "Video"}</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">Media Postingan</label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-primary gap-1 px-2"
+                        onClick={() => setCameraDialogOpen(true)}
+                      >
+                        <Camera className="size-3.5" />
+                        <span>Buka Kamera ({uploadForm.type === "photo" ? "Foto" : "Maks 6d Video"})</span>
+                      </Button>
+                    </div>
+
                     {filePreview ? (
                       <div className="relative">
                         {uploadForm.type === "photo" ? (
@@ -300,7 +350,34 @@ export function FeedPage() {
                         </button>
                       </div>
                     ) : (
-                      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border bg-muted/30 px-6 py-8 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                      <div className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-border bg-muted/20 p-6 text-center">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setCameraDialogOpen(true)}
+                          >
+                            <Camera className="size-4 text-primary" />
+                            <span>Kamera Langsung ({uploadForm.type === "photo" ? "Foto" : "Rekam 6d"})</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <Upload className="size-4" />
+                            <span>Pilih Berkas/Galeri</span>
+                          </Button>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {uploadForm.type === "photo"
+                            ? "Foto langsung dari kamera atau file JPG/PNG/WebP"
+                            : "Video kamera langsung durasi maks 6 detik atau file MP4/WebM"}
+                        </span>
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -308,14 +385,7 @@ export function FeedPage() {
                           onChange={handleFileSelect}
                           className="hidden"
                         />
-                        <Upload className="size-8 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          Klik untuk pilih {uploadForm.type === "photo" ? "foto" : "video"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {uploadForm.type === "photo" ? "JPG, PNG, atau WebP (maks 10 MB)" : "MP4 atau WebM (maks 10 MB, durasi 6 detik)"}
-                        </span>
-                      </label>
+                      </div>
                     )}
                   </div>
 
@@ -353,6 +423,7 @@ export function FeedPage() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           ) : (
             <Button onClick={() => navigate("/masuk")}>Posting Foto/Video</Button>
           )}
@@ -528,6 +599,13 @@ export function FeedPage() {
           })
         )}
       </div>
+      <CameraCaptureDialog
+        open={cameraDialogOpen}
+        onOpenChange={setCameraDialogOpen}
+        allowedModes="both"
+        maxVideoSeconds={6}
+        onCapture={handleCameraCapture}
+      />
     </div>
   );
 }
