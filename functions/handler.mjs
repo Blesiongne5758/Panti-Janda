@@ -12019,12 +12019,12 @@ async function friendsRespond(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const targetAccountId = text(ctx.body.targetAccountId, 60);
-  const action = text(ctx.body.action, 20);
-  if (!targetAccountId || (action !== "accept" && action !== "reject")) {
+  const decision = text(ctx.body.decision || ctx.body.response || ctx.body.action, 20);
+  if (!targetAccountId || (decision !== "accept" && decision !== "reject")) {
     return fail(400, "invalid_input");
   }
 
-  const newStatus = action === "accept" ? "accepted" : "rejected";
+  const newStatus = decision === "accept" ? "accepted" : "rejected";
 
   const { data: rows } = await ctx.supabase
     .from("messages")
@@ -12048,7 +12048,7 @@ async function friendsRespond(ctx) {
     });
   }
 
-  if (action === "accept") {
+  if (decision === "accept") {
     const myName = (await namesFor(ctx.supabase, [auth.account.id])).get(auth.account.id);
     await notify(
       ctx.supabase,

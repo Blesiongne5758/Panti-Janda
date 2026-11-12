@@ -279,7 +279,7 @@ export async function api<T = unknown>(
       {
         method: "POST",
         headers,
-        body: JSON.stringify({ action, ...payload }),
+        body: JSON.stringify({ ...payload, action }),
         signal: options.signal,
       },
       MESSAGES,

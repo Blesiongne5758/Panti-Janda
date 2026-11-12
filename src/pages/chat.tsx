@@ -242,7 +242,7 @@ export default function ChatPage() {
 
   const handleRespondRequest = async (targetAccountId: string, action: "accept" | "reject") => {
     try {
-      await api("friends.respond", { targetAccountId, action });
+      await api("friends.respond", { targetAccountId, decision: action, response: action });
       toast.success(action === "accept" ? "Pertemanan disetujui! Anda sekarang bisa saling chat." : "Permintaan ditolak.");
       void loadLists();
       void loadRequests();

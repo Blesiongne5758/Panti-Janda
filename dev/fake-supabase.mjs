@@ -65,6 +65,26 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
       this.filters.push((row) => row[column] !== null && row[column] !== undefined && regex.test(String(row[column])));
       return this;
     }
+    or(expression) {
+      if (!expression) return this;
+      this.filters.push((row) => {
+        const parts = expression.includes("),and(")
+          ? expression.split("),and(").map((p) => p.replace(/^and\(|\)$/g, ""))
+          : expression.split(",");
+        return parts.some((part) => {
+          const subConditions = part.split(",");
+          return subConditions.every((cond) => {
+            const m = cond.trim().match(/^([a-zA-Z0-9_]+)\.([a-z]+)\.(.*)$/);
+            if (!m) return true;
+            const [, col, op, val] = m;
+            if (op === "eq") return String(row[col]) === String(val);
+            if (op === "neq") return String(row[col]) !== String(val);
+            return true;
+          });
+        });
+      });
+      return this;
+    }
     order(column, options = {}) {
       this.orderBy = { column, ascending: options.ascending !== false };
       return this;
