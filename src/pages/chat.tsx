@@ -849,80 +849,100 @@ export default function ChatPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                      <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                        Teman ({contacts.length})
+
+                    {/* ── SECTION HEADER: Teman ── */}
+                    <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+                      <p className="text-[10px] font-bold tracking-widest text-muted-foreground/70 uppercase">
+                        Teman
+                        <span className="ml-1.5 font-normal text-muted-foreground/50">({contacts.length})</span>
                       </p>
                       <button
                         type="button"
                         onClick={() => setSidebarTab("search")}
-                        className="text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
                       >
-                        <UserPlus className="size-3" /> Tambah Teman
+                        <UserPlus className="size-3" />
+                        Tambah
                       </button>
                     </div>
 
+                    {/* ── DAFTAR TEMAN ── */}
                     {contacts.length === 0 ? (
-                      <div className="p-5 text-center space-y-2">
+                      <div className="mx-3 my-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 py-6 text-center">
+                        <span className="flex size-9 items-center justify-center rounded-full bg-secondary">
+                          <Users className="size-4 text-muted-foreground" aria-hidden />
+                        </span>
                         <p className="text-xs text-muted-foreground">Belum ada teman terhubung.</p>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 text-xs rounded-full gap-1.5"
+                          className="h-7 text-xs rounded-full gap-1.5 px-3"
                           onClick={() => setSidebarTab("search")}
                         >
-                          <UserPlus className="size-3.5" />
+                          <UserPlus className="size-3" />
                           Cari & Tambah Pengguna
                         </Button>
                       </div>
                     ) : (
-                      contacts.map((contact) => {
-                        const active = thread?.kind === "dm" && thread.accountId === contact.accountId;
-                        return (
-                          <button
-                            key={contact.accountId}
-                            type="button"
-                            onClick={() => setThread({ kind: "dm", accountId: contact.accountId })}
-                            className={`flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors ${
-                              active ? "bg-secondary" : "hover:bg-secondary/60"
-                            }`}
-                          >
-                            <MemberAvatar
-                              name={contact.nickname}
-                              tier={contact.tier}
-                              photoData={contact.photoData}
-                              size={38}
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="flex items-center justify-between gap-2">
-                                <span className="truncate text-sm font-medium text-foreground">{contact.nickname}</span>
-                                {contact.lastMessage ? (
-                                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                                    {lastSeenLabel(contact.lastMessage.createdAt)}
+                      <div className="flex flex-col">
+                        {contacts.map((contact) => {
+                          const active = thread?.kind === "dm" && thread.accountId === contact.accountId;
+                          return (
+                            <button
+                              key={contact.accountId}
+                              type="button"
+                              onClick={() => setThread({ kind: "dm", accountId: contact.accountId })}
+                              className={`group flex w-full items-center gap-3 border-b border-border/40 px-3 py-2.5 text-left transition-colors ${
+                                active
+                                  ? "bg-primary/10 border-l-2 border-l-primary"
+                                  : "hover:bg-secondary/50"
+                              }`}
+                            >
+                              {/* Avatar */}
+                              <div className="relative shrink-0">
+                                <MemberAvatar
+                                  name={contact.nickname}
+                                  tier={contact.tier}
+                                  photoData={contact.photoData}
+                                  size={40}
+                                />
+                              </div>
+
+                              {/* Info */}
+                              <span className="min-w-0 flex-1 overflow-hidden">
+                                <span className="flex items-baseline justify-between gap-1.5">
+                                  <span className={`truncate text-sm leading-snug ${active ? "font-semibold text-primary" : "font-semibold text-foreground"}`}>
+                                    {contact.nickname}
                                   </span>
-                                ) : null}
+                                  {contact.lastMessage && (
+                                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                                      {lastSeenLabel(contact.lastMessage.createdAt)}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
+                                  {contact.lastMessage
+                                    ? (contact.lastMessage.fromMe ? "Anda: " : "") + formatLastMessage(contact.lastMessage.body)
+                                    : "Mulai obrolan"}
+                                </span>
                               </span>
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {contact.lastMessage
-                                  ? `${contact.lastMessage.fromMe ? "Anda: " : ""}${formatLastMessage(contact.lastMessage.body)}`
-                                  : "Teman terhubung — mulai obrolan"}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
 
-                    {/* Daftar Grup Chat */}
-                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                      <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                        Grup Chat ({groups.length})
+                    {/* ── SECTION HEADER: Grup Chat ── */}
+                    <div className="flex items-center justify-between border-t border-border/40 px-4 pt-3 pb-1.5 mt-1">
+                      <p className="text-[10px] font-bold tracking-widest text-muted-foreground/70 uppercase">
+                        Grup Chat
+                        <span className="ml-1.5 font-normal text-muted-foreground/50">({groups.length})</span>
                       </p>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-[11px] rounded-full gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                        className="h-6 px-2 text-[11px] rounded-full gap-1 text-primary hover:bg-primary/10"
                         onClick={() => {
                           setGroupFormName("");
                           setGroupFormDesc("");
@@ -931,16 +951,20 @@ export default function ChatPage() {
                         }}
                       >
                         <Plus className="size-3" />
-                        <span>Buat Grup</span>
+                        Buat Grup
                       </Button>
                     </div>
 
+                    {/* ── DAFTAR GRUP ── */}
                     {groups.length === 0 ? (
-                      <div className="px-4 pb-4 pt-1">
+                      <div className="mx-3 my-2 flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 py-5 text-center">
+                        <span className="flex size-9 items-center justify-center rounded-full bg-secondary">
+                          <Users className="size-4 text-muted-foreground" aria-hidden />
+                        </span>
                         <p className="text-xs text-muted-foreground">Belum bergabung dengan grup.</p>
                         <button
                           type="button"
-                          className="text-xs text-primary font-medium hover:underline mt-1 block"
+                          className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                           onClick={() => {
                             setGroupFormName("");
                             setGroupFormDesc("");
@@ -948,33 +972,43 @@ export default function ChatPage() {
                             setShowCreateGroupModal(true);
                           }}
                         >
-                          + Buat grup baru sekarang
+                          <Plus className="size-3" />
+                          Buat grup baru
                         </button>
                       </div>
                     ) : (
-                      groups.map((group) => {
-                        const active = thread?.kind === "group" && thread.id === group.id;
-                        return (
-                          <button
-                            key={group.id}
-                            type="button"
-                            onClick={() => setThread({ kind: "group", id: group.id })}
-                            className={`flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors ${
-                              active ? "bg-secondary" : "hover:bg-secondary/60"
-                            }`}
-                          >
-                            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                              <Users className="size-4" aria-hidden />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-foreground">{group.name}</span>
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {group.memberCount} anggota
+                      <div className="flex flex-col pb-2">
+                        {groups.map((group) => {
+                          const active = thread?.kind === "group" && thread.id === group.id;
+                          return (
+                            <button
+                              key={group.id}
+                              type="button"
+                              onClick={() => setThread({ kind: "group", id: group.id })}
+                              className={`group flex w-full items-center gap-3 border-b border-border/40 px-3 py-2.5 text-left transition-colors ${
+                                active
+                                  ? "bg-primary/10 border-l-2 border-l-primary"
+                                  : "hover:bg-secondary/50"
+                              }`}
+                            >
+                              {/* Grup Icon Avatar */}
+                              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <Users className="size-4" aria-hidden />
                               </span>
-                            </span>
-                          </button>
-                        );
-                      })
+
+                              {/* Info */}
+                              <span className="min-w-0 flex-1 overflow-hidden">
+                                <span className={`block truncate text-sm leading-snug ${active ? "font-semibold text-primary" : "font-semibold text-foreground"}`}>
+                                  {group.name}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
+                                  {group.memberCount} anggota
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
