@@ -607,7 +607,7 @@ export default function ChatPage() {
     <div
       className={`mx-auto flex w-full max-w-6xl flex-col ${
         thread
-          ? "fixed inset-0 top-14 z-30 flex flex-col bg-card sm:static sm:z-auto sm:top-auto sm:inset-auto sm:mx-auto sm:max-w-6xl sm:gap-6 sm:px-4 sm:py-8 lg:py-10"
+          ? "fixed inset-0 top-14 z-[60] flex flex-col bg-card sm:static sm:z-auto sm:top-auto sm:inset-auto sm:mx-auto sm:max-w-6xl sm:gap-6 sm:px-4 sm:py-8 lg:py-10"
           : "gap-4 sm:gap-6 px-3 py-4 sm:px-4 sm:py-8 lg:py-10"
       }`}
     >
@@ -624,14 +624,14 @@ export default function ChatPage() {
       <div
         className={`overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl ${
           thread
-            ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[330px_1fr] sm:h-[74dvh]"
+            ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[330px_1fr] sm:h-[74dvh] overflow-hidden"
             : "grid lg:grid-cols-[330px_1fr]"
         }`}
       >
         {/* SIDEBAR */}
         <aside
-          className={`h-[calc(100dvh-130px)] sm:h-[74dvh] flex flex-col border-border lg:border-r ${
-            thread ? "hidden lg:flex" : "flex border-b"
+          className={`flex flex-col border-border lg:border-r ${
+            thread ? "hidden lg:flex lg:h-[74dvh]" : "flex border-b h-[calc(100dvh-130px)] sm:h-[74dvh]"
           }`}
         >
           {/* TAB SWITCHER */}
@@ -1056,11 +1056,11 @@ export default function ChatPage() {
         </aside>
 
         {/* CHAT CONVERSATION SECTION */}
-        <section className={`flex flex-1 min-h-0 flex-col sm:h-[74dvh] ${thread ? "flex" : "hidden lg:flex"}`}>
+        <section className={`flex flex-1 min-h-0 flex-col overflow-hidden sm:h-[74dvh] ${thread ? "flex" : "hidden lg:flex"}`}>
           {thread ? (
-            <>
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Header */}
-              <header className="flex items-center gap-2 sm:gap-3 border-b border-border px-3 sm:px-4 py-2.5 sm:py-3 bg-card sticky top-0 z-10">
+              <header className="flex shrink-0 items-center gap-2 sm:gap-3 border-b border-border px-3 sm:px-4 py-2.5 sm:py-3 bg-card z-10">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1204,15 +1204,15 @@ export default function ChatPage() {
 
               {/* Messages / Friendship Approval Gate */}
               {threadLoading ? (
-                <div className="flex flex-1 items-center justify-center">
+                <div className="flex flex-1 min-h-0 items-center justify-center">
                   <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
                 </div>
               ) : threadError ? (
-                <div className="flex flex-1 items-start p-4">
+                <div className="flex flex-1 min-h-0 items-start p-4">
                   <ErrorNote message={threadError} onRetry={() => void loadThread()} />
                 </div>
               ) : thread.kind === "dm" && threadFriendship !== "accepted" ? (
-                <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+                <div className="flex flex-1 min-h-0 flex-col items-center justify-center p-6 text-center overflow-y-auto">
                   <div className="max-w-md rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
                     {threadFriendship === "pending_outgoing" && (
                       <>
@@ -1294,7 +1294,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-1 items-center justify-center p-6">
+                <div className="flex flex-1 min-h-0 items-center justify-center p-6">
                   <EmptyState
                     icon={<MessagesSquare className="size-5" aria-hidden />}
                     title="Belum ada pesan"
@@ -1302,7 +1302,7 @@ export default function ChatPage() {
                   />
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col gap-2.5 sm:gap-3 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 sm:py-4">
+                <div className="flex flex-1 flex-col gap-2.5 sm:gap-3 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 sm:py-4 min-h-0">
                   {messages.map((message) => (
                     <MessageBubble
                       key={message.id}
@@ -1317,7 +1317,7 @@ export default function ChatPage() {
 
               {/* Message Input Form */}
               {(thread.kind === "group" || threadFriendship === "accepted") && (
-                <div className="flex flex-col border-t border-border bg-card">
+                <div className="flex flex-col border-t border-border bg-card shrink-0 pb-[env(safe-area-inset-bottom,0px)]">
                   {/* Preview Lampiran Siap Kirim */}
                   {pendingAttachment && (
                     <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3 sm:px-4 py-2 bg-muted/20">
@@ -1451,7 +1451,7 @@ export default function ChatPage() {
                   </form>
                 </div>
               )}
-            </>
+            </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
               <span className="flex size-12 items-center justify-center rounded-full bg-secondary">
