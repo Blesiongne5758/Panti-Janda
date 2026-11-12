@@ -787,51 +787,51 @@ export default function ChatPage() {
       >
         {/* SIDEBAR */}
         <aside
-          className={`flex flex-col border-border lg:border-r ${
+          className={`flex flex-col border-border lg:border-r overflow-x-hidden ${
             thread ? "hidden lg:flex lg:h-[74dvh]" : "flex border-b h-[calc(100dvh-140px)] sm:h-[74dvh]"
           }`}
         >
           {/* TAB SWITCHER */}
-          <div className="flex border-b border-border bg-muted/40 p-1.5 gap-1 shrink-0">
+          <div className="flex border-b border-border bg-muted/40 p-1 gap-0.5 shrink-0">
             <button
               type="button"
               onClick={() => setSidebarTab("chats")}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all ${
+              className={`flex flex-1 min-w-0 items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-semibold transition-all ${
                 sidebarTab === "chats"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <MessageCircle className="size-3.5" />
-              <span>Obrolan</span>
+              <MessageCircle className="size-3.5 shrink-0" />
+              <span className="truncate">Obrolan</span>
             </button>
 
             <button
               type="button"
               onClick={() => setSidebarTab("search")}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all ${
+              className={`flex flex-1 min-w-0 items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-semibold transition-all ${
                 sidebarTab === "search"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <UserPlus className="size-3.5" />
-              <span>Cari User</span>
+              <UserPlus className="size-3.5 shrink-0" />
+              <span className="truncate">Cari</span>
             </button>
 
             <button
               type="button"
               onClick={() => setSidebarTab("requests")}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all relative ${
+              className={`flex flex-1 min-w-0 items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-semibold transition-all relative ${
                 sidebarTab === "requests"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <UserCheck className="size-3.5" />
-              <span>Permintaan</span>
+              <UserCheck className="size-3.5 shrink-0" />
+              <span className="truncate">Permintaan</span>
               {incomingRequests.length > 0 && (
-                <span className="flex size-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white animate-pulse">
+                <span className="absolute -top-0.5 right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
                   {incomingRequests.length}
                 </span>
               )}
@@ -839,7 +839,7 @@ export default function ChatPage() {
           </div>
 
           {/* TAB CONTENT */}
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
             {/* 1. CHATS TAB */}
             {sidebarTab === "chats" && (
               <>
@@ -851,7 +851,7 @@ export default function ChatPage() {
                   <div className="flex flex-col">
 
                     {/* ── SECTION HEADER: Teman ── */}
-                    <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+                    <div className="flex items-center justify-between pl-3 pr-3 pt-3 pb-1.5">
                       <p className="text-[10px] font-bold tracking-widest text-muted-foreground/70 uppercase">
                         Teman
                         <span className="ml-1.5 font-normal text-muted-foreground/50">({contacts.length})</span>
@@ -859,7 +859,7 @@ export default function ChatPage() {
                       <button
                         type="button"
                         onClick={() => setSidebarTab("search")}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                        className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
                       >
                         <UserPlus className="size-3" />
                         Tambah
@@ -892,30 +892,30 @@ export default function ChatPage() {
                               key={contact.accountId}
                               type="button"
                               onClick={() => setThread({ kind: "dm", accountId: contact.accountId })}
-                              className={`group flex w-full items-center gap-3 border-b border-border/40 px-3 py-2.5 text-left transition-colors ${
+                              className={`flex w-full items-center gap-2.5 border-b border-border/40 pl-3 pr-3 py-2.5 text-left transition-colors ${
                                 active
-                                  ? "bg-primary/10 border-l-2 border-l-primary"
+                                  ? "bg-primary/10 border-l-[3px] border-l-primary"
                                   : "hover:bg-secondary/50"
                               }`}
                             >
                               {/* Avatar */}
-                              <div className="relative shrink-0">
+                              <div className="shrink-0">
                                 <MemberAvatar
                                   name={contact.nickname}
                                   tier={contact.tier}
                                   photoData={contact.photoData}
-                                  size={40}
+                                  size={38}
                                 />
                               </div>
 
                               {/* Info */}
-                              <span className="min-w-0 flex-1 overflow-hidden">
-                                <span className="flex items-baseline justify-between gap-1.5">
-                                  <span className={`truncate text-sm leading-snug ${active ? "font-semibold text-primary" : "font-semibold text-foreground"}`}>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex w-full items-baseline gap-1">
+                                  <span className={`min-w-0 flex-1 truncate text-sm leading-snug ${active ? "font-semibold text-primary" : "font-semibold text-foreground"}`}>
                                     {contact.nickname}
                                   </span>
                                   {contact.lastMessage && (
-                                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">
+                                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/60 whitespace-nowrap">
                                       {lastSeenLabel(contact.lastMessage.createdAt)}
                                     </span>
                                   )}
@@ -933,16 +933,14 @@ export default function ChatPage() {
                     )}
 
                     {/* ── SECTION HEADER: Grup Chat ── */}
-                    <div className="flex items-center justify-between border-t border-border/40 px-4 pt-3 pb-1.5 mt-1">
+                    <div className="flex items-center justify-between border-t border-border/40 pl-3 pr-3 pt-3 pb-1.5 mt-1">
                       <p className="text-[10px] font-bold tracking-widest text-muted-foreground/70 uppercase">
                         Grup Chat
                         <span className="ml-1.5 font-normal text-muted-foreground/50">({groups.length})</span>
                       </p>
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[11px] rounded-full gap-1 text-primary hover:bg-primary/10"
+                        className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
                         onClick={() => {
                           setGroupFormName("");
                           setGroupFormDesc("");
@@ -952,7 +950,7 @@ export default function ChatPage() {
                       >
                         <Plus className="size-3" />
                         Buat Grup
-                      </Button>
+                      </button>
                     </div>
 
                     {/* ── DAFTAR GRUP ── */}
@@ -985,19 +983,19 @@ export default function ChatPage() {
                               key={group.id}
                               type="button"
                               onClick={() => setThread({ kind: "group", id: group.id })}
-                              className={`group flex w-full items-center gap-3 border-b border-border/40 px-3 py-2.5 text-left transition-colors ${
+                              className={`flex w-full items-center gap-2.5 border-b border-border/40 pl-3 pr-3 py-2.5 text-left transition-colors ${
                                 active
-                                  ? "bg-primary/10 border-l-2 border-l-primary"
+                                  ? "bg-primary/10 border-l-[3px] border-l-primary"
                                   : "hover:bg-secondary/50"
                               }`}
                             >
                               {/* Grup Icon Avatar */}
-                              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                                 <Users className="size-4" aria-hidden />
                               </span>
 
                               {/* Info */}
-                              <span className="min-w-0 flex-1 overflow-hidden">
+                              <span className="min-w-0 flex-1">
                                 <span className={`block truncate text-sm leading-snug ${active ? "font-semibold text-primary" : "font-semibold text-foreground"}`}>
                                   {group.name}
                                 </span>
@@ -1251,11 +1249,11 @@ export default function ChatPage() {
           {thread ? (
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Header */}
-              <header className="flex shrink-0 items-center gap-2 sm:gap-3 border-b border-border px-3 sm:px-4 py-2.5 sm:py-3 bg-card z-10">
+              <header className="flex shrink-0 items-center gap-1.5 sm:gap-2 border-b border-border px-2 sm:px-4 py-2 sm:py-3 bg-card z-10 overflow-hidden">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 sm:h-9 sm:w-9 lg:hidden shrink-0"
+                  className="h-8 w-8 shrink-0 lg:hidden"
                   aria-label="Kembali ke daftar"
                   onClick={() => setThread(null)}
                 >
@@ -1264,14 +1262,17 @@ export default function ChatPage() {
 
                 {activeContact ? (
                   <>
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <MemberAvatar
-                        name={activeContact.nickname}
-                        tier={activeContact.tier}
-                        photoData={activeContact.photoData}
-                        size={36}
-                      />
-                      <div className="min-w-0 flex-1">
+                    {/* Kontak Info */}
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <div className="shrink-0">
+                        <MemberAvatar
+                          name={activeContact.nickname}
+                          tier={activeContact.tier}
+                          photoData={activeContact.photoData}
+                          size={34}
+                        />
+                      </div>
+                      <div className="min-w-0">
                         <p
                           className="truncate text-sm font-semibold text-foreground leading-tight"
                           title={activeContact.nickname}
@@ -1285,14 +1286,15 @@ export default function ChatPage() {
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                    {/* Tombol Aksi — ikon lingkaran seragam */}
+                    <div className="flex shrink-0 items-center gap-1">
                       {threadFriendship === "accepted" && (
                         <>
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:py-2 gap-1.5 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40 shrink-0"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                             onClick={() =>
                               void startCall(
                                 {
@@ -1304,16 +1306,16 @@ export default function ChatPage() {
                               )
                             }
                             title="Mulai Panggilan Suara"
+                            aria-label="Panggilan Suara"
                           >
                             <Phone className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span className="hidden sm:inline">Suara</span>
                           </Button>
 
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:py-2 gap-1.5 rounded-full border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/40 shrink-0"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-full border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950/40"
                             onClick={() =>
                               void startCall(
                                 {
@@ -1325,18 +1327,23 @@ export default function ChatPage() {
                               )
                             }
                             title="Mulai Panggilan Video"
+                            aria-label="Panggilan Video"
                           >
                             <Video className="size-3.5 text-violet-600 dark:text-violet-400" />
-                            <span className="hidden sm:inline">Video</span>
                           </Button>
                         </>
                       )}
 
                       {activeContact.profileId ? (
-                        <Button asChild variant="ghost" size="sm" className="h-8 px-2 sm:px-2.5 text-xs shrink-0 rounded-full">
-                          <Link to={`/janda/${activeContact.profileId}`}>
-                            <span className="hidden sm:inline">Lihat profil</span>
-                            <span className="sm:hidden">Profil</span>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 rounded-full border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+                          title="Lihat Profil"
+                        >
+                          <Link to={`/janda/${activeContact.profileId}`} aria-label="Lihat Profil">
+                            <Eye className="size-3.5" />
                           </Link>
                         </Button>
                       ) : null}
@@ -1344,11 +1351,12 @@ export default function ChatPage() {
                   </>
                 ) : activeGroup ? (
                   <>
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    {/* Grup Info */}
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <Users className="size-4" aria-hidden />
                       </span>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0">
                         <p
                           className="truncate text-sm font-semibold text-foreground leading-tight"
                           title={activeGroup.name}
@@ -1361,32 +1369,33 @@ export default function ChatPage() {
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+                    {/* Tombol Aksi Grup */}
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
-                        className="h-8 px-2 sm:px-3 text-xs rounded-full gap-1 border-border shrink-0"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
                         onClick={() => {
                           setSelectedAddMembers(new Set());
                           setShowAddMemberModal(true);
                         }}
                         title="Tambah Anggota"
+                        aria-label="Tambah Anggota"
                       >
-                        <UserPlus className="size-3.5 text-muted-foreground" />
-                        <span className="hidden sm:inline">Tambah</span>
+                        <UserPlus className="size-3.5" />
                       </Button>
 
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
-                        className="h-8 px-2 sm:px-3 text-xs rounded-full gap-1 border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40 shrink-0"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full border-rose-300 text-rose-500 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
                         onClick={() => void handleLeaveGroup(activeGroup.id, activeGroup.name)}
                         title="Keluar dari Grup"
+                        aria-label="Keluar dari Grup"
                       >
                         <LogOut className="size-3.5" />
-                        <span className="hidden sm:inline">Keluar</span>
                       </Button>
                     </div>
                   </>
