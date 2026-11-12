@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { RouterProvider, matchRoute, useRoute } from "@/lib/router";
 import { AuthProvider, useAuth } from "@/lib/session";
+import { VoiceCallProvider } from "@/lib/call-context";
+import { VoiceCallOverlay } from "@/components/voice-call-overlay";
 import { WIDOW_ROLES } from "@/lib/constants";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
@@ -151,12 +153,15 @@ export default function App() {
     <I18nProvider>
       <RouterProvider>
         <AuthProvider>
-          <ThemeSync />
-          <AppShell>
-            <Routes />
-          </AppShell>
-          <MobileNav />
-          <Toaster position="top-center" richColors closeButton />
+          <VoiceCallProvider>
+            <ThemeSync />
+            <AppShell>
+              <Routes />
+            </AppShell>
+            <VoiceCallOverlay />
+            <MobileNav />
+            <Toaster position="top-center" richColors closeButton />
+          </VoiceCallProvider>
         </AuthProvider>
       </RouterProvider>
     </I18nProvider>

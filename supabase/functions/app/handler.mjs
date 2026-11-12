@@ -6092,6 +6092,11 @@ const ROUTES = {
   "chat.contacts": chatContacts,
   "chat.thread": chatThread,
   "chat.send": chatSend,
+  "call.start": callStart,
+  "call.poll": callPoll,
+  "call.answer": callAnswer,
+  "call.candidate": callCandidate,
+  "call.end": callEnd,
 
   "programs.list": programsList,
   "programs.create": programsCreate,
@@ -11801,6 +11806,226 @@ async function chatSend(ctx) {
   const names = await namesFor(ctx.supabase, [auth.account.id]);
   return ok({ message: messagePublic(row, names) });
 }
+
+// ---------- voice calling (WebRTC signaling) ----------
+
+const activeCalls = new Map();
+
+function cleanOldCalls() {
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  for (const [id, call] of activeCalls.entries()) {
+    if (call.updatedAt < cutoff) {
+      activeCalls.delete(id);
+    }
+  }
+}
+
+async function callStart(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const recipientAccountId = text(ctx.body.recipientAccountId, 60);
+  const offer = ctx.body.offer;
+  if (!recipientAccountId || !offer) return fail(400, "invalid_input");
+  if (recipientAccountId === auth.account.id) return fail(400, "cannot_message_self");
+
+  const { data: recipient } = await ctx.supabase
+    .from("accounts")
+    .select("id,status")
+    .eq("id", recipientAccountId)
+    .maybeSingle();
+  if (!recipient || recipient.status !== "active") return fail(404, "not_found");
+
+  cleanOldCalls();
+
+  const callId = crypto.randomUUID();
+  const names = await namesFor(ctx.supabase, [auth.account.id, recipientAccountId]);
+  const callerInfo = names.get(auth.account.id);
+  const recipientInfo = names.get(recipientAccountId);
+
+  const callData = {
+    id: callId,
+    callerAccountId: auth.account.id,
+    callerName: callerInfo?.nickname ?? callerInfo?.displayName ?? "Pengguna",
+    callerPhoto: callerInfo?.photoData ?? null,
+    recipientAccountId,
+    recipientName: recipientInfo?.nickname ?? recipientInfo?.displayName ?? "Pengguna",
+    recipientPhoto: recipientInfo?.photoData ?? null,
+    status: "ringing",
+    offer,
+    answer: null,
+    callerCandidates: [],
+    recipientCandidates: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    duration: 0,
+  };
+
+  activeCalls.set(callId, callData);
+
+  await notify(
+    ctx.supabase,
+    recipientAccountId,
+    "call",
+    auth.account.id,
+    "Panggilan suara dari " + (callerInfo?.nickname ?? "Pengguna"),
+    "#/pesan?with=" + auth.account.id
+  );
+
+  return ok({
+    call: {
+      id: callData.id,
+      callerAccountId: callData.callerAccountId,
+      callerName: callData.callerName,
+      callerPhoto: callData.callerPhoto,
+      recipientAccountId: callData.recipientAccountId,
+      recipientName: callData.recipientName,
+      recipientPhoto: callData.recipientPhoto,
+      status: callData.status,
+      createdAt: callData.createdAt,
+    },
+  });
+}
+
+async function callPoll(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  cleanOldCalls();
+
+  const callId = text(ctx.body.callId, 60);
+  if (callId) {
+    const call = activeCalls.get(callId);
+    if (!call) return ok({ call: null });
+    if (call.callerAccountId !== auth.account.id && call.recipientAccountId !== auth.account.id) {
+      return fail(403, "forbidden");
+    }
+    const isCaller = call.callerAccountId === auth.account.id;
+    return ok({
+      call: {
+        id: call.id,
+        callerAccountId: call.callerAccountId,
+        callerName: call.callerName,
+        callerPhoto: call.callerPhoto,
+        recipientAccountId: call.recipientAccountId,
+        recipientName: call.recipientName,
+        recipientPhoto: call.recipientPhoto,
+        status: call.status,
+        offer: call.offer,
+        answer: call.answer,
+        remoteCandidates: isCaller ? call.recipientCandidates : call.callerCandidates,
+        duration: call.duration,
+      },
+    });
+  }
+
+  for (const call of activeCalls.values()) {
+    if (call.recipientAccountId === auth.account.id && call.status === "ringing") {
+      if (Date.now() - call.createdAt < 45000) {
+        return ok({
+          incomingCall: {
+            id: call.id,
+            callerAccountId: call.callerAccountId,
+            callerName: call.callerName,
+            callerPhoto: call.callerPhoto,
+            offer: call.offer,
+            createdAt: call.createdAt,
+          },
+        });
+      } else {
+        call.status = "missed";
+        call.updatedAt = Date.now();
+      }
+    }
+  }
+
+  return ok({ incomingCall: null });
+}
+
+async function callAnswer(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const answer = ctx.body.answer;
+  if (!callId || !answer) return fail(400, "invalid_input");
+
+  const call = activeCalls.get(callId);
+  if (!call || call.recipientAccountId !== auth.account.id) {
+    return fail(404, "not_found");
+  }
+
+  call.status = "active";
+  call.answer = answer;
+  call.startedAt = Date.now();
+  call.updatedAt = Date.now();
+
+  return ok({ ok: true });
+}
+
+async function callCandidate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const candidate = ctx.body.candidate;
+  if (!callId || !candidate) return fail(400, "invalid_input");
+
+  const call = activeCalls.get(callId);
+  if (!call) return ok({ ok: true });
+
+  if (call.callerAccountId === auth.account.id) {
+    call.callerCandidates.push(candidate);
+  } else if (call.recipientAccountId === auth.account.id) {
+    call.recipientCandidates.push(candidate);
+  }
+  call.updatedAt = Date.now();
+
+  return ok({ ok: true });
+}
+
+async function callEnd(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const reason = text(ctx.body.reason, 30) || "ended";
+  const duration = Math.max(0, Number(ctx.body.duration) || 0);
+
+  if (!callId) return fail(400, "invalid_input");
+
+  const call = activeCalls.get(callId);
+  if (call) {
+    call.status = reason === "rejected" ? "rejected" : reason === "missed" ? "missed" : "ended";
+    call.updatedAt = Date.now();
+    call.duration = duration;
+
+    const otherAccountId = call.callerAccountId === auth.account.id ? call.recipientAccountId : call.callerAccountId;
+    let messageBody = "📞 Panggilan suara selesai";
+    if (call.status === "rejected") {
+      messageBody = "📞 Panggilan suara ditolak";
+    } else if (call.status === "missed") {
+      messageBody = "📞 Panggilan suara tak terjawab";
+    } else if (duration > 0) {
+      const minutes = Math.floor(duration / 60);
+      const seconds = duration % 60;
+      const formatted = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+      messageBody = "📞 Panggilan suara selesai (" + formatted + ")";
+    }
+
+    try {
+      await ctx.supabase.from("messages").insert({
+        id: crypto.randomUUID(),
+        thread_kind: "dm",
+        sender_account_id: auth.account.id,
+        recipient_account_id: otherAccountId,
+        group_id: null,
+        body: messageBody,
+        created_at: now(),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  return ok({ ok: true });
+}
+
 
 // ---------- programs ----------
 

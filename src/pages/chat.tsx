@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, MessageCircle, MessagesSquare, Send, Users } from "lucide-react";
+import { ArrowLeft, Loader2, MessageCircle, MessagesSquare, Phone, Send, Users } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { useVoiceCall } from "@/lib/call-context";
 import { useQueryParam } from "@/lib/router";
 import { ROLE_LABEL, ROLE_RANK, TIER_META } from "@/lib/constants";
 import type { ChatContact, ChatMessage, GroupItem } from "@/lib/types";
@@ -46,6 +47,7 @@ function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean 
 
 export default function ChatPage() {
   const { account, ready } = useAuth();
+  const { startCall } = useVoiceCall();
   const rank = account ? ROLE_RANK[account.role] : 0;
   const withParam = useQueryParam("with");
   const groupParam = useQueryParam("grup");
@@ -309,11 +311,30 @@ export default function ChatPage() {
                         {activeContact.status !== "verified" ? " — belum terverifikasi" : ""}
                       </p>
                     </div>
-                    {activeContact.profileId ? (
-                      <Button asChild variant="ghost" size="sm" className="ml-auto">
-                        <Link to={`/janda/${activeContact.profileId}`}>Lihat profil</Link>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 rounded-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                        onClick={() =>
+                          void startCall({
+                            accountId: activeContact.accountId,
+                            name: activeContact.nickname,
+                            photoData: activeContact.photoData,
+                          })
+                        }
+                        title="Mulai Panggilan Suara"
+                      >
+                        <Phone className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="hidden sm:inline">Panggilan Suara</span>
                       </Button>
-                    ) : null}
+                      {activeContact.profileId ? (
+                        <Button asChild variant="ghost" size="sm">
+                          <Link to={`/janda/${activeContact.profileId}`}>Lihat profil</Link>
+                        </Button>
+                      ) : null}
+                    </div>
                   </>
                 ) : activeGroup ? (
                   <>
