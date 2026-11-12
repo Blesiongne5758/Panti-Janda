@@ -107,6 +107,19 @@ export interface FollowsMine {
   followerCount: number;
 }
 
+export type FriendshipStatus = "accepted" | "pending_outgoing" | "pending_incoming" | "none";
+
+export interface FriendItem {
+  accountId: string;
+  profileId: string | null;
+  nickname: string;
+  tier: WidowRole | PublicRole | null;
+  photoData: string | null;
+  status: ProfileStatus;
+  friendshipStatus: FriendshipStatus;
+  lastMessage?: { body: string; createdAt: string; fromMe: boolean } | null;
+}
+
 export interface ChatContact {
   accountId: string;
   profileId: string | null;
@@ -115,6 +128,7 @@ export interface ChatContact {
   photoData: string | null;
   status: ProfileStatus;
   lastMessage: { body: string; createdAt: string; fromMe: boolean } | null;
+  friendshipStatus?: FriendshipStatus;
 }
 
 export interface ChatMessage {

@@ -6092,6 +6092,11 @@ const ROUTES = {
   "chat.contacts": chatContacts,
   "chat.thread": chatThread,
   "chat.send": chatSend,
+  "friends.list": friendsList,
+  "friends.search": friendsSearch,
+  "friends.request": friendsRequest,
+  "friends.respond": friendsRespond,
+  "friends.cancel": friendsCancel,
   "call.start": callStart,
   "call.poll": callPoll,
   "call.answer": callAnswer,
@@ -11682,53 +11687,402 @@ const messagePublic = (row, names) => {
 async function chatContacts(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
-  const { data: profileRows } = await ctx.supabase
-    .from("profiles")
-    .select("id,account_id,nickname,tier,photo_data,status")
-    .neq("account_id", auth.account.id)
-    .limit(200);
-  const { data: sent } = await ctx.supabase
+
+  const { data: sentDm } = await ctx.supabase
     .from("messages")
-    .select("*")
+    .select("recipient_account_id,body,created_at")
     .eq("thread_kind", "dm")
     .eq("sender_account_id", auth.account.id)
     .limit(500);
-  const { data: received } = await ctx.supabase
+
+  const { data: recDm } = await ctx.supabase
     .from("messages")
-    .select("*")
+    .select("sender_account_id,body,created_at")
     .eq("thread_kind", "dm")
     .eq("recipient_account_id", auth.account.id)
     .limit(500);
-  const last = new Map();
-  for (const m of [...(sent ?? []), ...(received ?? [])]) {
-    const other = m.sender_account_id === auth.account.id ? m.recipient_account_id : m.sender_account_id;
-    const prev = last.get(other);
-    if (!prev || String(m.created_at) > String(prev.createdAt)) {
-      last.set(other, {
-        body: m.body,
-        createdAt: m.created_at,
-        fromMe: m.sender_account_id === auth.account.id,
-      });
+
+  const { data: sentReq } = await ctx.supabase
+    .from("messages")
+    .select("sender_account_id,recipient_account_id,body,created_at")
+    .eq("thread_kind", "friend_request")
+    .or("sender_account_id.eq." + auth.account.id + ",recipient_account_id.eq." + auth.account.id)
+    .limit(500);
+
+  const friendAccountIds = new Set();
+  let incomingCount = 0;
+
+  for (const r of (sentReq ?? [])) {
+    if (r.body === "accepted") {
+      const otherId = r.sender_account_id === auth.account.id ? r.recipient_account_id : r.sender_account_id;
+      friendAccountIds.add(otherId);
+    } else if (r.body === "pending" && r.recipient_account_id === auth.account.id) {
+      incomingCount++;
     }
   }
-  const items = (profileRows ?? [])
-    .map((p) => ({
-      accountId: p.account_id,
-      profileId: profileVisible(p, auth.account) ? p.id : null,
-      nickname: p.nickname,
-      tier: p.tier,
-      photoData: p.photo_data ?? null,
-      status: p.status,
-      lastMessage: last.get(p.account_id) ?? null,
-    }))
-    .sort((a, b) => {
+
+  for (const m of (sentDm ?? [])) friendAccountIds.add(m.recipient_account_id);
+  for (const m of (recDm ?? [])) friendAccountIds.add(m.sender_account_id);
+
+  const last = new Map();
+  for (const m of (sentDm ?? [])) {
+    const other = m.recipient_account_id;
+    const prev = last.get(other);
+    if (!prev || String(m.created_at) > String(prev.createdAt)) {
+      last.set(other, { body: m.body, createdAt: m.created_at, fromMe: true });
+    }
+  }
+  for (const m of (recDm ?? [])) {
+    const other = m.sender_account_id;
+    const prev = last.get(other);
+    if (!prev || String(m.created_at) > String(prev.createdAt)) {
+      last.set(other, { body: m.body, createdAt: m.created_at, fromMe: false });
+    }
+  }
+
+  let items = [];
+  if (friendAccountIds.size > 0) {
+    const ids = Array.from(friendAccountIds);
+    const { data: profileRows } = await ctx.supabase
+      .from("profiles")
+      .select("id,account_id,nickname,tier,photo_data,status")
+      .in("account_id", ids)
+      .limit(200);
+
+    const names = await namesFor(ctx.supabase, ids);
+
+    items = ids.map((accId) => {
+      const p = (profileRows ?? []).find((pr) => pr.account_id === accId);
+      const nameInfo = names.get(accId);
+      return {
+        accountId: accId,
+        profileId: p?.id ?? null,
+        nickname: p?.nickname ?? nameInfo?.displayName ?? "Pengguna",
+        tier: p?.tier ?? null,
+        photoData: p?.photo_data ?? nameInfo?.photoData ?? null,
+        status: p?.status ?? "active",
+        lastMessage: last.get(accId) ?? null,
+      };
+    }).sort((a, b) => {
       if (a.lastMessage && b.lastMessage) return String(b.lastMessage.createdAt).localeCompare(String(a.lastMessage.createdAt));
       if (a.lastMessage) return -1;
       if (b.lastMessage) return 1;
       return a.nickname.localeCompare(b.nickname);
     });
+  }
+
+  return ok({ items, incomingCount });
+}
+
+
+// ---------- friendships (search, requests & approval) ----------
+
+async function getFriendshipStatus(supabase, myAccountId, otherAccountId) {
+  if (myAccountId === otherAccountId) return "accepted";
+
+  const { data: dm } = await supabase
+    .from("messages")
+    .select("id")
+    .eq("thread_kind", "dm")
+    .or("and(sender_account_id.eq." + myAccountId + ",recipient_account_id.eq." + otherAccountId + "),and(sender_account_id.eq." + otherAccountId + ",recipient_account_id.eq." + myAccountId + ")")
+    .limit(1);
+
+  if (dm && dm.length > 0) return "accepted";
+
+  const { data: rows } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .or("and(sender_account_id.eq." + myAccountId + ",recipient_account_id.eq." + otherAccountId + "),and(sender_account_id.eq." + otherAccountId + ",recipient_account_id.eq." + myAccountId + ")")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (!rows || rows.length === 0) return "none";
+
+  for (const r of rows) {
+    if (r.body === "accepted") return "accepted";
+  }
+
+  const latest = rows[0];
+  if (latest.body === "pending") {
+    return latest.sender_account_id === myAccountId ? "pending_outgoing" : "pending_incoming";
+  }
+
+  return "none";
+}
+
+async function friendsList(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+
+  const { data: reqRows } = await ctx.supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .or("sender_account_id.eq." + auth.account.id + ",recipient_account_id.eq." + auth.account.id)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const incomingIds = [];
+  const outgoingIds = [];
+  const acceptedIds = [];
+
+  for (const r of (reqRows ?? [])) {
+    if (r.body === "pending") {
+      if (r.recipient_account_id === auth.account.id) {
+        if (!incomingIds.includes(r.sender_account_id)) incomingIds.push(r.sender_account_id);
+      } else if (r.sender_account_id === auth.account.id) {
+        if (!outgoingIds.includes(r.recipient_account_id)) outgoingIds.push(r.recipient_account_id);
+      }
+    } else if (r.body === "accepted") {
+      const other = r.sender_account_id === auth.account.id ? r.recipient_account_id : r.sender_account_id;
+      if (!acceptedIds.includes(other)) acceptedIds.push(other);
+    }
+  }
+
+  const allIds = [...new Set([...incomingIds, ...outgoingIds, ...acceptedIds])];
+  const names = await namesFor(ctx.supabase, allIds);
+
+  const formatItem = (accId, status) => {
+    const info = names.get(accId);
+    return {
+      accountId: accId,
+      profileId: info?.profileId ?? null,
+      nickname: info?.nickname ?? info?.displayName ?? "Pengguna",
+      tier: info?.tier ?? null,
+      photoData: info?.photoData ?? null,
+      friendshipStatus: status,
+    };
+  };
+
+  return ok({
+    incoming: incomingIds.map((id) => formatItem(id, "pending_incoming")),
+    outgoing: outgoingIds.map((id) => formatItem(id, "pending_outgoing")),
+    accepted: acceptedIds.map((id) => formatItem(id, "accepted")),
+  });
+}
+
+async function friendsSearch(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const q = text(ctx.body.query, 60)?.toLowerCase() ?? "";
+
+  const { data: accounts } = await ctx.supabase
+    .from("accounts")
+    .select("id,display_name,role,status")
+    .eq("status", "active")
+    .neq("id", auth.account.id)
+    .limit(100);
+
+  const { data: profiles } = await ctx.supabase
+    .from("profiles")
+    .select("id,account_id,nickname,tier,photo_data,status")
+    .neq("account_id", auth.account.id)
+    .limit(100);
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.account_id, p]));
+
+  const { data: reqRows } = await ctx.supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .or("sender_account_id.eq." + auth.account.id + ",recipient_account_id.eq." + auth.account.id)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const { data: dmSent } = await ctx.supabase
+    .from("messages")
+    .select("recipient_account_id")
+    .eq("thread_kind", "dm")
+    .eq("sender_account_id", auth.account.id)
+    .limit(200);
+  const { data: dmRec } = await ctx.supabase
+    .from("messages")
+    .select("sender_account_id")
+    .eq("thread_kind", "dm")
+    .eq("recipient_account_id", auth.account.id)
+    .limit(200);
+
+  const dmAccounts = new Set([
+    ...(dmSent ?? []).map((m) => m.recipient_account_id),
+    ...(dmRec ?? []).map((m) => m.sender_account_id),
+  ]);
+
+  const items = [];
+  for (const acc of (accounts ?? [])) {
+    const prof = profileMap.get(acc.id);
+    const name = prof?.nickname ?? acc.display_name ?? "Pengguna";
+
+    if (q && !name.toLowerCase().includes(q) && !(prof?.tier ?? "").toLowerCase().includes(q)) {
+      continue;
+    }
+
+    let friendshipStatus = "none";
+    if (dmAccounts.has(acc.id)) {
+      friendshipStatus = "accepted";
+    } else {
+      const related = (reqRows ?? []).find(
+        (r) =>
+          (r.sender_account_id === auth.account.id && r.recipient_account_id === acc.id) ||
+          (r.sender_account_id === acc.id && r.recipient_account_id === auth.account.id)
+      );
+      if (related) {
+        if (related.body === "accepted") {
+          friendshipStatus = "accepted";
+        } else if (related.body === "pending") {
+          friendshipStatus = related.sender_account_id === auth.account.id ? "pending_outgoing" : "pending_incoming";
+        }
+      }
+    }
+
+    items.push({
+      accountId: acc.id,
+      profileId: prof?.id ?? null,
+      nickname: name,
+      tier: prof?.tier ?? acc.role ?? null,
+      photoData: prof?.photo_data ?? null,
+      status: prof?.status ?? acc.status,
+      friendshipStatus,
+    });
+  }
+
   return ok({ items });
 }
+
+async function friendsRequest(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const targetAccountId = text(ctx.body.targetAccountId, 60);
+  if (!targetAccountId) return fail(400, "invalid_input");
+  if (targetAccountId === auth.account.id) return fail(400, "cannot_message_self");
+
+  const { data: target } = await ctx.supabase
+    .from("accounts")
+    .select("id,status")
+    .eq("id", targetAccountId)
+    .maybeSingle();
+  if (!target || target.status !== "active") return fail(404, "not_found");
+
+  const { data: existingList } = await ctx.supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .or("and(sender_account_id.eq." + auth.account.id + ",recipient_account_id.eq." + targetAccountId + "),and(sender_account_id.eq." + targetAccountId + ",recipient_account_id.eq." + auth.account.id + ")")
+    .limit(5);
+
+  const existing = (existingList ?? [])[0];
+
+  if (existing) {
+    if (existing.body === "accepted") return ok({ ok: true, status: "accepted" });
+    if (existing.body === "pending") {
+      if (existing.sender_account_id === auth.account.id) {
+        return ok({ ok: true, status: "pending_outgoing" });
+      } else {
+        await ctx.supabase.from("messages").update({ body: "accepted" }).eq("id", existing.id);
+        const myName = (await namesFor(ctx.supabase, [auth.account.id])).get(auth.account.id);
+        await notify(ctx.supabase, targetAccountId, "friend_accepted", auth.account.id, (myName?.nickname ?? "Pengguna") + " menerima pertemanan Anda", "#/pesan?with=" + auth.account.id);
+        return ok({ ok: true, status: "accepted" });
+      }
+    }
+    await ctx.supabase.from("messages").update({
+      sender_account_id: auth.account.id,
+      recipient_account_id: targetAccountId,
+      body: "pending",
+      created_at: now(),
+    }).eq("id", existing.id);
+  } else {
+    await ctx.supabase.from("messages").insert({
+      id: crypto.randomUUID(),
+      thread_kind: "friend_request",
+      sender_account_id: auth.account.id,
+      recipient_account_id: targetAccountId,
+      group_id: null,
+      body: "pending",
+      created_at: now(),
+    });
+  }
+
+  const myName = (await namesFor(ctx.supabase, [auth.account.id])).get(auth.account.id);
+  await notify(
+    ctx.supabase,
+    targetAccountId,
+    "friend_request",
+    auth.account.id,
+    (myName?.nickname ?? "Pengguna") + " mengajukan pertemanan kepada Anda",
+    "#/pesan?tab=requests"
+  );
+
+  return ok({ ok: true, status: "pending_outgoing" });
+}
+
+async function friendsRespond(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const targetAccountId = text(ctx.body.targetAccountId, 60);
+  const action = text(ctx.body.action, 20);
+  if (!targetAccountId || (action !== "accept" && action !== "reject")) {
+    return fail(400, "invalid_input");
+  }
+
+  const newStatus = action === "accept" ? "accepted" : "rejected";
+
+  const { data: rows } = await ctx.supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .or("and(sender_account_id.eq." + auth.account.id + ",recipient_account_id.eq." + targetAccountId + "),and(sender_account_id.eq." + targetAccountId + ",recipient_account_id.eq." + auth.account.id + ")");
+
+  if (rows && rows.length > 0) {
+    for (const r of rows) {
+      await ctx.supabase.from("messages").update({ body: newStatus }).eq("id", r.id);
+    }
+  } else {
+    await ctx.supabase.from("messages").insert({
+      id: crypto.randomUUID(),
+      thread_kind: "friend_request",
+      sender_account_id: targetAccountId,
+      recipient_account_id: auth.account.id,
+      group_id: null,
+      body: newStatus,
+      created_at: now(),
+    });
+  }
+
+  if (action === "accept") {
+    const myName = (await namesFor(ctx.supabase, [auth.account.id])).get(auth.account.id);
+    await notify(
+      ctx.supabase,
+      targetAccountId,
+      "friend_accepted",
+      auth.account.id,
+      (myName?.nickname ?? "Pengguna") + " menyetujui permintaan pertemanan Anda",
+      "#/pesan?with=" + auth.account.id
+    );
+  }
+
+  return ok({ ok: true, status: newStatus });
+}
+
+async function friendsCancel(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const targetAccountId = text(ctx.body.targetAccountId, 60);
+  if (!targetAccountId) return fail(400, "invalid_input");
+
+  const { data: rows } = await ctx.supabase
+    .from("messages")
+    .select("*")
+    .eq("thread_kind", "friend_request")
+    .eq("sender_account_id", auth.account.id)
+    .eq("recipient_account_id", targetAccountId);
+
+  for (const r of (rows ?? [])) {
+    await ctx.supabase.from("messages").delete().eq("id", r.id);
+  }
+
+  return ok({ ok: true });
+}
+
 
 async function chatThread(ctx) {
   const auth = await actor(ctx, 1);
@@ -11785,6 +12139,8 @@ async function chatSend(ctx) {
   const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
   if (!withId || !body) return fail(400, "invalid_input");
   if (withId === auth.account.id) return fail(400, "cannot_message_self");
+  const friendshipStatus = await getFriendshipStatus(ctx.supabase, auth.account.id, withId);
+  if (friendshipStatus !== "accepted") return fail(403, "not_friends");
   const { data: target } = await ctx.supabase
     .from("accounts")
     .select("id,role,status")
