@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Camera,
   Video,
@@ -11,7 +12,6 @@ import {
   Circle,
   Loader2,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { compressImage } from "@/lib/image-compress";
 
@@ -357,14 +357,33 @@ export function CameraCaptureDialog({
 
   const progressPercent = Math.min(100, (recordingSeconds / maxVideoSeconds) * 100);
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden bg-black text-white border-zinc-800">
-        <DialogHeader className="p-4 bg-zinc-900/90 border-b border-zinc-800 flex flex-row items-center justify-between">
-          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-white">
+  // Render modal langsung ke document.body via portal agar z-index lebih tinggi dari
+  // chat container (z-[60]) dan tidak tertimpa di mobile view
+  if (!open) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Kamera Perangkat"
+    >
+      {/* Backdrop overlay */}
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={() => onOpenChange(false)}
+        aria-hidden="true"
+      />
+
+      {/* Modal panel */}
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-black text-white border border-zinc-800 shadow-2xl flex flex-col max-h-[95dvh]">
+
+        {/* HEADER */}
+        <div className="flex shrink-0 items-center justify-between p-4 bg-zinc-900/90 border-b border-zinc-800">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
             <Camera className="size-4 text-primary" />
             <span>Kamera Perangkat</span>
-          </DialogTitle>
+          </div>
 
           {/* Mode Switcher Tabs (Foto vs Video 6s) */}
           {allowedModes === "both" && !previewMedia && !isRecording && (
@@ -389,10 +408,20 @@ export function CameraCaptureDialog({
               </button>
             </div>
           )}
-        </DialogHeader>
+
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="ml-2 flex size-7 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors"
+            aria-label="Tutup"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
 
         {/* VIEWPORT AREA */}
-        <div className="relative aspect-[4/5] sm:aspect-[3/4] w-full bg-zinc-950 flex items-center justify-center overflow-hidden">
+        <div className="relative aspect-[4/5] sm:aspect-[3/4] w-full bg-zinc-950 flex items-center justify-center overflow-hidden flex-shrink-0">
           {previewMedia ? (
             /* PREVIEW CAPTURED MEDIA */
             <div className="relative w-full h-full flex items-center justify-center">
@@ -496,7 +525,7 @@ export function CameraCaptureDialog({
         </div>
 
         {/* BOTTOM CONTROLS FOOTER */}
-        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">
+        <div className="shrink-0 p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">
           {previewMedia ? (
             /* AFTER CAPTURE ACTIONS */
             <div className="flex w-full items-center justify-between gap-3">
@@ -572,7 +601,9 @@ export function CameraCaptureDialog({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
