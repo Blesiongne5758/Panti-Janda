@@ -93,34 +93,50 @@ export function usePresignedUpload() {
           finalResult = presigned;
           onProgress?.(30);
 
-          if (presigned.fields && Object.keys(presigned.fields).length > 0) {
-            const formData = new FormData();
-            for (const [key, val] of Object.entries(presigned.fields)) {
-              if (val) formData.append(key, val);
-            }
-            formData.append("file", file);
-
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 15000);
-            try {
-              const response = await fetch(presigned.presignedUrl, {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 30_000);
+          try {
+            const isMultipart = Boolean(presigned.fields && Object.keys(presigned.fields).length > 0);
+            let response: Response;
+            if (isMultipart) {
+              const formData = new FormData();
+              for (const [key, val] of Object.entries(presigned.fields ?? {})) {
+                if (val) formData.append(key, val);
+              }
+              formData.append("file", file, file.name);
+              response = await fetch(presigned.presignedUrl, {
                 method: presigned.method || "POST",
                 body: formData,
                 signal: controller.signal,
               });
-
-              if (response.ok) {
-                const responseData = await response.json().catch(() => null);
-                if (responseData?.secure_url) {
-                  publicUrl = responseData.secure_url;
-                  finalResult.publicUrl = publicUrl;
-                }
-              }
-            } catch {
-              // Cloudinary upload failed or timed out; will fall back to data URL
-            } finally {
-              clearTimeout(timer);
+            } else {
+              response = await fetch(presigned.presignedUrl, {
+                method: presigned.method || "PUT",
+                headers: {
+                  ...(presigned.headers ?? {}),
+                  "Content-Type": file.type || "application/octet-stream",
+                },
+                body: file,
+                signal: controller.signal,
+              });
             }
+
+            if (!response.ok) {
+              throw new Error(`Upload media gagal (${response.status})`);
+            }
+
+            const responseData = await response.json().catch(() => null) as Record<string, unknown> | null;
+            const responseUrl = typeof responseData?.secure_url === "string"
+              ? responseData.secure_url
+              : typeof responseData?.url === "string"
+                ? responseData.url
+                : null;
+            publicUrl = responseUrl || presigned.publicUrl || null;
+            finalResult.publicUrl = publicUrl;
+          } catch {
+            // Upload langsung gagal; gunakan data URL hanya sebagai fallback terakhir.
+          } finally {
+            clearTimeout(timer);
           }
         } catch {
           // presigned URL request failed; will fall back to data URL

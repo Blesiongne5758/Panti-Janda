@@ -272,7 +272,7 @@ function MessageBubble({
               <img
                 src={parsed.attachment.url}
                 alt={parsed.attachment.name || "Foto"}
-                className="max-h-60 sm:max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                className="block max-h-60 sm:max-h-72 w-auto max-w-full rounded-xl object-contain cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => onPreviewImage?.(parsed.attachment!.url, parsed.attachment!.name || "Foto")}
                 loading="lazy"
               />
@@ -1531,7 +1531,7 @@ export default function ChatPage() {
                             <img
                               src={pendingAttachment.previewUrl}
                               alt="Lampiran"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                             />
                           </div>
                         ) : (
