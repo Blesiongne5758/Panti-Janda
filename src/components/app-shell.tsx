@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, type ReactNode } from "react";
-import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { MemberAvatar, TierBadge, PjLogo } from "@/components/common";
 import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "@/lib/i18n-context";
+import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import type { NotificationItem } from "@/lib/types";
 
 const NAV = [
@@ -181,8 +182,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const rank = account ? ROLE_RANK[account.role] : 0;
   const member = rank >= 2;
+
+  function openProfileDialog() {
+    setMenuOpen(false);
+    window.setTimeout(() => setProfileDialogOpen(true), 0);
+  }
+
+  function openDashboard() {
+    setMenuOpen(false);
+    window.setTimeout(() => {
+      window.location.hash = "#/dasbor";
+    }, 0);
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden pb-20 sm:pb-0">
@@ -272,11 +286,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Separator className="my-3" />
                       <Link
                         to="/dasbor"
-                        onClick={() => setMenuOpen(false)}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          openDashboard();
+                        }}
                         className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
                       >
                         {t("nav.dashboard")}
                       </Link>
+                      <button
+                        type="button"
+                        onClick={openProfileDialog}
+                        className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-secondary"
+                      >
+                        <Settings className="size-4" aria-hidden />
+                        Pengaturan Profil &amp; Akun
+                      </button>
                       {rank >= 5 ? (
                         <Link
                           to="/admin"
@@ -299,6 +324,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </div>
                   </SheetContent>
                 </Sheet>
+                <ProfileSettingsDialog
+                  open={profileDialogOpen}
+                  onOpenChange={setProfileDialogOpen}
+                />
               </>
             ) : (
               <>
