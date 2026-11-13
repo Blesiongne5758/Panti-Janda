@@ -50,6 +50,27 @@ export function FeedPage() {
     return () => window.removeEventListener("feed:compose", openComposer);
   }, []);
 
+  useEffect(() => {
+    const openCamera = () => {
+      if (!auth.ready) {
+        sessionStorage.setItem("feed-camera", "1");
+        return;
+      }
+      sessionStorage.removeItem("feed-camera");
+      if (!auth.account) {
+        toast.info("Masuk terlebih dahulu untuk membuat postingan foto atau video.");
+        navigate("/masuk");
+        return;
+      }
+      setCameraDialogOpen(true);
+    };
+
+    const handleCameraRequest = () => openCamera();
+    window.addEventListener("feed:camera", handleCameraRequest);
+    if (auth.ready && sessionStorage.getItem("feed-camera") === "1") openCamera();
+    return () => window.removeEventListener("feed:camera", handleCameraRequest);
+  }, [auth.ready, auth.account, navigate]);
+
   async function loadFeed() {
     try {
       const data = await api<{ items: MediaPost[] }>("media.feed", {});
