@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate backend handlers
+        run: npm run check:function
+
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

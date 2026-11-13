@@ -180,7 +180,6 @@ function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
-  const { navigate } = useRoute();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -190,11 +189,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   function openProfileDialog() {
     setMenuOpen(false);
     window.setTimeout(() => setProfileDialogOpen(true), 0);
-  }
-
-  function openDashboard() {
-    setMenuOpen(false);
-    window.setTimeout(() => navigate("/dasbor"), 0);
   }
 
   return (
@@ -285,10 +279,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Separator className="my-3" />
                       <Link
                         to="/dasbor"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          openDashboard();
-                        }}
+                        onClick={() => setMenuOpen(false)}
                         className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
                       >
                         {t("nav.dashboard")}
