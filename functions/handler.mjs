@@ -12350,6 +12350,7 @@ async function callPoll(ctx) {
       if (Date.now() - call.createdAt < 45000) {
         return ok({
           incomingCall: {
+            callId: call.id,
             id: call.id,
             mode: call.mode || "audio",
             callerAccountId: call.callerAccountId,

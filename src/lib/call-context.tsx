@@ -35,6 +35,7 @@ export interface CallState {
 
 export interface IncomingCall {
   callId: string;
+  id?: string;
   mode: CallMode;
   callerAccountId: string;
   callerName: string;
@@ -77,6 +78,10 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const pendingRemoteCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const appliedRemoteCandidatesRef = useRef<Set<string>>(new Set());
+  const acceptingCallRef = useRef(false);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -96,6 +101,9 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    remoteStreamRef.current = null;
+    pendingRemoteCandidatesRef.current = [];
+    appliedRemoteCandidatesRef.current.clear();
     if (pcRef.current) {
       try {
         pcRef.current.close();
@@ -209,12 +217,15 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
       };
 
       pc.ontrack = (event) => {
-        if (remoteAudioRef.current && event.streams[0]) {
-          remoteAudioRef.current.srcObject = event.streams[0];
+        const remoteStream = event.streams[0];
+        if (!remoteStream) return;
+        remoteStreamRef.current = remoteStream;
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStream;
           remoteAudioRef.current.play().catch(() => {});
         }
-        if (remoteVideoRef.current && event.streams[0]) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStream;
           remoteVideoRef.current.play().catch(() => {});
         }
       };
@@ -320,12 +331,15 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         };
 
         pc.ontrack = (event) => {
-          if (remoteAudioRef.current && event.streams[0]) {
-            remoteAudioRef.current.srcObject = event.streams[0];
+          const remoteStream = event.streams[0];
+          if (!remoteStream) return;
+          remoteStreamRef.current = remoteStream;
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStream;
             remoteAudioRef.current.play().catch(() => {});
           }
-          if (remoteVideoRef.current && event.streams[0]) {
-            remoteVideoRef.current.srcObject = event.streams[0];
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
             remoteVideoRef.current.play().catch(() => {});
           }
         };
@@ -358,7 +372,8 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   // Accept incoming call
   const acceptCall = useCallback(async () => {
-    if (!incomingCall) return;
+    if (!incomingCall || acceptingCallRef.current) return;
+    acceptingCallRef.current = true;
 
     callSounds.stop();
     const currentIncoming = incomingCall;
@@ -381,7 +396,12 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
           ? "Izin kamera dan mikrofon diperlukan untuk menerima panggilan video."
           : "Izin mikrofon diperlukan untuk menerima panggilan suara.",
       );
-      void endCall("rejected");
+      try {
+        await api("call.end", { callId: currentIncoming.callId, reason: "rejected", duration: 0 });
+      } catch {
+        // ignore signaling cleanup failure
+      }
+      acceptingCallRef.current = false;
       return;
     }
 
@@ -404,7 +424,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
       setCallState({
         callId: currentIncoming.callId,
         mode: currentIncoming.mode,
-        status: "connected",
+        status: "calling",
         isCaller: false,
         otherUser: {
           accountId: currentIncoming.callerAccountId,
@@ -416,14 +436,16 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         isCameraOff: false,
         isMinimized: false,
       });
+      acceptingCallRef.current = false;
 
-      if (!durationTimerRef.current) {
-        durationTimerRef.current = window.setInterval(() => {
-          setCallState((prev) => (prev ? { ...prev, duration: prev.duration + 1 } : null));
-        }, 1000);
-      }
     } catch {
       cleanupMediaAndPC();
+      try {
+        await api("call.end", { callId: currentIncoming.callId, reason: "rejected", duration: 0 });
+      } catch {
+        // ignore signaling cleanup failure
+      }
+      acceptingCallRef.current = false;
       toast.error("Gagal menghubungkan panggilan.");
     }
   }, [cleanupMediaAndPC, endCall, incomingCall, setupPeerConnection]);
@@ -443,9 +465,18 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   // Ensure local video element gets stream if attached after render
   useEffect(() => {
-    if (callState?.mode === "video" && localStreamRef.current && localVideoRef.current) {
-      if (localVideoRef.current.srcObject !== localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
+    if (!callState) return;
+    if (localStreamRef.current && localVideoRef.current && localVideoRef.current.srcObject !== localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+    if (remoteStreamRef.current) {
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.play().catch(() => {});
+      }
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.play().catch(() => {});
       }
     }
   }, [callState]);
@@ -485,13 +516,23 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
           // If caller received answer
           if (callState.isCaller && call.answer && !pc.currentRemoteDescription) {
             await pc.setRemoteDescription(new RTCSessionDescription(call.answer));
+            for (const candidate of pendingRemoteCandidatesRef.current.splice(0)) {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+            }
           }
 
           // Add any new remote ICE candidates
           if (call.remoteCandidates && call.remoteCandidates.length > 0) {
             for (const cand of call.remoteCandidates) {
+              const candidateKey = JSON.stringify(cand);
+              if (appliedRemoteCandidatesRef.current.has(candidateKey)) continue;
               try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                if (!pc.remoteDescription) {
+                  pendingRemoteCandidatesRef.current.push(cand);
+                } else {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand));
+                }
+                appliedRemoteCandidatesRef.current.add(candidateKey);
               } catch {
                 // ignore duplicate candidate
               }
@@ -508,9 +549,10 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   // Background incoming call polling (when account is logged in and not in active call)
   useEffect(() => {
-    if (!account || callState) return;
+    if (!account || callState || acceptingCallRef.current) return;
 
     let active = true;
+    const lastNotifiedCallIdRef = { current: "" };
     const checkIncoming = async () => {
       try {
         const data = await api<{
@@ -520,9 +562,24 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         if (!active) return;
 
         if (data.incomingCall) {
-          if (!incomingCall || incomingCall.callId !== data.incomingCall.callId) {
-            setIncomingCall(data.incomingCall);
+          const normalizedCallId = data.incomingCall.callId || data.incomingCall.id;
+          if (!normalizedCallId) return;
+          const normalizedIncoming: IncomingCall = {
+            ...data.incomingCall,
+            callId: normalizedCallId,
+          };
+          if (!incomingCall || incomingCall.callId !== normalizedIncoming.callId) {
+            setIncomingCall(normalizedIncoming);
             callSounds.playIncoming();
+            if (lastNotifiedCallIdRef.current !== normalizedIncoming.callId) {
+              lastNotifiedCallIdRef.current = normalizedIncoming.callId;
+              if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                new Notification(
+                  normalizedIncoming.mode === "video" ? "Panggilan video masuk" : "Panggilan suara masuk",
+                  { body: `${normalizedIncoming.callerName} sedang menghubungi Anda`, tag: normalizedIncoming.callId },
+                );
+              }
+            }
           }
         } else if (incomingCall) {
           callSounds.stop();
