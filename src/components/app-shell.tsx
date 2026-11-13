@@ -180,6 +180,7 @@ function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
+  const { navigate } = useRoute();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -193,9 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function openDashboard() {
     setMenuOpen(false);
-    window.setTimeout(() => {
-      window.location.hash = "#/dasbor";
-    }, 0);
+    window.setTimeout(() => navigate("/dasbor"), 0);
   }
 
   return (
@@ -325,6 +324,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </SheetContent>
                 </Sheet>
                 <ProfileSettingsDialog
+                  trigger={null}
                   open={profileDialogOpen}
                   onOpenChange={setProfileDialogOpen}
                 />

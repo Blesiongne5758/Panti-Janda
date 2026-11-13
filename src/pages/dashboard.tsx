@@ -802,7 +802,15 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <EditProfileDialog profile={profile} onSaved={setProfile} />
-                <ProfileSettingsDialog onSaved={setProfile} />
+                <ProfileSettingsDialog
+                  onSaved={setProfile}
+                  trigger={
+                    <Button variant="outline" size="sm" className="hidden sm:inline-flex">
+                      <Settings className="size-4" aria-hidden />
+                      Pengaturan
+                    </Button>
+                  }
+                />
                 {verified ? <WriteUpdateDialog onCreated={refresh} /> : null}
               </div>
             </div>
@@ -862,7 +870,15 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <ProfileSettingsDialog onSaved={setProfile} />
+                <ProfileSettingsDialog
+                  onSaved={setProfile}
+                  trigger={
+                    <Button variant="outline" size="sm" className="hidden sm:inline-flex">
+                      <Settings className="size-4" aria-hidden />
+                      Pengaturan
+                    </Button>
+                  }
+                />
               </div>
             </div>
           </CardHeader>

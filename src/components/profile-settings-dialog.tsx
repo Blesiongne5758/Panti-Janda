@@ -75,6 +75,12 @@ export function ProfileSettingsDialog({
   const setOpen = isControlled
     ? (controlledOnOpenChange ?? setInternalOpen)
     : setInternalOpen;
+  const triggerNode = trigger === null ? null : trigger ?? (
+    <Button variant="outline" size="sm" className="gap-2">
+      <Settings className="size-4" />
+      Pengaturan Akun &amp; Profil
+    </Button>
+  );
   const [tab, setTab] = useState<string>(defaultTab);
 
   // Profile Data Form
@@ -283,14 +289,7 @@ export function ProfileSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button variant="outline" size="sm" className="gap-2">
-            <Settings className="size-4" />
-            Pengaturan Akun & Profil
-          </Button>
-        )}
-      </DialogTrigger>
+      {triggerNode ? <DialogTrigger asChild>{triggerNode}</DialogTrigger> : null}
 
       <DialogContent className="z-[70] max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
