@@ -99,6 +99,7 @@ export function matchRoute(path: string): { name: string; params: Record<string,
     case "pesan":
       return { name: "chat", params: {} };
     case "dasbor":
+    case "dashboard":
       return { name: "dashboard", params: {} };
     case "admin":
       return { name: "admin", params: {} };
