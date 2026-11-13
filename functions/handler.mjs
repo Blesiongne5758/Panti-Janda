@@ -263,7 +263,7 @@ async function actor(ctx, minRole = 1) {
   if (!ctx._actor) return { error: fail(401, "not_authenticated") };
   const { account } = ctx._actor;
   if ((ROLE_RANK[account.role] ?? 0) < minRole) return { error: fail(403, "forbidden") };
-  return { account, rank: ROLE_RANK[account.role] ?? 0 };
+  return { account, rank: ROLE_RANK[account.role] ?? 0, sessionId: ctx._actor.sessionId };
 }
 
 const publicAccount = (row) => ({
@@ -12230,19 +12230,24 @@ async function chatSend(ctx) {
   return ok({ message: messagePublic(row, names) });
 }
 
-// ---------- voice & video calling (WebRTC signaling) ----------
-
-const activeCalls = new Map();
-
-function cleanOldCalls() {
-  const cutoff = Date.now() - 5 * 60 * 1000;
-  for (const [id, call] of activeCalls.entries()) {
-    if (call.updatedAt < cutoff) {
-      activeCalls.delete(id);
-    }
+// ---------- voice & video calling (durable WebRTC signaling) ----------
+// Signaling state lives in Postgres, not this function's process memory, so
+// polling and ICE trickle work across independent serverless instances.
+async function callSignalRpc(ctx, name, args) {
+  const { data, error } = await ctx.supabase.rpc(name, {
+    p_session_id: ctx._actor.sessionId,
+    ...args,
+  });
+  if (error) return { error: fail(500, "server_error") };
+  if (data?.error) {
+    const status = data.error === "not_authenticated" ? 401
+      : data.error === "forbidden" ? 403
+        : data.error === "not_found" ? 404
+          : data.error === "invalid_input" ? 400 : 500;
+    return { error: fail(status, data.error) };
   }
+  return { data };
 }
-
 async function callStart(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
@@ -12251,42 +12256,24 @@ async function callStart(ctx) {
   const mode = ctx.body.mode === "video" ? "video" : "audio";
   if (!recipientAccountId || !offer) return fail(400, "invalid_input");
   if (recipientAccountId === auth.account.id) return fail(400, "cannot_message_self");
-
-  const { data: recipient } = await ctx.supabase
+  const { data, error } = await ctx.supabase
     .from("accounts")
     .select("id,status")
     .eq("id", recipientAccountId)
     .maybeSingle();
-  if (!recipient || recipient.status !== "active") return fail(404, "not_found");
-
-  cleanOldCalls();
-
-  const callId = crypto.randomUUID();
+  if (error) return fail(500, "server_error");
+  if (!data || data.status !== "active") return fail(404, "not_found");
   const names = await namesFor(ctx.supabase, [auth.account.id, recipientAccountId]);
   const callerInfo = names.get(auth.account.id);
   const recipientInfo = names.get(recipientAccountId);
-
-  const callData = {
-    id: callId,
-    mode,
-    callerAccountId: auth.account.id,
-    callerName: callerInfo?.nickname ?? callerInfo?.displayName ?? "Pengguna",
-    callerPhoto: callerInfo?.photoData ?? null,
-    recipientAccountId,
-    recipientName: recipientInfo?.nickname ?? recipientInfo?.displayName ?? "Pengguna",
-    recipientPhoto: recipientInfo?.photoData ?? null,
-    status: "ringing",
-    offer,
-    answer: null,
-    callerCandidates: [],
-    recipientCandidates: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    duration: 0,
-  };
-
-  activeCalls.set(callId, callData);
-
+  const result = await callSignalRpc(ctx, "call_signal_start", {
+    p_recipient_account_id: recipientAccountId,
+    p_mode: mode,
+    p_offer: offer,
+  });
+  if (result.error) return result.error;
+  const call = result.data?.call;
+  if (!call?.id) return fail(500, "server_error");
   const callTypeLabel = mode === "video" ? "Panggilan video" : "Panggilan suara";
   await notify(
     ctx.supabase,
@@ -12296,150 +12283,82 @@ async function callStart(ctx) {
     callTypeLabel + " dari " + (callerInfo?.nickname ?? "Pengguna"),
     "#/pesan?with=" + auth.account.id
   );
-
   return ok({
     call: {
-      id: callData.id,
-      mode: callData.mode,
-      callerAccountId: callData.callerAccountId,
-      callerName: callData.callerName,
-      callerPhoto: callData.callerPhoto,
-      recipientAccountId: callData.recipientAccountId,
-      recipientName: callData.recipientName,
-      recipientPhoto: callData.recipientPhoto,
-      status: callData.status,
-      createdAt: callData.createdAt,
+      ...call,
+      callerName: callerInfo?.nickname ?? callerInfo?.displayName ?? "Pengguna",
+      callerPhoto: callerInfo?.photoData ?? null,
+      recipientName: recipientInfo?.nickname ?? recipientInfo?.displayName ?? "Pengguna",
+      recipientPhoto: recipientInfo?.photoData ?? null,
     },
   });
 }
-
 async function callPoll(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
-  cleanOldCalls();
-
   const callId = text(ctx.body.callId, 60);
-  if (callId) {
-    const call = activeCalls.get(callId);
-    if (!call) return ok({ call: null });
-    if (call.callerAccountId !== auth.account.id && call.recipientAccountId !== auth.account.id) {
-      return fail(403, "forbidden");
-    }
-    const isCaller = call.callerAccountId === auth.account.id;
-    return ok({
-      call: {
-        id: call.id,
-        mode: call.mode || "audio",
-        callerAccountId: call.callerAccountId,
-        callerName: call.callerName,
-        callerPhoto: call.callerPhoto,
-        recipientAccountId: call.recipientAccountId,
-        recipientName: call.recipientName,
-        recipientPhoto: call.recipientPhoto,
-        status: call.status,
-        offer: call.offer,
-        answer: call.answer,
-        remoteCandidates: isCaller ? call.recipientCandidates : call.callerCandidates,
-        duration: call.duration,
-      },
-    });
+  if (callId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return fail(400, "invalid_input");
   }
-
-  for (const call of activeCalls.values()) {
-    if (call.recipientAccountId === auth.account.id && call.status === "ringing") {
-      if (Date.now() - call.createdAt < 45000) {
-        return ok({
-          incomingCall: {
-            callId: call.id,
-            id: call.id,
-            mode: call.mode || "audio",
-            callerAccountId: call.callerAccountId,
-            callerName: call.callerName,
-            callerPhoto: call.callerPhoto,
-            offer: call.offer,
-            createdAt: call.createdAt,
-          },
-        });
-      } else {
-        call.status = "missed";
-        call.updatedAt = Date.now();
-      }
-    }
-  }
-
-  return ok({ incomingCall: null });
+  const result = await callSignalRpc(ctx, "call_signal_poll", { p_call_id: callId || null });
+  return result.error ? result.error : ok(result.data);
 }
-
 async function callAnswer(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const callId = text(ctx.body.callId, 60);
   const answer = ctx.body.answer;
-  if (!callId || !answer) return fail(400, "invalid_input");
-
-  const call = activeCalls.get(callId);
-  if (!call || call.recipientAccountId !== auth.account.id) {
-    return fail(404, "not_found");
+  if (!callId || !answer || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return fail(400, "invalid_input");
   }
-
-  call.status = "active";
-  call.answer = answer;
-  call.startedAt = Date.now();
-  call.updatedAt = Date.now();
-
-  return ok({ ok: true });
+  const result = await callSignalRpc(ctx, "call_signal_answer", {
+    p_call_id: callId,
+    p_answer: answer,
+  });
+  return result.error ? result.error : ok(result.data);
 }
-
 async function callCandidate(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const callId = text(ctx.body.callId, 60);
   const candidate = ctx.body.candidate;
-  if (!callId || !candidate) return fail(400, "invalid_input");
-
-  const call = activeCalls.get(callId);
-  if (!call) return ok({ ok: true });
-
-  if (call.callerAccountId === auth.account.id) {
-    call.callerCandidates.push(candidate);
-  } else if (call.recipientAccountId === auth.account.id) {
-    call.recipientCandidates.push(candidate);
+  if (!callId || !candidate || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return fail(400, "invalid_input");
   }
-  call.updatedAt = Date.now();
-
-  return ok({ ok: true });
+  const result = await callSignalRpc(ctx, "call_signal_candidate", {
+    p_call_id: callId,
+    p_candidate: candidate,
+  });
+  return result.error ? result.error : ok(result.data);
 }
-
 async function callEnd(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const callId = text(ctx.body.callId, 60);
   const reason = text(ctx.body.reason, 30) || "ended";
-  const duration = Math.max(0, Number(ctx.body.duration) || 0);
-
-  if (!callId) return fail(400, "invalid_input");
-
-  const call = activeCalls.get(callId);
-  if (call) {
-    call.status = reason === "rejected" ? "rejected" : reason === "missed" ? "missed" : "ended";
-    call.updatedAt = Date.now();
-    call.duration = duration;
-
-    const otherAccountId = call.callerAccountId === auth.account.id ? call.recipientAccountId : call.callerAccountId;
-    const isVideo = call.mode === "video";
-    const prefix = isVideo ? "📹 Panggilan video" : "📞 Panggilan suara";
+  const duration = Math.max(0, Math.floor(Number(ctx.body.duration) || 0));
+  if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+    return fail(400, "invalid_input");
+  }
+  const result = await callSignalRpc(ctx, "call_signal_end", {
+    p_call_id: callId,
+    p_reason: reason,
+    p_duration: duration,
+  });
+  if (result.error) return result.error;
+  const call = result.data?.call;
+  if (result.data?.transitioned && call) {
+    const otherAccountId = call.callerAccountId === auth.account.id
+      ? call.recipientAccountId : call.callerAccountId;
+    const prefix = call.mode === "video" ? "📹 Panggilan video" : "📞 Panggilan suara";
     let messageBody = prefix + " selesai";
-    if (call.status === "rejected") {
-      messageBody = prefix + " ditolak";
-    } else if (call.status === "missed") {
-      messageBody = prefix + " tak terjawab";
-    } else if (duration > 0) {
-      const minutes = Math.floor(duration / 60);
-      const seconds = duration % 60;
-      const formatted = String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
-      messageBody = prefix + " selesai (" + formatted + ")";
+    if (call.status === "rejected") messageBody = prefix + " ditolak";
+    else if (call.status === "missed") messageBody = prefix + " tak terjawab";
+    else if (call.duration > 0) {
+      const minutes = Math.floor(call.duration / 60);
+      const seconds = call.duration % 60;
+      messageBody = prefix + " selesai (" + String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0") + ")";
     }
-
     try {
       await ctx.supabase.from("messages").insert({
         id: crypto.randomUUID(),
@@ -12451,13 +12370,11 @@ async function callEnd(ctx) {
         created_at: now(),
       });
     } catch {
-      // ignore
+      // The signaling transition is already committed; history insertion is best-effort.
     }
   }
-
   return ok({ ok: true });
 }
-
 // ---------- programs ----------
 
 const programPublic = (row) => ({
