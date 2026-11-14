@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {t("nav.dashboard")}
                   </Link>
                 </Button>
-                <NotificationBell />
+                {rank >= 2 ? <NotificationBell /> : null}
                 <Link
                   to="/feed"
                   onClick={() => {
@@ -273,7 +273,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-72">
+                  <SheetContent side="right" className="w-[min(18rem,calc(100vw-2rem))] max-h-[100dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <SheetHeader>
                       <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>
@@ -349,7 +349,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-72">
+                  <SheetContent side="right" className="w-[min(18rem,calc(100vw-2rem))] max-h-[100dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <SheetHeader>
                       <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>

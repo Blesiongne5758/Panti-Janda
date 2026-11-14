@@ -551,7 +551,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
           <Card className="overflow-hidden py-0">
             <div className="h-2 w-full" style={{ backgroundColor: profile.tier ? TIER_META[profile.tier].accent : "var(--primary)" }} aria-hidden />
             <CardHeader className="gap-4 pt-6">
-              <div className="flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
                 <MemberAvatar
                   name={profile.nickname}
                   tier={profile.tier}
@@ -585,7 +585,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       <strong className="text-foreground">{follow.followingCount}</strong> mengikuti
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 pt-1 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
                     <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 shadow-xs">
                       <Users className="size-3.5 text-primary" aria-hidden />
                       <span className="font-bold text-foreground">{follow.followerCount}</span>
@@ -619,7 +619,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     dibagikan sukarela.
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
                   {!isOwn ? (
                     <Button
                       variant={follow.following ? "outline" : "default"}

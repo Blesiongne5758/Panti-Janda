@@ -303,22 +303,23 @@ export function ProfileSettingsDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="profil" className="gap-1.5 text-xs sm:text-sm">
-              <User className="size-3.5" />
-              <span className="hidden sm:inline">Profil</span>
+          <TabsList className="grid h-auto w-full grid-cols-4">
+            <TabsTrigger value="profil" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
+              <User className="size-3.5" aria-hidden />
+              <span>Profil</span>
             </TabsTrigger>
-            <TabsTrigger value="keamanan" className="gap-1.5 text-xs sm:text-sm">
-              <Lock className="size-3.5" />
+            <TabsTrigger value="keamanan" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
+              <Lock className="size-3.5" aria-hidden />
+              <span className="sm:hidden">Sandi</span>
               <span className="hidden sm:inline">Kata Sandi</span>
             </TabsTrigger>
-            <TabsTrigger value="bank" className="gap-1.5 text-xs sm:text-sm">
-              <CreditCard className="size-3.5" />
-              <span className="hidden sm:inline">Bank</span>
+            <TabsTrigger value="bank" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
+              <CreditCard className="size-3.5" aria-hidden />
+              <span>Bank</span>
             </TabsTrigger>
-            <TabsTrigger value="crypto" className="gap-1.5 text-xs sm:text-sm">
-              <Coins className="size-3.5" />
-              <span className="hidden sm:inline">Crypto</span>
+            <TabsTrigger value="crypto" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
+              <Coins className="size-3.5" aria-hidden />
+              <span>Crypto</span>
             </TabsTrigger>
           </TabsList>
 

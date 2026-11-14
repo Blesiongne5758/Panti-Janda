@@ -97,7 +97,7 @@ function CreateGroupDialog({ onCreated }: { onCreated: () => void }) {
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Minimal tier</Label>
               <Select value={audienceMinRole} onValueChange={(value) => setAudienceMinRole(value as WidowRole)}>

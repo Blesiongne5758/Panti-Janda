@@ -15,7 +15,7 @@ export function MobileNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/80 backdrop-blur-md sm:hidden">
-      <div className="mx-auto grid max-w-xl grid-cols-5 items-center justify-center gap-1 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="mx-auto grid max-w-xl grid-cols-5 items-center justify-center gap-1 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
         {navItems.map((item) => {
           const isActive = item.id === "home"
             ? path === "/feed"
