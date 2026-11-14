@@ -372,34 +372,76 @@ export function VoiceCallOverlay() {
       );
     }
 
-    // B. VIDEO CALL FULL MODAL VIEW
+    // B. VIDEO CALL FULL-SCREEN VIEW
     if (isVideo) {
       return (
         <>
         {videoUpgradePrompt}
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-2 sm:p-6 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative flex h-full max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-neutral-950 shadow-2xl">
-            {/* Header / Top controls */}
-            <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
-              <div className="flex items-center gap-3">
+        <div className="fixed inset-0 z-[120] h-dvh overflow-hidden bg-neutral-950 text-white animate-in fade-in duration-200 motion-reduce:animate-none">
+          <div className="relative h-full w-full overflow-hidden bg-neutral-950">
+            {/* Main remote video stays edge-to-edge; overlays remain above the live stream. */}
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              aria-label={`Video ${callState.otherUser.name}`}
+              className="absolute inset-0 h-full w-full bg-neutral-950 object-cover"
+            />
+
+            {callState.status !== "connected" && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-neutral-950/75 px-6 text-center">
+                <div className="relative">
+                  <span className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 motion-reduce:animate-none" />
+                  <MemberAvatar
+                    name={callState.otherUser.name}
+                    photoData={callState.otherUser.photoData}
+                    size={96}
+                    className="relative ring-4 ring-primary/40"
+                  />
+                </div>
+                <p className="text-sm font-medium text-white/85" role="status">
+                  {callState.status === "calling"
+                    ? "Menghubungi video..."
+                    : callState.status === "ringing"
+                      ? "Berdering..."
+                      : "Menghubungkan..."}
+                </p>
+              </div>
+            )}
+
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 z-20 h-36 bg-gradient-to-b from-black/75 to-transparent"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-56 bg-gradient-to-t from-black/80 via-black/35 to-transparent"
+              aria-hidden
+            />
+
+            {/* Header: participant, live duration, and a 44px minimize target. */}
+            <header
+              className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 px-4 pb-5 sm:px-6"
+              style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+            >
+              <div className="flex min-w-0 items-center gap-3">
                 <MemberAvatar
                   name={callState.otherUser.name}
                   photoData={callState.otherUser.photoData}
                   size={40}
-                  className="ring-2 ring-white/30"
+                  className="shrink-0 ring-2 ring-white/35"
                 />
-                <div>
-                  <h4 className="text-sm font-semibold text-white">
+                <div className="min-w-0">
+                  <h4 className="truncate text-sm font-semibold text-white sm:text-base">
                     {callState.otherUser.name}
                   </h4>
-                  <p className="text-xs font-mono text-emerald-400">
+                  <p className="mt-0.5 flex items-center gap-1.5 font-mono text-xs text-white/80">
                     {callState.status === "connected" ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <>
+                        <span className="size-2 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
                         {formatDuration(callState.duration)}
-                      </span>
+                      </>
                     ) : (
-                      <span className="text-white/70 animate-pulse">
+                      <span role="status">
                         {callState.status === "calling"
                           ? "Menghubungi video..."
                           : callState.status === "ringing"
@@ -413,112 +455,119 @@ export function VoiceCallOverlay() {
 
               <button
                 type="button"
-                className="rounded-full bg-white/15 p-2.5 text-white backdrop-blur-md hover:bg-white/25 transition-colors"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white shadow-lg backdrop-blur-md transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={toggleMinimize}
-                title="Kecilkan Layar Panggilan"
+                title="Kecilkan layar panggilan"
+                aria-label="Kecilkan layar panggilan"
               >
-                <ChevronDown className="size-5" />
+                <ChevronDown className="size-5" aria-hidden />
               </button>
-            </div>
+            </header>
 
-            {/* Main Remote Video Screen */}
-            <div className="relative flex-1 w-full h-full flex items-center justify-center bg-neutral-900 overflow-hidden">
+            {/* Self-view PiP sits below the safe-area header and above controls. */}
+            <div
+              className="absolute right-4 z-30 h-36 w-24 overflow-hidden rounded-2xl border border-white/30 bg-neutral-900 shadow-2xl sm:h-48 sm:w-36"
+              style={{ top: "max(6rem, calc(env(safe-area-inset-top) + 4.5rem))" }}
+            >
               <video
-                ref={remoteVideoRef}
+                ref={localVideoRef}
                 autoPlay
                 playsInline
-                className="h-full w-full object-cover sm:object-contain"
+                muted
+                aria-label="Pratinjau kamera Anda"
+                className={`h-full w-full -scale-x-100 object-cover ${
+                  callState.isCameraOff ? "hidden" : "block"
+                }`}
               />
-
-              {/* Fallback if remote video not connected or camera turned off */}
-              {callState.status !== "connected" && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-neutral-950/80 p-4 text-center">
-                  <div className="relative">
-                    <span className="absolute -inset-4 animate-ping rounded-full bg-violet-500/20 duration-1000" />
-                    <MemberAvatar
-                      name={callState.otherUser.name}
-                      photoData={callState.otherUser.photoData}
-                      size={96}
-                      className="relative ring-4 ring-violet-500/30"
-                    />
-                  </div>
-                  <p className="text-sm font-medium text-white/80 animate-pulse">
-                    {callState.status === "calling"
-                      ? "Menghubungi video..."
-                      : "Menunggu jawaban..."}
-                  </p>
+              {callState.isCameraOff && (
+                <div className="flex h-full w-full flex-col items-center justify-center bg-neutral-800 p-2 text-center text-white/85">
+                  <VideoOff className="mb-2 size-5 text-white/70" aria-hidden />
+                  <span className="text-xs">Kamera mati</span>
                 </div>
               )}
-
-              {/* PiP Local Video Preview (Kamera Diri Sendiri) */}
-              <div className="absolute top-16 right-4 z-20 h-40 w-28 sm:h-48 sm:w-36 overflow-hidden rounded-2xl border-2 border-white/20 bg-neutral-900 shadow-2xl backdrop-blur-md">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`h-full w-full object-cover -scale-x-100 ${
-                    callState.isCameraOff ? "hidden" : "block"
-                  }`}
-                />
-                {callState.isCameraOff && (
-                  <div className="flex h-full w-full flex-col items-center justify-center bg-neutral-800 p-2 text-center text-white/70">
-                    <VideoOff className="size-5 mb-1 text-white/50" />
-                    <span className="text-[10px]">Kamera Mati</span>
-                  </div>
-                )}
-                <div className="absolute bottom-1 left-2 text-[10px] font-medium text-white/80 drop-shadow">
+              {!callState.isCameraOff && (
+                <span className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
                   Anda
-                </div>
-              </div>
+                </span>
+              )}
             </div>
 
-            {/* Bottom Controls Bar */}
-            <div className="absolute bottom-0 inset-x-0 z-20 flex items-center justify-center gap-4 p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-              <Button
-                type="button"
-                variant={callState.isMuted ? "destructive" : "secondary"}
-                size="lg"
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full p-0 shadow-lg hover:scale-105 active:scale-95 transition-transform"
-                onClick={toggleMute}
-                title={callState.isMuted ? "Aktifkan Mikrofon" : "Bisukan Mikrofon"}
-              >
-                {callState.isMuted ? <MicOff className="size-5 sm:size-6" /> : <Mic className="size-5 sm:size-6" />}
-              </Button>
+            {/* Floating controls use safe-area padding and explicit text labels. */}
+            <div
+              className="absolute inset-x-3 bottom-0 z-40 flex items-start justify-center gap-1 rounded-3xl border border-white/15 bg-neutral-950/70 px-2 pt-3 shadow-2xl backdrop-blur-xl sm:inset-x-6 sm:gap-4 sm:px-5"
+              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex w-16 flex-col items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant={callState.isMuted ? "destructive" : "secondary"}
+                  size="icon"
+                  className={`h-14 w-14 rounded-full p-0 shadow-lg transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary ${
+                    callState.isMuted ? "" : "border border-white/15 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                  }`}
+                  onClick={toggleMute}
+                  title={callState.isMuted ? "Aktifkan mikrofon" : "Bisukan mikrofon"}
+                  aria-label={callState.isMuted ? "Aktifkan mikrofon" : "Bisukan mikrofon"}
+                >
+                  {callState.isMuted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
+                </Button>
+                <span className="text-center text-[11px] font-medium leading-tight text-white/85">
+                  {callState.isMuted ? "Nyalakan mic" : "Bisukan"}
+                </span>
+              </div>
 
-              <Button
-                type="button"
-                variant={callState.isCameraOff ? "destructive" : "secondary"}
-                size="lg"
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full p-0 shadow-lg hover:scale-105 active:scale-95 transition-transform"
-                onClick={toggleCamera}
-                title={callState.isCameraOff ? "Nyalakan Kamera" : "Matikan Kamera"}
-              >
-                {callState.isCameraOff ? <VideoOff className="size-5 sm:size-6" /> : <Video className="size-5 sm:size-6" />}
-              </Button>
+              <div className="flex w-16 flex-col items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant={callState.isCameraOff ? "destructive" : "secondary"}
+                  size="icon"
+                  className={`h-14 w-14 rounded-full p-0 shadow-lg transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary ${
+                    callState.isCameraOff ? "" : "border border-white/15 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                  }`}
+                  onClick={toggleCamera}
+                  title={callState.isCameraOff ? "Nyalakan kamera" : "Matikan kamera"}
+                  aria-label={callState.isCameraOff ? "Nyalakan kamera" : "Matikan kamera"}
+                >
+                  {callState.isCameraOff ? <VideoOff className="size-5" /> : <Video className="size-5" />}
+                </Button>
+                <span className="text-center text-[11px] font-medium leading-tight text-white/85">
+                  {callState.isCameraOff ? "Nyalakan" : "Kamera"}
+                </span>
+              </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full p-0 shadow-lg hover:scale-105 active:scale-95 transition-transform"
-                onClick={() => void flipCamera()}
-                title="Balik Kamera (Depan/Belakang)"
-              >
-                <SwitchCamera className="size-5 sm:size-6" />
-              </Button>
+              <div className="flex w-16 flex-col items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="h-14 w-14 rounded-full border border-white/15 bg-white/15 p-0 text-white shadow-lg transition-transform hover:scale-105 hover:bg-white/25 hover:text-white active:scale-95 focus-visible:ring-2 focus-visible:ring-primary"
+                  onClick={() => void flipCamera()}
+                  title="Balik kamera depan atau belakang"
+                  aria-label="Balik kamera depan atau belakang"
+                >
+                  <SwitchCamera className="size-5" aria-hidden />
+                </Button>
+                <span className="text-center text-[11px] font-medium leading-tight text-white/85">
+                  Balik kamera
+                </span>
+              </div>
 
-              <Button
-                type="button"
-                variant="destructive"
-                size="lg"
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-full p-0 shadow-lg shadow-rose-600/40 hover:scale-105 active:scale-95 transition-transform"
-                onClick={() => void endCall("ended")}
-                title="Akhiri Panggilan Video"
-                aria-label="Akhiri panggilan video"
-              >
-                <PhoneOff className="size-5 sm:size-6" />
-              </Button>
+              <div className="flex w-16 flex-col items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="h-14 w-14 rounded-full p-0 shadow-lg shadow-destructive/30 transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-white"
+                  onClick={() => void endCall("ended")}
+                  title="Akhiri panggilan video"
+                  aria-label="Akhiri panggilan video"
+                >
+                  <PhoneOff className="size-5" aria-hidden />
+                </Button>
+                <span className="text-center text-[11px] font-medium leading-tight text-white/90">
+                  Akhiri
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -530,114 +579,135 @@ export function VoiceCallOverlay() {
     return (
       <>
       {videoUpgradePrompt}
-      <div className="fixed inset-0 z-[120] bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 text-white animate-in fade-in duration-200">
-        <div className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto px-6 pb-40 pt-20 text-center sm:px-8">
-          {/* Minimize button */}
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20 hover:text-white"
-            onClick={toggleMinimize}
-            title="Kecilkan panggilan"
-            aria-label="Kecilkan panggilan"
+      <div
+        className="fixed inset-0 z-[120] h-dvh overflow-hidden bg-neutral-950 text-white animate-in fade-in duration-200 motion-reduce:animate-none"
+        style={{
+          background: "radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--primary) 30%, #101411) 0%, #101411 45%, #080b0a 100%)",
+        }}
+      >
+        <div className="relative flex h-full min-h-0 w-full flex-col px-3 text-center sm:px-8">
+          <div
+            className="relative z-10 flex shrink-0 items-center justify-end pt-4 sm:px-0"
+            style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
           >
-            <ChevronDown className="size-5" />
-          </button>
-
-          {/* Avatar with pulsing waves */}
-          <div className="relative my-6 flex items-center justify-center">
-            {callState.status === "connected" && (
-              <>
-                <span className="absolute -inset-4 animate-ping rounded-full bg-emerald-500/15 duration-1000" />
-                <span className="absolute -inset-2 animate-pulse rounded-full bg-emerald-500/25" />
-              </>
-            )}
-            <MemberAvatar
-              name={callState.otherUser.name}
-              photoData={callState.otherUser.photoData}
-              size={96}
-              className="relative shadow-xl ring-4 ring-emerald-500/20"
-            />
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/85 shadow-lg backdrop-blur-md transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onClick={toggleMinimize}
+              title="Kecilkan panggilan"
+              aria-label="Kecilkan panggilan"
+            >
+              <ChevronDown className="size-5" aria-hidden />
+            </button>
           </div>
 
-          <h3 className="text-2xl font-bold text-white sm:text-3xl">
-            {callState.otherUser.name}
-          </h3>
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto py-4">
+            {/* Identity and duration remain the focal point of an audio-only call. */}
+            <div className="relative my-4 flex shrink-0 items-center justify-center">
+              {callState.status === "connected" && (
+                <>
+                  <span className="absolute -inset-5 animate-pulse rounded-full bg-primary/10 motion-reduce:animate-none" />
+                  <span className="absolute -inset-3 rounded-full border border-primary/40" />
+                </>
+              )}
+              <MemberAvatar
+                name={callState.otherUser.name}
+                photoData={callState.otherUser.photoData}
+                size={112}
+                className="relative shadow-2xl ring-4 ring-primary/30"
+              />
+            </div>
 
-          <div className="mt-2 flex items-center justify-center gap-2">
-            {callState.status === "connected" ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                {formatDuration(callState.duration)}
-              </span>
-            ) : (
-              <p className="text-sm text-white/70 animate-pulse" role="status">
-                {callState.status === "calling"
-                  ? "Menghubungi suara..."
-                  : callState.status === "ringing"
-                    ? "Berdering..."
-                    : "Menghubungkan..."}
+            <h3 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              {callState.otherUser.name}
+            </h3>
+            <p className="mt-2 text-sm font-medium text-white/70">Panggilan suara</p>
+
+            <div className="mt-4 flex items-center justify-center">
+              {callState.status === "connected" ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 font-mono text-sm font-medium text-white/90 shadow-sm backdrop-blur-sm">
+                  <span className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+                  {formatDuration(callState.duration)}
+                </span>
+              ) : (
+                <p className="text-sm text-white/80" role="status">
+                  {callState.status === "calling"
+                    ? "Menghubungi suara..."
+                    : callState.status === "ringing"
+                      ? "Berdering..."
+                      : "Menghubungkan..."}
+                </p>
+              )}
+            </div>
+
+            {switchingToVideoTarget && (
+              <p className="mt-4 max-w-sm rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-relaxed text-white/85" role="status">
+                Meminta persetujuan untuk beralih ke video. Panggilan suara tetap tersambung.
+              </p>
+            )}
+
+            {callState.isMuted && (
+              <p className="mt-3 text-sm font-medium text-red-200" role="status">
+                Mikrofon Anda sedang dibisukan
               </p>
             )}
           </div>
 
-          {switchingToVideoTarget && (
-            <p className="mt-3 text-sm text-violet-200" role="status">
-              Meminta persetujuan untuk beralih ke video. Panggilan suara tetap tersambung.
-            </p>
-          )}
-
-          {callState.isMuted && (
-            <p className="mt-2 text-xs font-medium text-rose-300">
-              Mikrofon Anda sedang dibisukan
-            </p>
-          )}
-
-          {/* Action buttons */}
-          <div className="absolute inset-x-0 bottom-0 z-10 flex w-full items-end justify-center gap-5 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-8 sm:gap-10">
-            <div className="flex flex-col items-center gap-2">
+          {/* Stable bottom controls; safe-area padding keeps them above device gestures. */}
+          <div
+            className="relative z-10 flex w-full shrink-0 items-start justify-center gap-2 rounded-3xl border border-white/15 bg-neutral-950/60 px-2 pt-3 shadow-2xl backdrop-blur-xl sm:gap-6 sm:px-5"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex w-20 flex-col items-center gap-1.5">
               <Button
                 type="button"
                 variant={callState.isMuted ? "destructive" : "secondary"}
-                size="lg"
-                className="h-14 w-14 rounded-full p-0 shadow-md hover:scale-105 active:scale-95 transition-transform"
+                size="icon"
+                className={`h-14 w-14 rounded-full p-0 shadow-lg transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary ${
+                  callState.isMuted ? "" : "border border-white/15 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                }`}
                 onClick={toggleMute}
                 title={callState.isMuted ? "Aktifkan mikrofon" : "Bisukan mikrofon"}
                 aria-label={callState.isMuted ? "Aktifkan mikrofon" : "Bisukan mikrofon"}
               >
-                {callState.isMuted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
+                {callState.isMuted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
               </Button>
-              <span className="text-xs font-medium text-white/80">{callState.isMuted ? "Nyalakan mic" : "Bisukan"}</span>
+              <span className="text-center text-xs font-medium leading-tight text-white/85">
+                {callState.isMuted ? "Nyalakan mic" : "Bisukan"}
+              </span>
             </div>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex w-20 flex-col items-center gap-1.5">
               <Button
                 type="button"
                 variant="secondary"
-                size="lg"
-                className="h-14 w-14 rounded-full p-0 shadow-md hover:scale-105 active:scale-95 transition-transform"
+                size="icon"
+                className="h-14 w-14 rounded-full border border-white/15 bg-primary p-0 text-white shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 hover:text-white active:scale-95 focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50"
                 disabled={Boolean(switchingToVideoTarget) || callState.status !== "connected"}
                 onClick={() => void switchToVideoCall()}
                 title={switchingToVideoTarget ? "Menunggu persetujuan video" : "Minta beralih ke panggilan video"}
                 aria-label="Minta beralih ke panggilan video tanpa mengakhiri panggilan suara"
               >
-                <Video className="size-6" />
+                <Video className="size-5" aria-hidden />
               </Button>
-              <span className="text-xs font-medium text-white/80">{switchingToVideoTarget ? "Meminta…" : "Video"}</span>
+              <span className="text-center text-xs font-medium leading-tight text-white/85">
+                {switchingToVideoTarget ? "Meminta…" : "Video"}
+              </span>
             </div>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex w-20 flex-col items-center gap-1.5">
               <Button
                 type="button"
                 variant="destructive"
-                size="lg"
-                className="h-14 w-14 rounded-full p-0 shadow-lg shadow-rose-500/30 hover:scale-105 active:scale-95 transition-transform"
+                size="icon"
+                className="h-14 w-14 rounded-full p-0 shadow-lg shadow-destructive/30 transition-transform hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-white"
                 onClick={() => void endCall("ended")}
                 title="Akhiri panggilan"
                 aria-label="Akhiri panggilan"
               >
-                <PhoneOff className="size-6" />
+                <PhoneOff className="size-5" aria-hidden />
               </Button>
-              <span className="text-xs font-medium text-white/90">Akhiri</span>
+              <span className="text-center text-xs font-medium leading-tight text-white/90">Akhiri</span>
             </div>
           </div>
         </div>
