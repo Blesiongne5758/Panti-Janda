@@ -26,8 +26,9 @@ import {
   ZoomOut,
   Eye,
 } from "lucide-react";
-import { api, errorText } from "@/lib/api";
+import { api, chatStorageApi, errorText } from "@/lib/api";
 import { CameraCaptureDialog, type CapturedMedia } from "@/components/camera-capture-dialog";
+import { CallNotificationPermissionNotice } from "@/components/call-notification-permission";
 import { compressImage, formatFileSize } from "@/lib/image-compress";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 import { useAuth } from "@/lib/session";
@@ -228,6 +229,17 @@ interface ParsedAttachment {
   url: string;
   name: string;
   size?: number;
+  mimeType?: string;
+  private?: boolean;
+}
+
+async function downloadAttachment(attachment: ParsedAttachment): Promise<void> {
+  let url = attachment.url;
+  if (attachment.type === "file" && (attachment.private || /^[0-9a-f-]+\/[0-9a-f-]+\.[a-z0-9]+$/i.test(url))) {
+    const result = await chatStorageApi<{ presignedUrl: string }>("chatStorage.download", { key: url });
+    url = result.presignedUrl;
+  }
+  await forceDownload(url, attachment.name || "unduhan");
 }
 
 function MessageBubble({
@@ -294,7 +306,7 @@ function MessageBubble({
             <div className="p-1.5">
               <button
                 type="button"
-                onClick={() => void forceDownload(parsed.attachment!.url, parsed.attachment!.name)}
+                onClick={() => void downloadAttachment(parsed.attachment!).catch((error) => toast.error(errorText(error)))}
                 className={`flex w-full items-center gap-2.5 p-2 rounded-xl transition-colors text-left ${
                   mine
                     ? "bg-white/10 hover:bg-white/20 text-white"
@@ -330,7 +342,7 @@ function MessageBubble({
 
 export default function ChatPage() {
   const { account, ready } = useAuth();
-  const { startCall } = useVoiceCall();
+  const { startCall, mediaPermissionIssue } = useVoiceCall();
   const rank = account ? ROLE_RANK[account.role] : 0;
   const withParam = useQueryParam("with");
   const groupParam = useQueryParam("grup");
@@ -695,27 +707,26 @@ export default function ChatPage() {
       return;
     }
 
+    const hasAttachment = Boolean(pendingAttachment);
     setSending(true);
     try {
       let bodyToSend = textBody;
 
       if (pendingAttachment) {
-        toast.loading("Mengunggah lampiran...", { id: "send-attach" });
-        const uploadRes = await uploadFile(pendingAttachment.file, "public");
-        const fileUrl = uploadRes?.publicUrl || uploadRes?.key;
-        toast.dismiss("send-attach");
-
-        if (!fileUrl) {
-          toast.error("Gagal mengunggah lampiran");
-          setSending(false);
-          return;
-        }
+        toast.loading(pendingAttachment.type === "file" ? "Mengunggah dokumen..." : "Mengunggah foto...", { id: "send-attach" });
+        const uploadPurpose = pendingAttachment.type === "file" ? "private" : "public";
+        const uploadRes = await uploadFile(pendingAttachment.file, uploadPurpose).finally(() => toast.dismiss("send-attach"));
+        const fileUrl = uploadRes.publicUrl || uploadRes.key;
+        if (!fileUrl) throw new Error("Lampiran belum berhasil diunggah. Coba lagi.");
 
         const attachmentData = {
           type: pendingAttachment.type,
           url: fileUrl,
           name: pendingAttachment.file.name,
           size: pendingAttachment.file.size,
+          ...(pendingAttachment.type === "file" && uploadRes.provider === "supabase"
+            ? { private: true, mimeType: uploadRes.mimeType }
+            : {}),
         };
 
         bodyToSend = JSON.stringify({
@@ -733,9 +744,10 @@ export default function ChatPage() {
       setDraft("");
       clearPendingAttachment();
       await loadThread(true);
+      if (hasAttachment) toast.success("Lampiran berhasil dikirim ke percakapan.");
       void loadLists();
     } catch (error) {
-      toast.error(errorText(error));
+      toast.error(error instanceof Error ? error.message : errorText(error));
     } finally {
       setSending(false);
     }
@@ -1405,6 +1417,17 @@ export default function ChatPage() {
                   </>
                 ) : null}
               </header>
+
+              <CallNotificationPermissionNotice />
+              {mediaPermissionIssue ? (
+                <div role="status" aria-live="polite" className="flex shrink-0 items-start gap-3 border-b border-amber-200/70 bg-amber-50/80 px-3 py-2.5 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100 sm:px-4">
+                  <span className="mt-0.5 text-sm" aria-hidden>!</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold">Izin mikrofon atau kamera diperlukan</p>
+                    <p className="mt-0.5 text-[11px] leading-snug opacity-80">{mediaPermissionIssue} Buka ikon setelan/kunci di bilah alamat browser, izinkan perangkat untuk situs ini, lalu coba panggilan lagi.</p>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Messages / Friendship Approval Gate */}
               {threadLoading ? (

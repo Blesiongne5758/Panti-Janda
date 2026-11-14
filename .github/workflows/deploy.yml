@@ -32,6 +32,25 @@ jobs:
       - name: Validate backend handlers
         run: npm run check:function
 
+      - name: Verify production deployment secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_URL:?Add SUPABASE_URL to the production GitHub Environment}"
+          : "${SUPABASE_ANON_KEY:?Add SUPABASE_ANON_KEY to the production GitHub Environment}"
+          : "${SUPABASE_ACCESS_TOKEN:?Add SUPABASE_ACCESS_TOKEN to the production GitHub Environment}"
+          : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to the production GitHub Environment}"
+          : "${FTP_SERVER:?Add FTP_SERVER to the production GitHub Environment}"
+          : "${FTP_USERNAME:?Add FTP_USERNAME to the production GitHub Environment}"
+          : "${FTP_PASSWORD:?Add FTP_PASSWORD to the production GitHub Environment}"
+
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -79,26 +98,13 @@ jobs:
             exit 1
           fi
 
-      - name: Configure Supabase function secrets
+      # Keep the currently deployed `app` function unchanged; its production
+      # version is intentionally different from this repository's source.
+      - name: Deploy private chat-storage Edge Function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-        run: |
-          : "${SUPABASE_ACCESS_TOKEN:?Add SUPABASE_ACCESS_TOKEN to the production GitHub Environment}"
-          : "${CLOUDINARY_CLOUD_NAME:?Add CLOUDINARY_CLOUD_NAME to the production GitHub Environment}"
-          : "${CLOUDINARY_API_KEY:?Add CLOUDINARY_API_KEY to the production GitHub Environment}"
-          : "${CLOUDINARY_API_SECRET:?Add CLOUDINARY_API_SECRET to the production GitHub Environment}"
-          supabase secrets set --remote="$SUPABASE_PROJECT_REF" --yes \
-            "CLOUDINARY_CLOUD_NAME=$CLOUDINARY_CLOUD_NAME" \
-            "CLOUDINARY_API_KEY=$CLOUDINARY_API_KEY" \
-            "CLOUDINARY_API_SECRET=$CLOUDINARY_API_SECRET"
-
-      - name: Deploy Supabase Edge Function
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase functions deploy app --remote="$SUPABASE_PROJECT_REF" --use-api --yes
+          SUPABASE_PROJECT_REF: ${{ steps.derive-project-ref.outputs.project_ref }}
+        run: supabase functions deploy chat-storage --remote="$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt --yes
 
       - name: Sync files
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

@@ -87,7 +87,7 @@ export function VoiceCallOverlay() {
   if (incomingCall && !callState) {
     const isVideo = incomingCall.mode === "video";
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/65 p-4 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/65 p-4 backdrop-blur-md animate-in fade-in duration-200">
         <div className="relative flex w-full max-w-sm flex-col items-center rounded-3xl border border-border bg-card p-6 text-center shadow-2xl">
           {/* Animated caller avatar */}
           <div className="relative mb-5 flex items-center justify-center">
@@ -165,7 +165,7 @@ export function VoiceCallOverlay() {
 
   if (switchingToVideoTarget && !callState) {
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-slate-950 via-emerald-950 to-slate-950 p-6 text-center text-white">
+      <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-slate-950 via-emerald-950 to-slate-950 p-6 text-center text-white">
         <div className="relative">
           <span className="absolute -inset-4 animate-ping rounded-full bg-emerald-500/15 duration-1000" />
           <MemberAvatar
@@ -189,7 +189,7 @@ export function VoiceCallOverlay() {
   }
 
   const videoUpgradePrompt = callState && incomingVideoUpgrade ? (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-in fade-in duration-150">
       <div
         ref={videoUpgradeDialogRef}
         tabIndex={-1}
@@ -262,7 +262,7 @@ export function VoiceCallOverlay() {
       return (
         <>
         {videoUpgradePrompt}
-        <div className="fixed bottom-20 right-4 z-[60] flex items-center gap-3 rounded-2xl border border-border/80 bg-card/95 p-2.5 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-20 right-4 z-[120] flex items-center gap-3 rounded-2xl border border-border/80 bg-card/95 p-2.5 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
           {isVideo ? (
             <div className="relative h-14 w-20 overflow-hidden rounded-xl bg-black">
               <video
@@ -377,7 +377,7 @@ export function VoiceCallOverlay() {
       return (
         <>
         {videoUpgradePrompt}
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-2 sm:p-6 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-2 sm:p-6 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative flex h-full max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-neutral-950 shadow-2xl">
             {/* Header / Top controls */}
             <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
@@ -530,7 +530,7 @@ export function VoiceCallOverlay() {
     return (
       <>
       {videoUpgradePrompt}
-      <div className="fixed inset-0 z-[60] bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 text-white animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-[120] bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 text-white animate-in fade-in duration-200">
         <div className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto px-6 pb-40 pt-20 text-center sm:px-8">
           {/* Minimize button */}
           <button

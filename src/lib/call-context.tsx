@@ -12,6 +12,21 @@ import { useAuth } from "./session";
 import { callSounds } from "./call-tones";
 import { toast } from "sonner";
 
+function mediaPermissionMessage(error: unknown, requestVideo: boolean): string {
+  const name = error instanceof Error ? error.name : "";
+  const devices = requestVideo ? "kamera dan mikrofon" : "mikrofon";
+  if (name === "MediaDevicesUnavailable") {
+    return "Browser ini tidak menyediakan akses perangkat. Buka aplikasi melalui browser modern dan koneksi aman (HTTPS).";
+  }
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return `Izin ${devices} ditolak. Aktifkan akses perangkat untuk situs ini di pengaturan browser, lalu coba lagi.`;
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return requestVideo ? "Kamera atau mikrofon tidak ditemukan pada perangkat ini." : "Mikrofon tidak ditemukan pada perangkat ini.";
+  }
+  return `Izin ${devices} diperlukan agar panggilan dapat tersambung.`;
+}
+
 export interface CallUser {
   accountId: string;
   name: string;
@@ -60,6 +75,7 @@ interface CallPollCandidate {
 interface CallContextValue {
   callState: CallState | null;
   incomingCall: IncomingCall | null;
+  mediaPermissionIssue: string | null;
   incomingVideoUpgrade: CallRenegotiation | null;
   acceptingVideoUpgrade: boolean;
   startCall: (target: CallUser, mode?: CallMode) => Promise<void>;
@@ -96,6 +112,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [incomingVideoUpgrade, setIncomingVideoUpgrade] = useState<CallRenegotiation | null>(null);
   const [acceptingVideoUpgrade, setAcceptingVideoUpgrade] = useState(false);
+  const [mediaPermissionIssue, setMediaPermissionIssue] = useState<string | null>(null);
   const [switchingToVideoTarget, setSwitchingToVideoTarget] = useState<CallUser | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
@@ -386,20 +403,22 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
       let stream: MediaStream;
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("MediaDevicesUnavailable");
+        }
         stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: mode === "video" ? { facingMode: "user" } : false,
         });
+        setMediaPermissionIssue(null);
         localStreamRef.current = stream;
         if (mode === "video" && localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-      } catch {
-        toast.error(
-          mode === "video"
-            ? "Izin kamera dan mikrofon diperlukan untuk melakukan panggilan video."
-            : "Izin mikrofon diperlukan untuk melakukan panggilan suara.",
-        );
+      } catch (error) {
+        const message = mediaPermissionMessage(error, mode === "video");
+        setMediaPermissionIssue(message);
+        toast.error(message);
         return;
       }
 
@@ -572,20 +591,22 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
     let stream: MediaStream;
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("MediaDevicesUnavailable");
+      }
       stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: isVideo ? { facingMode: "user" } : false,
       });
+      setMediaPermissionIssue(null);
       localStreamRef.current = stream;
       if (isVideo && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-    } catch {
-      toast.error(
-        isVideo
-          ? "Izin kamera dan mikrofon diperlukan untuk menerima panggilan video."
-          : "Izin mikrofon diperlukan untuk menerima panggilan suara.",
-      );
+    } catch (error) {
+      const message = mediaPermissionMessage(error, isVideo);
+      setMediaPermissionIssue(message);
+      toast.error(message);
       try {
         await api("call.end", { callId: currentIncoming.callId, reason: "rejected", duration: 0 });
       } catch {
@@ -953,10 +974,36 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
             if (lastNotifiedCallIdRef.current !== normalizedIncoming.callId) {
               lastNotifiedCallIdRef.current = normalizedIncoming.callId;
               if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-                new Notification(
-                  normalizedIncoming.mode === "video" ? "Panggilan video masuk" : "Panggilan suara masuk",
-                  { body: `${normalizedIncoming.callerName} sedang menghubungi Anda`, tag: normalizedIncoming.callId },
-                );
+                const title = normalizedIncoming.mode === "video" ? "Panggilan video masuk" : "Panggilan suara masuk";
+                const body = `${normalizedIncoming.callerName} sedang menghubungi Anda`;
+                const url = `/#/pesan?with=${encodeURIComponent(normalizedIncoming.callerAccountId)}`;
+                const options: NotificationOptions = {
+                  body,
+                  icon: "/images/logo-pj.png",
+                  tag: normalizedIncoming.callId,
+                  data: { url },
+                };
+                const fallbackNotification = () => {
+                  if (Notification.permission !== "granted") return;
+                  try {
+                    const notification = new Notification(title, options);
+                    notification.onclick = () => {
+                      window.focus();
+                      window.location.hash = url.slice(1);
+                      notification.close();
+                    };
+                  } catch {
+                    // Some browsers require a service-worker notification instead.
+                  }
+                };
+                if ("serviceWorker" in navigator) {
+                  void navigator.serviceWorker.getRegistration().then((registration) => {
+                    if (registration) return registration.showNotification(title, options);
+                    fallbackNotification();
+                  }).catch(fallbackNotification);
+                } else {
+                  fallbackNotification();
+                }
               }
             }
           }
@@ -983,6 +1030,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
       value={{
         callState,
         incomingCall,
+        mediaPermissionIssue,
         incomingVideoUpgrade,
         acceptingVideoUpgrade,
         startCall,

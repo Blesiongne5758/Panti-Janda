@@ -392,7 +392,13 @@ export default function AdminPage() {
       privateBucket: "pantijanda-private",
       cdnUrl: "",
       maxFileSizeMB: 10,
-      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"],
+      allowedMimeTypes: [
+        "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf",
+        "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "text/plain", "text/csv", "application/zip", "application/vnd.rar",
+      ],
     },
     cloudinary: {
       cloudName: "mlup4hpq",

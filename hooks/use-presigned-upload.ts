@@ -1,5 +1,29 @@
 import { useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, chatStorageApi } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+
+const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  csv: "text/csv",
+  zip: "application/zip",
+  rar: "application/vnd.rar",
+};
+
+function resolveMimeType(file: File): string {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const inferred = MIME_BY_EXTENSION[extension];
+  if (!file.type || file.type === "application/octet-stream") {
+    return inferred ?? file.type ?? "application/octet-stream";
+  }
+  return file.type;
+}
 
 export interface PresignedUploadResult {
   presignedUrl: string;
@@ -9,6 +33,7 @@ export interface PresignedUploadResult {
   method: string;
   headers?: Record<string, string>;
   provider?: string;
+  mimeType?: string;
   fields?: Record<string, string>;
 }
 
@@ -27,22 +52,25 @@ export function usePresignedUpload() {
     async (file: File): Promise<{ valid: boolean; mime: string; size: number }> => {
       let magicBytes = "";
       try {
-        const slice = file.slice(0, 16);
-        const buffer = await slice.arrayBuffer();
+        const buffer = await file.slice(0, 16).arrayBuffer();
         magicBytes = Array.from(new Uint8Array(buffer))
-          .map((b) => b.toString(16).padStart(2, "0"))
+          .map((byte) => byte.toString(16).padStart(2, "0"))
           .join("");
       } catch {
-        // fallback if slice.arrayBuffer is not supported
+        // The server still checks the allowlist, size limit, and uploaded object.
       }
 
-      const res = await api<{ valid: boolean }>("storage.validateFile", {
+      const mime = resolveMimeType(file);
+      const payload = {
         fileName: file.name,
         fileSize: file.size,
-        mimeType: file.type,
+        mimeType: mime,
         magicBytes,
-      });
-      return { valid: res.valid, mime: file.type, size: file.size };
+      };
+      const result = mime.startsWith("image/")
+        ? await api<{ valid: boolean }>("storage.validateFile", payload)
+        : await chatStorageApi<{ valid: boolean }>("chatStorage.validate", payload);
+      return { valid: result.valid, mime, size: file.size };
     },
     [],
   );
@@ -54,13 +82,12 @@ export function usePresignedUpload() {
       fileSize: number,
       filePurpose: "public" | "private" = "public",
     ): Promise<PresignedUploadResult> => {
-      const res = await api<PresignedUploadResult>("storage.presignedUpload", {
+      return api<PresignedUploadResult>("storage.presignedUpload", {
         fileName,
         mimeType,
         fileSize,
         bucketType: filePurpose,
       });
-      return res;
     },
     [],
   );
@@ -70,16 +97,58 @@ export function usePresignedUpload() {
       file: File,
       filePurpose: "public" | "private" = "public",
       onProgress?: (progress: number) => void,
-    ): Promise<PresignedUploadResult | null> => {
+    ): Promise<PresignedUploadResult> => {
       setUploading(true);
       setError(null);
       try {
         const validation = await validateFile(file);
         if (!validation.valid) {
-          throw new Error(`File tidak valid: tipe ${validation.mime} tidak diizinkan`);
+          throw new Error(`Berkas tidak valid: tipe ${validation.mime} tidak diizinkan.`);
+        }
+
+        if (filePurpose === "private") {
+          const buffer = await file.slice(0, 16).arrayBuffer();
+          const magicBytes = Array.from(new Uint8Array(buffer))
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("");
+          const signed = await chatStorageApi<{
+            bucket: string;
+            key: string;
+            uploadToken: string;
+            mimeType: string;
+          }>("chatStorage.upload", {
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: validation.mime,
+            magicBytes,
+          });
+          onProgress?.(35);
+          const { error: uploadError } = await supabase.storage
+            .from(signed.bucket)
+            .uploadToSignedUrl(signed.key, signed.uploadToken, file, {
+              contentType: signed.mimeType,
+              upsert: false,
+            });
+          if (uploadError) throw new Error("Unggah dokumen gagal. Periksa koneksi lalu coba lagi.");
+          onProgress?.(80);
+          await chatStorageApi("chatStorage.verifyUpload", {
+            key: signed.key,
+            fileSize: file.size,
+          });
+          onProgress?.(100);
+          return {
+            presignedUrl: "",
+            publicUrl: null,
+            key: signed.key,
+            bucket: signed.bucket,
+            method: "PUT",
+            provider: "supabase",
+            mimeType: signed.mimeType,
+          };
         }
 
         let publicUrl: string | null = null;
+        let uploadFailure: Error | null = null;
         let finalResult: PresignedUploadResult = {
           presignedUrl: "",
           publicUrl: null,
@@ -89,7 +158,7 @@ export function usePresignedUpload() {
         };
 
         try {
-          const presigned = await getPresignedUrl(file.name, file.type, file.size, filePurpose);
+          const presigned = await getPresignedUrl(file.name, validation.mime, file.size, filePurpose);
           finalResult = presigned;
           onProgress?.(30);
 
@@ -100,8 +169,8 @@ export function usePresignedUpload() {
             let response: Response;
             if (isMultipart) {
               const formData = new FormData();
-              for (const [key, val] of Object.entries(presigned.fields ?? {})) {
-                if (val) formData.append(key, val);
+              for (const [key, value] of Object.entries(presigned.fields ?? {})) {
+                if (value) formData.append(key, value);
               }
               formData.append("file", file, file.name);
               response = await fetch(presigned.presignedUrl, {
@@ -114,17 +183,14 @@ export function usePresignedUpload() {
                 method: presigned.method || "PUT",
                 headers: {
                   ...(presigned.headers ?? {}),
-                  "Content-Type": file.type || "application/octet-stream",
+                  "Content-Type": validation.mime,
                 },
                 body: file,
                 signal: controller.signal,
               });
             }
 
-            if (!response.ok) {
-              throw new Error(`Upload media gagal (${response.status})`);
-            }
-
+            if (!response.ok) throw new Error(`Unggah berkas gagal (${response.status}).`);
             const responseData = await response.json().catch(() => null) as Record<string, unknown> | null;
             const responseUrl = typeof responseData?.secure_url === "string"
               ? responseData.secure_url
@@ -133,22 +199,25 @@ export function usePresignedUpload() {
                 : null;
             publicUrl = responseUrl || presigned.publicUrl || null;
             finalResult.publicUrl = publicUrl;
-          } catch {
-            // Upload langsung gagal; gunakan data URL hanya sebagai fallback terakhir.
+          } catch (uploadError) {
+            uploadFailure = uploadError instanceof Error ? uploadError : new Error("Unggah berkas gagal.");
           } finally {
             clearTimeout(timer);
           }
-        } catch {
-          // presigned URL request failed; will fall back to data URL
+        } catch (presignError) {
+          uploadFailure = presignError instanceof Error ? presignError : new Error("Layanan penyimpanan belum tersedia.");
         }
 
-        // If direct cloud upload did not provide a URL, convert to Data URL fallback
         if (!publicUrl) {
+          if (!validation.mime.startsWith("image/")) {
+            throw uploadFailure ?? new Error("Dokumen belum terunggah. Periksa koneksi dan coba lagi.");
+          }
+          // Keep the legacy small-image fallback; never put documents in message JSON as data URLs.
           onProgress?.(60);
           publicUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error("Gagal membaca berkas"));
+            reader.onerror = () => reject(new Error("Gagal membaca berkas gambar."));
             reader.readAsDataURL(file);
           });
           finalResult.publicUrl = publicUrl;
@@ -156,10 +225,10 @@ export function usePresignedUpload() {
 
         onProgress?.(100);
         return finalResult;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload gagal";
-        setError(msg);
-        return null;
+      } catch (uploadError) {
+        const message = uploadError instanceof Error ? uploadError.message : "Unggah berkas gagal.";
+        setError(message);
+        throw uploadError instanceof Error ? uploadError : new Error(message);
       } finally {
         setUploading(false);
       }
@@ -169,11 +238,10 @@ export function usePresignedUpload() {
 
   const getDownloadUrl = useCallback(
     async (key: string, filePurpose: "public" | "private" = "public"): Promise<PresignedDownloadResult> => {
-      const res = await api<PresignedDownloadResult>("storage.presignedDownload", {
+      return api<PresignedDownloadResult>("storage.presignedDownload", {
         key,
         bucketType: filePurpose,
       });
-      return res;
     },
     [],
   );

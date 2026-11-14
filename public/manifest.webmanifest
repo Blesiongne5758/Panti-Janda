@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Panti Janda — Ruang Tumbuh",
+  "short_name": "Panti Janda",
+  "description": "Komunitas hangat untuk belajar, berbagi, dan saling terhubung.",
+  "start_url": "/#/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF5EE",
+  "theme_color": "#FAF5EE",
+  "icons": [
+    {
+      "src": "/images/logo-pj.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
