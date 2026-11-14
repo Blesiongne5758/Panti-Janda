@@ -232,14 +232,266 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
     },
     async rpc(name, args = {}) {
       if (failAll) return { data: null, error: { message: "fixture failure", code: "500" } };
-      // The local fixture intentionally stores no WebRTC calls. Match the
-      // production RPC's empty-state response so background polling succeeds.
+      const rpcError = (error) => ({ data: { error }, error: null });
+      const rpcOk = (data) => ({ data, error: null });
+      const actor = () => {
+        const session = rowsOf("sessions").find((row) => row.id === args.p_session_id);
+        const account = session && rowsOf("accounts").find((row) => row.id === session.account_id);
+        if (!session || Date.parse(session.expires_at) <= Date.now() || account?.status !== "active") return null;
+        return account;
+      };
+      const isParticipant = (call, accountId) =>
+        Boolean(call && (call.caller_account_id === accountId || call.recipient_account_id === accountId));
+      const validDescription = (description, type) =>
+        Boolean(description && typeof description === "object" && !Array.isArray(description) &&
+          description.type === type && typeof description.sdp === "string" && description.sdp.trim());
+
       if (name === "call_signal_poll") {
-        return {
-          data: args.p_call_id ? { call: null } : { incomingCall: null },
-          error: null,
-        };
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        if (args.p_call_id) {
+          const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+          if (!isParticipant(call, user.id)) return rpcOk({ call: null });
+          const now = Date.now();
+          const currentNegotiation = rowsOf("call_signal_negotiations").find(
+            (row) => row.call_id === call.id && row.revision === call.current_revision,
+          );
+          if (currentNegotiation?.status === "pending" && now - Date.parse(currentNegotiation.created_at) > 60_000) {
+            currentNegotiation.status = "rejected";
+            currentNegotiation.updated_at = new Date().toISOString();
+          }
+          const renegotiation = currentNegotiation ? {
+            revision: currentNegotiation.revision,
+            mode: currentNegotiation.mode,
+            offererAccountId: currentNegotiation.offerer_account_id,
+            offer: currentNegotiation.offer,
+            answer: currentNegotiation.answer,
+            status: currentNegotiation.status,
+          } : null;
+          const negotiationCandidates = rowsOf("call_signal_candidates")
+            .filter((row) => row.call_id === call.id && row.sender_account_id !== user.id)
+            .sort((a, b) => a.id - b.id)
+            .slice(-512)
+            .map((row) => ({ id: row.id, revision: row.revision, candidate: row.candidate }));
+          const remoteCandidates = call.caller_account_id === user.id
+            ? call.recipient_candidates
+            : call.caller_candidates;
+          return rpcOk({ call: {
+            id: call.id,
+            mode: call.mode,
+            callerAccountId: call.caller_account_id,
+            recipientAccountId: call.recipient_account_id,
+            status: call.status,
+            offer: call.offer,
+            answer: call.answer,
+            remoteCandidates,
+            duration: call.duration,
+            currentRevision: call.current_revision,
+            renegotiation,
+            negotiationCandidates,
+          } });
+        }
+
+        const calls = rowsOf("call_signals");
+        const incoming = calls
+          .filter((row) => row.recipient_account_id === user.id && row.status === "ringing")
+          .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+        if (incoming && Date.now() - Date.parse(incoming.created_at) <= 45_000) {
+          const caller = rowsOf("accounts").find((row) => row.id === incoming.caller_account_id);
+          const profile = rowsOf("profiles").find((row) => row.account_id === incoming.caller_account_id);
+          return rpcOk({ incomingCall: {
+            callId: incoming.id,
+            id: incoming.id,
+            mode: incoming.mode,
+            callerAccountId: incoming.caller_account_id,
+            callerName: profile?.nickname ?? caller?.display_name ?? "Pengguna",
+            callerPhoto: profile?.photo_data ?? null,
+            offer: incoming.offer,
+            createdAt: Date.parse(incoming.created_at),
+          } });
+        }
+        if (incoming) incoming.status = "missed";
+        return rpcOk({ incomingCall: null });
       }
+
+      if (name === "call_signal_start") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const recipient = rowsOf("accounts").find((row) => row.id === args.p_recipient_account_id && row.status === "active");
+        if (!recipient) return rpcError("not_found");
+        if (user.id === recipient.id || !["audio", "video"].includes(args.p_mode) || !validDescription(args.p_offer, "offer")) {
+          return rpcError("invalid_input");
+        }
+        const createdAt = new Date().toISOString();
+        const call = {
+          id: crypto.randomUUID(),
+          caller_account_id: user.id,
+          recipient_account_id: recipient.id,
+          mode: args.p_mode,
+          status: "ringing",
+          offer: args.p_offer,
+          answer: null,
+          caller_candidates: [],
+          recipient_candidates: [],
+          duration: 0,
+          current_revision: 0,
+          created_at: createdAt,
+          updated_at: createdAt,
+        };
+        rowsOf("call_signals").push(call);
+        return rpcOk({ call: {
+          id: call.id,
+          mode: call.mode,
+          callerAccountId: call.caller_account_id,
+          recipientAccountId: call.recipient_account_id,
+          status: call.status,
+          createdAt: Date.parse(createdAt),
+        } });
+      }
+
+      if (name === "call_signal_answer") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+        if (!call || call.recipient_account_id !== user.id || call.status !== "ringing" || !validDescription(args.p_answer, "answer")) {
+          return rpcError("not_found");
+        }
+        call.status = "active";
+        call.answer = args.p_answer;
+        call.updated_at = new Date().toISOString();
+        return rpcOk({ ok: true });
+      }
+
+      if (name === "call_signal_renegotiate_offer") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+        if (!isParticipant(call, user.id)) return rpcError("not_found");
+        if (call.status !== "active") return rpcError("call_not_active");
+        if (!Number.isSafeInteger(args.p_expected_revision) || args.p_expected_revision < 0 ||
+            !["audio", "video"].includes(args.p_mode) || !validDescription(args.p_offer, "offer")) {
+          return rpcError("invalid_input");
+        }
+        const nextRevision = args.p_expected_revision + 1;
+        const existing = rowsOf("call_signal_negotiations").find((row) =>
+          row.call_id === call.id && row.revision === nextRevision && row.offerer_account_id === user.id &&
+          row.mode === args.p_mode && JSON.stringify(row.offer) === JSON.stringify(args.p_offer),
+        );
+        if (existing) return rpcOk({ ok: true, revision: existing.revision, status: existing.status });
+        const pending = rowsOf("call_signal_negotiations").some(
+          (row) => row.call_id === call.id && row.revision === call.current_revision && row.status === "pending",
+        );
+        if (call.current_revision !== args.p_expected_revision || pending) return rpcError("offer_conflict");
+        const createdAt = new Date().toISOString();
+        const negotiation = {
+          call_id: call.id,
+          revision: nextRevision,
+          offerer_account_id: user.id,
+          mode: args.p_mode,
+          offer: args.p_offer,
+          answer: null,
+          status: "pending",
+          created_at: createdAt,
+          updated_at: createdAt,
+        };
+        rowsOf("call_signal_negotiations").push(negotiation);
+        call.current_revision = nextRevision;
+        call.updated_at = createdAt;
+        return rpcOk({ ok: true, revision: nextRevision });
+      }
+
+      if (name === "call_signal_renegotiate_answer" || name === "call_signal_renegotiate_reject") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+        if (!isParticipant(call, user.id)) return rpcError("not_found");
+        if (call.status !== "active") return rpcError("call_not_active");
+        if (call.current_revision !== args.p_revision) return rpcError("stale_revision");
+        const negotiation = rowsOf("call_signal_negotiations").find(
+          (row) => row.call_id === call.id && row.revision === args.p_revision,
+        );
+        if (!negotiation) return rpcError("negotiation_not_found");
+        if (negotiation.offerer_account_id === user.id) return rpcError("forbidden");
+        if (name === "call_signal_renegotiate_answer") {
+          if (!validDescription(args.p_answer, "answer")) return rpcError("invalid_input");
+          if (negotiation.status === "accepted" && JSON.stringify(negotiation.answer) === JSON.stringify(args.p_answer)) {
+            return rpcOk({ ok: true, revision: negotiation.revision, mode: negotiation.mode });
+          }
+          if (negotiation.status !== "pending") return rpcError("negotiation_not_found");
+          negotiation.answer = args.p_answer;
+          negotiation.status = "accepted";
+          negotiation.updated_at = new Date().toISOString();
+          call.mode = negotiation.mode;
+          call.updated_at = negotiation.updated_at;
+          return rpcOk({ ok: true, revision: negotiation.revision, mode: negotiation.mode });
+        }
+        if (negotiation.status === "rejected") return rpcOk({ ok: true, revision: negotiation.revision });
+        if (negotiation.status !== "pending") return rpcError("negotiation_not_found");
+        negotiation.status = "rejected";
+        negotiation.updated_at = new Date().toISOString();
+        return rpcOk({ ok: true, revision: negotiation.revision });
+      }
+
+      if (name === "call_signal_candidate" || name === "call_signal_candidate_v2") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+        if (!isParticipant(call, user.id)) return rpcError("not_found");
+        if (!["ringing", "active"].includes(call.status)) return rpcError("call_not_active");
+        if (!args.p_candidate || typeof args.p_candidate !== "object" || Array.isArray(args.p_candidate)) {
+          return rpcError("invalid_input");
+        }
+        if (name === "call_signal_candidate") {
+          const list = call.caller_account_id === user.id ? call.caller_candidates : call.recipient_candidates;
+          if (list.length < 256) list.push(args.p_candidate);
+          call.updated_at = new Date().toISOString();
+          return rpcOk({ ok: true });
+        }
+        const revision = args.p_revision;
+        if (!Number.isSafeInteger(revision) || revision < 0) return rpcError("invalid_input");
+        if (revision > 0 && !rowsOf("call_signal_negotiations").some(
+          (row) => row.call_id === call.id && row.revision === revision,
+        )) return rpcError("stale_revision");
+        const candidates = rowsOf("call_signal_candidates");
+        if (candidates.some((row) => row.call_id === call.id && row.revision === revision &&
+          row.sender_account_id === user.id && JSON.stringify(row.candidate) === JSON.stringify(args.p_candidate))) {
+          return rpcOk({ ok: true });
+        }
+        if (candidates.filter((row) => row.call_id === call.id && row.sender_account_id === user.id).length >= 256) {
+          return rpcError("candidate_limit");
+        }
+        const nextId = candidates.reduce((maximum, row) => Math.max(maximum, row.id), 0) + 1;
+        candidates.push({
+          id: nextId,
+          call_id: call.id,
+          revision,
+          sender_account_id: user.id,
+          candidate: args.p_candidate,
+          created_at: new Date().toISOString(),
+        });
+        call.updated_at = new Date().toISOString();
+        return rpcOk({ ok: true });
+      }
+
+      if (name === "call_signal_end") {
+        const user = actor();
+        if (!user) return rpcError("not_authenticated");
+        const call = rowsOf("call_signals").find((row) => row.id === args.p_call_id);
+        if (!isParticipant(call, user.id)) return rpcOk({ ok: true });
+        const transitioned = ["ringing", "active"].includes(call.status);
+        if (!transitioned) return rpcOk({ ok: true, transitioned: false });
+        call.status = args.p_reason === "rejected" ? "rejected" : args.p_reason === "missed" ? "missed" : "ended";
+        call.duration = Math.min(Math.max(Number(args.p_duration) || 0, 0), 86400);
+        call.updated_at = new Date().toISOString();
+        return rpcOk({ ok: true, transitioned: true, call: {
+          callerAccountId: call.caller_account_id,
+          recipientAccountId: call.recipient_account_id,
+          mode: call.mode,
+          status: call.status,
+          duration: call.duration,
+        } });
+      }
+
       return {
         data: null,
         error: { message: `RPC ${name} is not implemented in the fixture`, code: "PGRST202" },

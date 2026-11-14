@@ -6113,6 +6113,9 @@ const ROUTES = {
   "call.start": callStart,
   "call.poll": callPoll,
   "call.answer": callAnswer,
+  "call.renegotiate.offer": callRenegotiateOffer,
+  "call.renegotiate.answer": callRenegotiateAnswer,
+  "call.renegotiate.reject": callRenegotiateReject,
   "call.candidate": callCandidate,
   "call.end": callEnd,
 
@@ -12255,10 +12258,22 @@ async function callSignalRpc(ctx, name, args) {
     const status = data.error === "not_authenticated" ? 401
       : data.error === "forbidden" ? 403
         : data.error === "not_found" ? 404
-          : data.error === "invalid_input" ? 400 : 500;
+          : data.error === "negotiation_not_found" ? 404
+            : data.error === "invalid_input" ? 400
+              : ["offer_conflict", "stale_revision", "call_not_active", "candidate_limit"].includes(data.error) ? 409 : 500;
     return { error: fail(status, data.error) };
   }
   return { data };
+}
+function validCallSignalId(value) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+function validCallSignalDescription(value, type) {
+  return Boolean(
+    value && typeof value === "object" && !Array.isArray(value) &&
+    value.type === type && typeof value.sdp === "string" &&
+    value.sdp.trim().length > 0 && value.sdp.length <= 100000
+  );
 }
 async function callStart(ctx) {
   const auth = await actor(ctx, 1);
@@ -12329,18 +12344,79 @@ async function callAnswer(ctx) {
   });
   return result.error ? result.error : ok(result.data);
 }
+async function callRenegotiateOffer(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const expectedRevision = ctx.body.expectedRevision;
+  const mode = ctx.body.mode;
+  const offer = ctx.body.offer;
+  if (
+    !validCallSignalId(callId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || expectedRevision >= 2147483647 ||
+    !["audio", "video"].includes(mode) || !validCallSignalDescription(offer, "offer")
+  ) return fail(400, "invalid_input");
+  const result = await callSignalRpc(ctx, "call_signal_renegotiate_offer", {
+    p_call_id: callId,
+    p_expected_revision: expectedRevision,
+    p_mode: mode,
+    p_offer: offer,
+  });
+  return result.error ? result.error : ok(result.data);
+}
+async function callRenegotiateAnswer(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const revision = ctx.body.revision;
+  const answer = ctx.body.answer;
+  if (
+    !validCallSignalId(callId) || !Number.isSafeInteger(revision) || revision < 1 || revision > 2147483647 ||
+    !validCallSignalDescription(answer, "answer")
+  ) return fail(400, "invalid_input");
+  const result = await callSignalRpc(ctx, "call_signal_renegotiate_answer", {
+    p_call_id: callId,
+    p_revision: revision,
+    p_answer: answer,
+  });
+  return result.error ? result.error : ok(result.data);
+}
+async function callRenegotiateReject(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const callId = text(ctx.body.callId, 60);
+  const revision = ctx.body.revision;
+  if (!validCallSignalId(callId) || !Number.isSafeInteger(revision) || revision < 1 || revision > 2147483647) {
+    return fail(400, "invalid_input");
+  }
+  const result = await callSignalRpc(ctx, "call_signal_renegotiate_reject", {
+    p_call_id: callId,
+    p_revision: revision,
+  });
+  return result.error ? result.error : ok(result.data);
+}
 async function callCandidate(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const callId = text(ctx.body.callId, 60);
   const candidate = ctx.body.candidate;
-  if (!callId || !candidate || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId)) {
+  const hasRevision = Object.prototype.hasOwnProperty.call(ctx.body, "revision");
+  const revision = hasRevision ? ctx.body.revision : 0;
+  if (
+    !validCallSignalId(callId) || !candidate || typeof candidate !== "object" || Array.isArray(candidate) ||
+    !Number.isSafeInteger(revision) || revision < 0 || revision > 2147483647 || JSON.stringify(candidate).length > 8192
+  ) {
     return fail(400, "invalid_input");
   }
-  const result = await callSignalRpc(ctx, "call_signal_candidate", {
-    p_call_id: callId,
-    p_candidate: candidate,
-  });
+  const result = hasRevision
+    ? await callSignalRpc(ctx, "call_signal_candidate_v2", {
+        p_call_id: callId,
+        p_revision: revision,
+        p_candidate: candidate,
+      })
+    : await callSignalRpc(ctx, "call_signal_candidate", {
+        p_call_id: callId,
+        p_candidate: candidate,
+      });
   return result.error ? result.error : ok(result.data);
 }
 async function callEnd(ctx) {

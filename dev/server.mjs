@@ -2367,6 +2367,9 @@ async function seed() {
     donations,
     reports: [],
     sessions: [],
+    call_signals: [],
+    call_signal_negotiations: [],
+    call_signal_candidates: [],
     notifications: [
       {
         id: id(),
