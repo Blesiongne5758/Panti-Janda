@@ -37,6 +37,7 @@ function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberO
             key={item.to}
             to={item.to}
             onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors",
               active
@@ -180,11 +181,13 @@ function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
+  const { path } = useRoute();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const rank = account ? ROLE_RANK[account.role] : 0;
   const member = rank >= 2;
+  const dashboardActive = path.split("?")[0] === "/dasbor" || path.split("?")[0] === "/dashboard";
 
   function openProfileDialog() {
     setMenuOpen(false);
@@ -280,7 +283,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Link
                         to="/dasbor"
                         onClick={() => setMenuOpen(false)}
-                        className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
+                        aria-current={dashboardActive ? "page" : undefined}
+                        className={cn(
+                          "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                          dashboardActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
                       >
                         {t("nav.dashboard")}
                       </Link>

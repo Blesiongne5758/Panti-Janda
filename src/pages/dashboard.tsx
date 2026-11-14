@@ -10,7 +10,6 @@ import {
   Gamepad2,
   HandCoins,
   Handshake,
-  Heart,
   LayoutDashboard,
   Loader2,
   MessageCircle,
@@ -35,6 +34,7 @@ import {
   ROLE_RANK,
   SIM_CLASS_OPTIONS,
   SUPPORT_META,
+  WIDOW_ROLES,
 } from "@/lib/constants";
 import type { DonationItem, FollowsMine, KpiSummary, PledgeItem, Profile } from "@/lib/types";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareProfilePhoto, prepareVerificationDoc } from "@/lib/verify-doc";
@@ -714,7 +714,9 @@ export default function DashboardPage() {
   const [follows, setFollows] = useState<FollowsMine | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  // Treat newly introduced or legacy public roles as public instead of letting
+  // an undefined rank make every role-gated section disappear.
+  const rank = account ? (ROLE_RANK[account.role] ?? 1) : 0;
 
   const loadSupport = useCallback(async () => {
     if (rank < 2) return;
@@ -767,6 +769,8 @@ export default function DashboardPage() {
   }
 
   const verified = profile?.status === "verified";
+  const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
+  const roleLabel = ROLE_LABEL[account.role] ?? "Non Janda";
   const donationTotal = (donations ?? [])
     .filter((item) => item.status === "settled")
     .reduce((sum, item) => sum + item.grossAmount, 0);
@@ -777,7 +781,7 @@ export default function DashboardPage() {
         <LayoutDashboard className="size-6 text-primary" aria-hidden />
         <h1 className="font-display text-3xl font-semibold">Dasbor</h1>
         <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-          {ROLE_LABEL[account.role]}
+          {roleLabel}
         </span>
       </div>
 
@@ -865,7 +869,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="font-display text-xl font-semibold">{account.displayName ?? "Pengguna"}</p>
                   <p className="text-xs text-muted-foreground">
-                    {account.email} • Peran: <span className="font-medium text-foreground">{ROLE_LABEL[account.role] ?? account.role}</span>
+                    {account.email} • Peran: <span className="font-medium text-foreground">{roleLabel}</span>
                   </p>
                 </div>
               </div>
@@ -884,6 +888,24 @@ export default function DashboardPage() {
           </CardHeader>
         </Card>
       )}
+
+      {!isWidow ? (
+        <Card className="border-primary/20 bg-primary/[0.03]">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg">Ruang dukungan komunitas</CardTitle>
+            <CardDescription>
+              Sebagai mitra non-janda, Anda dapat menjelajahi profil anggota, mengikuti kegiatan terbuka, dan mendukung komunitas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button asChild size="sm"><Link to="/jelajah">Jelajahi profil</Link></Button>
+            <Button asChild size="sm" variant="outline"><Link to="/program">Program</Link></Button>
+            <Button asChild size="sm" variant="outline"><Link to="/event">Event</Link></Button>
+            <Button asChild size="sm" variant="outline"><Link to="/marketplace">Marketplace</Link></Button>
+            <Button asChild size="sm" variant="outline"><Link to="/galang-dana">Dukung kampanye</Link></Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {rank >= 2 ? <DashboardCalendar /> : null}
 
@@ -1253,32 +1275,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
-
-      {rank < 2 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-display text-lg">
-              <Heart className="size-4 text-primary" aria-hidden />
-              Terima kasih telah menjadi bagian komunitas
-            </CardTitle>
-            <CardDescription>
-              Sebagai pengguna non janda, kamu bisa menjelajahi profil Wonder Woman, mengikuti program & event
-              terbuka, berkomentar, dan menyalurkan dukungan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to="/jelajah">Jelajahi profil</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/program">Program</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/event">Event</Link>
-            </Button>
-          </CardContent>
-        </Card>
       ) : null}
 
       {account.role === "admin" ? (
