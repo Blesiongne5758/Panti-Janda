@@ -1,6 +1,6 @@
 // Minimal in-memory stand-in for the supabase-js query builder used by the
-// handler. Supports the chain shapes the handler relies on: select/insert/
-// update/delete with eq/neq/in/like/order/limit/range/maybeSingle/single.
+// handler. Supports select/insert/upsert/update/delete with common filters,
+// ordering, limits and single-row result modifiers.
 
 const likeToRegExp = (pattern) => {
   const escaped = String(pattern).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -31,11 +31,20 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
       this.mode = "many";
     }
     select() {
+      if (this.op === "update") this.returning = true;
       return this;
     }
     insert(payload) {
       this.op = "insert";
       this.payload = payload;
+      return this;
+    }
+    upsert(payload, options = {}) {
+      this.op = "upsert";
+      this.payload = payload;
+      this.conflictColumns = typeof options.onConflict === "string"
+        ? options.onConflict.split(",").map((column) => column.trim()).filter(Boolean)
+        : [];
       return this;
     }
     update(patch) {
@@ -133,15 +142,57 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
         for (const row of list) rows.push({ ...row });
         return { data: list.map((r) => ({ ...r })), error: null };
       }
+      if (this.op === "upsert") {
+        const list = Array.isArray(this.payload) ? this.payload : [this.payload];
+        const conflictColumns = this.conflictColumns?.length
+          ? this.conflictColumns
+          : unique.get(this.table) ?? ["id"];
+        const upserted = list.map((row) => {
+          const existing = rows.find((candidate) =>
+            conflictColumns.every((column) => candidate[column] === row[column]),
+          );
+          if (existing) {
+            Object.assign(existing, row);
+            return { ...existing };
+          }
+          const inserted = {
+            id: row.id ?? crypto.randomUUID(),
+            created_at: row.created_at ?? new Date().toISOString(),
+            ...row,
+          };
+          rows.push(inserted);
+          return { ...inserted };
+        });
+        if (this.mode === "single") {
+          if (upserted.length !== 1) {
+            return { data: null, error: { message: "expected one row", code: "PGRST116" } };
+          }
+          return { data: upserted[0], error: null };
+        }
+        return { data: upserted, error: null };
+      }
       if (this.op === "update") {
-        let updated = 0;
+        const updatedRows = [];
         for (const row of rows) {
           if (this.filters.every((f) => f(row))) {
             Object.assign(row, this.payload);
-            updated += 1;
+            updatedRows.push({ ...row });
           }
         }
-        return { data: null, error: null, updated };
+        if (!this.returning) return { data: null, error: null, updated: updatedRows.length };
+        if (this.mode === "single") {
+          if (updatedRows.length !== 1) {
+            return { data: null, error: { message: "expected one row", code: "PGRST116" } };
+          }
+          return { data: updatedRows[0], error: null };
+        }
+        if (this.mode === "maybeSingle") {
+          if (updatedRows.length > 1) {
+            return { data: null, error: { message: "multiple rows", code: "PGRST116" } };
+          }
+          return { data: updatedRows[0] ?? null, error: null };
+        }
+        return { data: updatedRows, error: null };
       }
       if (this.op === "delete") {
         const keep = rows.filter((row) => !this.filters.every((f) => f(row)));
@@ -178,6 +229,21 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
   return {
     from(table) {
       return new Builder(table, "select");
+    },
+    async rpc(name, args = {}) {
+      if (failAll) return { data: null, error: { message: "fixture failure", code: "500" } };
+      // The local fixture intentionally stores no WebRTC calls. Match the
+      // production RPC's empty-state response so background polling succeeds.
+      if (name === "call_signal_poll") {
+        return {
+          data: args.p_call_id ? { call: null } : { incomingCall: null },
+          error: null,
+        };
+      }
+      return {
+        data: null,
+        error: { message: `RPC ${name} is not implemented in the fixture`, code: "PGRST202" },
+      };
     },
     __tables: store,
   };

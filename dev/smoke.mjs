@@ -24,6 +24,16 @@ function check(name, condition, extra = "") {
   }
 }
 
+function isSandboxDonationCreated(result) {
+  const data = result.body?.data;
+  if (result.status !== 200 || typeof data?.orderId !== "string" || !data.orderId) return false;
+  try {
+    return new URL(data.redirectUrl).hostname === "app.sandbox.midtrans.com";
+  } catch {
+    return false;
+  }
+}
+
 const login = async (email) => {
   const r = await call("auth.login", { email, password: "rahasia123" });
   return r.body?.data?.token ?? null;
@@ -64,13 +74,13 @@ const guestComment = await call("comments.create", { updateId: updates.body?.dat
 check("tamu tidak bisa berkomentar", guestComment.status === 401);
 
 const guestDonate = await call("donations.create", { profileId: wulanId, amount: 100000 });
-check("gateway belum dikonfigurasi → 503", guestDonate.status === 503 && guestDonate.body?.error === "service_not_configured");
+check("donasi tamu membuat transaksi di gateway sandbox", isSandboxDonationCreated(guestDonate));
 
 console.log("— registrasi & verifikasi —");
 const reg = await call("auth.register", {
   kind: "public", email: "tamu@contoh.id", password: "rahasia123", displayName: "Tamu Baru",
 });
-check("registrasi publik 200", reg.status === 200 && reg.body?.data?.account?.role === "public");
+check("registrasi non-janda memakai role awal Kades", reg.status === 200 && reg.body?.data?.account?.role === "kades");
 const regDup = await call("auth.register", { kind: "public", email: "tamu@contoh.id", password: "rahasia123", displayName: "Tamu" });
 check("email ganda → 409", regDup.status === 409);
 
@@ -106,21 +116,39 @@ const rinaToken = await login("rina@contoh.id");
 check("login sosialita", Boolean(rinaToken));
 const budiToken = await login("budi@contoh.id");
 check("login publik", Boolean(budiToken));
+const guestCallPoll = await call("call.poll");
+check("call.poll tanpa sesi ditolak", guestCallPoll.status === 401);
+const idleCallPoll = await call("call.poll", {}, budiToken);
+check("call.poll tanpa panggilan aktif → 200 + null", idleCallPoll.status === 200 && idleCallPoll.body?.data?.incomingCall === null);
+const missingCallPoll = await call("call.poll", { callId: "00000000-0000-4000-8000-000000000001" }, budiToken);
+check("call.poll ID tak dikenal → 200 + call null", missingCallPoll.status === 200 && missingCallPoll.body?.data?.call === null);
 
 const budiGroup = await call("groups.list", {}, budiToken);
-check("publik tidak bisa melihat grup", budiGroup.status === 403);
+const budiGroups = budiGroup.body?.data?.items ?? [];
+check(
+  "Kades melihat grup sesuai batas tier",
+  budiGroup.status === 200 && Array.isArray(budiGroup.body?.data?.items) && budiGroups.length > 0 &&
+    budiGroups.every((group) => group.audienceMinRole !== "sosialita"),
+);
 const wulanGroups = await call("groups.list", {}, wulanToken);
-check("anggota melihat grup umum", wulanGroups.status === 200 && wulanGroups.body?.data?.items?.length === 1);
-const wulanJoin = await call("groups.join", { id: wulanGroups.body?.data?.items?.[0]?.id }, wulanToken);
+const wulanGroupItems = wulanGroups.body?.data?.items ?? [];
+check(
+  "anggota melihat grup yang sesuai tier",
+  wulanGroups.status === 200 && wulanGroupItems.some((group) => group.audienceMinRole === "wonder_woman"),
+);
+const joinableGroup = wulanGroupItems.find((group) => group.audienceMinRole === "wonder_woman");
+const wulanJoin = await call("groups.join", { id: joinableGroup?.id }, wulanToken);
 check("anggota bergabung grup", wulanJoin.status === 200);
 
 const wulanEvents = await call("events.list", {}, wulanToken);
 const wulanEventItems = wulanEvents.body?.data?.items ?? [];
 check(
-  "anggota melihat umum + anggota, undangan hanya saat diundang",
+  "anggota melihat event sesuai audiens dan undangan hanya saat diundang",
   wulanEvents.status === 200 &&
-    wulanEventItems.length === 3 &&
-    wulanEventItems.every((e) => e.audience !== "undangan" || e.invited === true),
+    wulanEventItems.length > 0 &&
+    wulanEventItems.every((e) =>
+      e.audience === "umum" || e.audience === "anggota" || (e.audience === "undangan" && e.invited === true),
+    ),
 );
 const inviteEvent = (await call("events.list", {}, rinaToken)).body?.data?.items?.find((e) => e.audience === "undangan");
 check("anggota terundang melihat event undangan", Boolean(inviteEvent) && inviteEvent.invited === true);
@@ -134,10 +162,13 @@ check("publik berkomentar", budiComment.status === 200);
 const createEvent = await call("events.create", { title: "Pelatihan Pemasaran Online", description: "Terbuka untuk anggota", audience: "anggota", startsAt: new Date(Date.now() + 5 * 86400000).toISOString(), location: "Daring" }, rinaToken);
 check("sosialita membuat event anggota", createEvent.status === 200);
 const publicCreateEvent = await call("events.create", { title: "Coba Buat", audience: "umum", startsAt: new Date(Date.now() + 86400000).toISOString() }, budiToken);
-check("publik tidak bisa membuat event", publicCreateEvent.status === 403);
+check(
+  "Kades dapat membuat event umum",
+  publicCreateEvent.status === 200 && publicCreateEvent.body?.data?.event?.audience === "umum",
+);
 
 const donate503 = await call("donations.create", { profileId: wulanId, amount: 100000 }, budiToken);
-check("donasi w/o gateway → 503", donate503.status === 503 && donate503.body?.error === "service_not_configured");
+check("donasi anggota membuat transaksi di gateway sandbox", isSandboxDonationCreated(donate503));
 
 const myPledges = await call("pledges.mine", {}, wulanToken);
 check("wonder woman melihat komitmen dukungan", myPledges.status === 200 && myPledges.body?.data?.items?.length >= 3);

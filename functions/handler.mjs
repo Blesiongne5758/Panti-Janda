@@ -165,11 +165,23 @@ const json = (payload, status = 200) =>
   Response.json(payload, { status, headers: { "cache-control": "no-store" } });
 const ok = (data) => json({ ok: true, data });
 const fail = (status, code) => json({ ok: false, error: code }, status);
+const badRequest = (_message) => fail(400, "invalid_input");
+const notFound = (_message) => fail(404, "not_found");
+const forbidden = (_message) => fail(403, "forbidden");
 
 // ---------- primitives ----------
 
 const text = (value, max = 500) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+const strOr = (value, max = 500) => text(value, max);
 const textOrNull = (value, max = 500) => text(value, max) || null;
+const numOr = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+const intOr = (value, fallback = 0) => {
+  const number = Math.round(Number(value));
+  return Number.isFinite(number) ? number : fallback;
+};
 const email = (value) => {
   const v = text(value, 160).toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
