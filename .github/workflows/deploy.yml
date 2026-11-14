@@ -44,13 +44,38 @@ jobs:
           version: latest
 
       - name: Derive Supabase project ref
+        id: derive-project-ref
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           if [[ "$SUPABASE_URL" =~ ^https://([a-z0-9]+)\.supabase\.co/?$ ]]; then
-            echo "SUPABASE_PROJECT_REF=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
+            project_ref="${BASH_REMATCH[1]}"
+            echo "SUPABASE_PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
+            echo "project_ref=$project_ref" >> "$GITHUB_OUTPUT"
           else
             echo "SUPABASE_URL must be a standard https://<project-ref>.supabase.co URL"
+            exit 1
+          fi
+
+      - name: Check Supabase migration state (read-only)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ steps.derive-project-ref.outputs.project_ref }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_ACCESS_TOKEN:?Add SUPABASE_ACCESS_TOKEN to the production GitHub Environment}"
+          : "${SUPABASE_DB_PASSWORD:?Add SUPABASE_DB_PASSWORD to the production GitHub Environment}"
+          : "${SUPABASE_PROJECT_REF:?Could not derive the Supabase project ref}"
+
+          echo "Comparing local migration files with the remote migration history..."
+          supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+          echo "Checking for pending migrations with a non-applying dry run..."
+          dry_run_output="$(supabase db push --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+          printf '%s\n' "$dry_run_output"
+          if grep -Eiq 'Would (push|apply) migration ' <<<"$dry_run_output"; then
+            echo "::error::Unapplied database migration(s) detected. Apply them through the reviewed migration procedure, then rerun this workflow. This workflow does not apply database SQL."
             exit 1
           fi
 
