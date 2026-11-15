@@ -20,5 +20,15 @@ export default defineConfig({
   },
   server: { host: "127.0.0.1", proxy },
   preview: { host: "127.0.0.1", proxy },
-  build: { outDir: "dist" },
+  build: {
+    outDir: "dist",
+    rollupOptions: {
+      output: {
+        chunkFileNames: (chunk) => {
+          const name = chunk.name === "chat" ? "conversation" : chunk.name;
+          return `assets/${name}-[hash].js`;
+        },
+      },
+    },
+  },
 });

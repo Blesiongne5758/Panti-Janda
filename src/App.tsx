@@ -7,6 +7,7 @@ import { WIDOW_ROLES } from "@/lib/constants";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import NotFoundPage from "@/pages/not-found";
 
@@ -149,6 +150,21 @@ function ThemeSync() {
   return null;
 }
 
+function RouteContent() {
+  const { path } = useRoute();
+  return (
+    <RouteErrorBoundary key={path}>
+      <Suspense fallback={(
+        <div className="flex min-h-[50vh] items-center justify-center px-4 py-16 text-sm text-muted-foreground" role="status" aria-live="polite">
+          Memuat halaman…
+        </div>
+      )}>
+        <Routes />
+      </Suspense>
+    </RouteErrorBoundary>
+  );
+}
+
 export default function App() {
   return (
     <I18nProvider>
@@ -157,13 +173,7 @@ export default function App() {
           <VoiceCallProvider>
             <ThemeSync />
             <AppShell>
-              <Suspense fallback={(
-                <div className="flex min-h-[50vh] items-center justify-center px-4 py-16 text-sm text-muted-foreground" role="status" aria-live="polite">
-                  Memuat halaman…
-                </div>
-              )}>
-                <Routes />
-              </Suspense>
+              <RouteContent />
             </AppShell>
             <VoiceCallOverlay />
             <MobileNav />

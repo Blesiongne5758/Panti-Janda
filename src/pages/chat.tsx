@@ -34,7 +34,7 @@ import { compressImage, formatFileSize } from "@/lib/image-compress";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 import { useAuth } from "@/lib/session";
 import { useVoiceCall } from "@/lib/call-context";
-import { useQueryParam } from "@/lib/router";
+import { useQueryParam, useRoute } from "@/lib/router";
 import { ROLE_LABEL, ROLE_RANK, TIER_META } from "@/lib/constants";
 import type { ChatContact, ChatMessage, FriendItem, FriendshipStatus, GroupItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -358,6 +358,7 @@ function MessageBubble({
 
 export default function ChatPage() {
   const { account, ready } = useAuth();
+  const { navigate } = useRoute();
   const { startCall, mediaPermissionIssue } = useVoiceCall();
   const rank = account ? ROLE_RANK[account.role] : 0;
   const withParam = useQueryParam("with");
@@ -409,13 +410,18 @@ export default function ChatPage() {
   // Active Thread state
   const [thread, setThread] = useState<Thread | null>(null);
   const [threadContact, setThreadContact] = useState<ChatContact | null>(null);
-  const [threadFriendship, setThreadFriendship] = useState<FriendshipStatus>("accepted");
+  const [threadFriendship, setThreadFriendship] = useState<FriendshipStatus>("none");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const [threadError, setThreadError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const closeThread = useCallback(() => {
+    setThread(null);
+    navigate("/pesan", { replace: true });
+  }, [navigate]);
 
   // Load Contacts & Groups
   const loadLists = useCallback(async () => {
@@ -512,7 +518,7 @@ export default function ChatPage() {
           }>("chat.thread", { withAccountId: thread.accountId });
           setMessages(data.items);
           if (data.contact) setThreadContact(data.contact);
-          setThreadFriendship(data.friendshipStatus ?? "accepted");
+          setThreadFriendship(data.friendshipStatus ?? "none");
         } else {
           const data = await api<{ items: ChatMessage[] }>("groups.messages", { id: thread.id });
           setMessages(data.items);
@@ -692,7 +698,7 @@ export default function ChatPage() {
     try {
       await api("groups.leave", { id: groupId });
       toast.success(`Anda telah keluar dari grup "${groupName}".`);
-      setThread(null);
+      closeThread();
       await loadLists();
     } catch (error) {
       toast.error(errorText(error) || "Gagal keluar dari grup.");
@@ -1309,7 +1315,7 @@ export default function ChatPage() {
                   size="icon"
                   className="h-8 w-8 shrink-0 lg:hidden"
                   aria-label="Kembali ke daftar"
-                  onClick={() => setThread(null)}
+                  onClick={closeThread}
                 >
                   <ArrowLeft className="size-4" aria-hidden />
                 </Button>

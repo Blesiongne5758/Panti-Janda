@@ -1,12 +1,15 @@
 import { Link, useRoute } from "@/lib/router";
 import { CalendarDays, Camera, Home, MessageCircle, Store } from "lucide-react";
+import { useAuth } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const { path } = useRoute();
+  const { account } = useAuth();
+  const cleanPath = path.split("?")[0];
 
   const navItems = [
-    { id: "home", label: "Home", icon: Home, path: "/feed" },
+    { id: "home", label: "Home", icon: Home, path: account ? "/feed" : "/" },
     { id: "marketplace", label: "Marketplace", icon: Store, path: "/marketplace" },
     { id: "create", label: "Posting", icon: Camera, path: "/feed", create: true },
     { id: "chat", label: "Chat", icon: MessageCircle, path: "/pesan" },
@@ -18,10 +21,10 @@ export function MobileNav() {
       <div className="mx-auto grid max-w-xl grid-cols-5 items-center justify-center gap-1 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
         {navItems.map((item) => {
           const isActive = item.id === "home"
-            ? path === "/feed"
+            ? cleanPath === item.path
             : item.create
               ? false
-              : path === item.path || path.startsWith(`${item.path}/`);
+              : cleanPath === item.path || cleanPath.startsWith(`${item.path}/`);
           const Icon = item.icon;
 
           return (

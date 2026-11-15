@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { ROLE_RANK } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { MemberAvatar, PageBanner } from "@/components/common";
+import { ErrorNote, MemberAvatar, PageBanner } from "@/components/common";
 import { SEO } from "@/components/seo";
 import type { Campaign, CampaignDetail } from "@/lib/types";
 import { PaymentQris } from "@/components/payment-qris";
@@ -15,23 +15,27 @@ export function CampaignsPage() {
   const { account, profile } = useAuth();
   const [items, setItems] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<CampaignDetail | null>(null);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
+      setLoading(true);
+      setFailed(null);
       try {
         const res = await api<{ items: Campaign[] }>("campaigns.list");
         if (active && res) setItems(res.items);
-      } catch {
-        // ignore
+      } catch (error) {
+        if (active) setFailed(errorText(error));
       } finally {
         if (active) setLoading(false);
       }
     };
     void load();
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const openCampaign = async (id: string) => {
     const res = await api<CampaignDetail>("campaigns.get", { id });
@@ -68,6 +72,8 @@ export function CampaignsPage() {
               <div key={i} className="h-64 animate-pulse rounded-2xl bg-secondary" />
             ))}
           </div>
+        ) : failed ? (
+          <ErrorNote message={failed} onRetry={() => setReloadKey((key) => key + 1)} />
         ) : items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
             <Heart className="mx-auto mb-3 size-10 text-muted-foreground" aria-hidden />

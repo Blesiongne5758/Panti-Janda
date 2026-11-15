@@ -12193,6 +12193,7 @@ async function chatThread(ctx) {
     .eq("id", withId)
     .maybeSingle();
   if (!target || target.status !== "active" || target.id === auth.account.id) return fail(404, "not_found");
+  const friendshipStatus = await getFriendshipStatus(ctx.supabase, auth.account.id, withId);
   const { data: profileRow } = await ctx.supabase
     .from("profiles")
     .select("id,nickname,tier,photo_data")
@@ -12227,6 +12228,7 @@ async function chatThread(ctx) {
       photoData: profileRow?.photo_data ?? null,
     },
     items: merged.map((m) => messagePublic(m, names)),
+    friendshipStatus,
   });
 }
 

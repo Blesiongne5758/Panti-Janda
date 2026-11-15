@@ -224,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="h-9 w-24 animate-pulse rounded-full bg-secondary" aria-hidden />
             ) : account ? (
               <>
-                {rank >= 5 ? (
+                {account.role === "admin" ? (
                   <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
                     <Link to="/admin">
                       <ShieldCheck className="size-3.5" aria-hidden />
@@ -301,7 +301,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         <Settings className="size-4" aria-hidden />
                         Pengaturan Profil &amp; Akun
                       </button>
-                      {rank >= 5 ? (
+                      {account.role === "admin" ? (
                         <Link
                           to="/admin"
                           onClick={() => setMenuOpen(false)}

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { ShoppingBag, MapPin, Briefcase } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MemberAvatar, PageBanner } from "@/components/common";
+import { ErrorNote, MemberAvatar, PageBanner } from "@/components/common";
 import { SEO } from "@/components/seo";
 import { LISTING_CATEGORIES, LISTING_KIND_LABEL, ROLE_RANK } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
@@ -19,27 +19,31 @@ export default function MarketplacePage() {
   const { account } = useAuth();
   const [items, setItems] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [kindFilter, setKindFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
 
   useEffect(() => {
     let active = true;
     const load = async () => {
+      setLoading(true);
+      setFailed(null);
       try {
         const payload: Record<string, unknown> = {};
         if (kindFilter) payload.kind = kindFilter;
         if (categoryFilter) payload.category = categoryFilter;
         const res = await api<{ items: MarketplaceListing[] }>("marketplace.list", payload);
         if (active && res) setItems(res.items);
-      } catch {
-        // ignore
+      } catch (error) {
+        if (active) setFailed(errorText(error));
       } finally {
         if (active) setLoading(false);
       }
     };
     void load();
     return () => { active = false; };
-  }, [kindFilter, categoryFilter]);
+  }, [kindFilter, categoryFilter, reloadKey]);
 
   const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
   const canCreate = rank >= 2;
@@ -99,6 +103,8 @@ export default function MarketplacePage() {
               </Card>
             ))}
           </div>
+        ) : failed ? (
+          <ErrorNote message={failed} onRetry={() => setReloadKey((key) => key + 1)} />
         ) : items.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">

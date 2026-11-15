@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorNote, LoadingGrid, SectionHeading, Stat, TierBadge } from "@/components/common";
 import { EventCard, ProfileCard, ProgramCard } from "@/components/cards";
-import { FeedPage } from "@/pages/feed";
 import { useTranslation } from "@/lib/i18n-context";
 import { SEO } from "@/components/seo";
 
@@ -497,6 +496,8 @@ export function LandingPage() {
           />
           {loading ? (
             <LoadingGrid count={2} className="lg:grid-cols-1" />
+          ) : failed ? (
+            <ErrorNote message={failed} onRetry={load} />
           ) : data && data.programs.length > 0 ? (
             <div className="grid gap-4">
               {data.programs.map((program) => (
@@ -540,6 +541,8 @@ export function LandingPage() {
           />
           {loading ? (
             <LoadingGrid count={2} className="lg:grid-cols-1" />
+          ) : failed ? (
+            <ErrorNote message={failed} onRetry={load} />
           ) : data && data.events.length > 0 ? (
             <div className="grid gap-4">
               {data.events.map((event) => (
