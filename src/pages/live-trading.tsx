@@ -272,7 +272,7 @@ function ProfessionalChart({
       {viewMode === "line" ? (
         <polyline
           fill="none"
-          stroke={candles[candles.length - 1].close >= candles[0].open ? "#16a34a" : "#e11d48"}
+          stroke={candles[candles.length - 1].close >= candles[0].open ? "#22c55e" : "#f43f5e"}
           strokeWidth={1.5}
           points={candles.map((c, i) => {
             const x = padL + i * candleW + candleW / 2;
@@ -284,7 +284,7 @@ function ProfessionalChart({
         candles.map((c, i) => {
           const x = padL + i * candleW + candleW / 2;
           const bullish = c.close >= c.open;
-          const color = bullish ? "#16a34a" : "#e11d48";
+          const color = bullish ? "#22c55e" : "#f43f5e";
           const bodyTop = yScale(Math.max(c.open, c.close));
           const bodyBot = yScale(Math.min(c.open, c.close));
           const bodyH = Math.max(1, bodyBot - bodyTop);
@@ -476,18 +476,21 @@ export default function LiveTradingPage() {
   const equity = demoBalance + openPositions.reduce((sum, p) => sum + p.pnl, 0);
 
   return (
-    <div className="flex h-screen flex-col bg-gray-900 text-gray-100">
+    <div className="flex h-screen flex-col bg-[#0B1220] text-[#F4F7FB]">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-700 bg-gray-800 px-3 py-2 sm:items-center sm:justify-between sm:px-4">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#263754] bg-[#111B2E] px-3 py-2 sm:items-center sm:justify-between sm:px-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Activity className="size-5 shrink-0 text-emerald-400" aria-hidden />
-          <span className="font-display text-sm font-semibold text-white sm:text-lg">Live Trading</span>
-          <div className="flex items-center gap-1 rounded-md bg-gray-700/50 p-0.5">
+          <Activity className="size-5 shrink-0 text-[#5EEAD4]" aria-hidden />
+          <div className="min-w-0">
+            <span className="block truncate font-display text-sm font-semibold text-white sm:text-lg">AI Trading Command Center</span>
+            <span className="hidden text-[10px] tracking-wide text-[#7183A1] sm:block">Live market intelligence desk</span>
+          </div>
+          <div className="flex items-center gap-1 rounded-md bg-[#17243A]/75 p-0.5">
             {([["saham", TrendingUp, "Saham"], ["crypto", Bitcoin, "Crypto"], ["komoditas", Package, "Komoditas"], ["forex", Globe, "Forex"]] as const).map(([key, Icon, label]) => (
               <button
                 key={key}
                 type="button"
-                className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors sm:px-3 sm:text-xs ${market === key ? "bg-emerald-600 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors sm:px-3 sm:text-xs ${market === key ? "bg-[#0F9F8F] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                 onClick={() => setMarket(key)}
               >
                 <Icon className="size-3" aria-hidden />
@@ -495,21 +498,21 @@ export default function LiveTradingPage() {
               </button>
             ))}
           </div>
-          <div className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${priceStatus === "connected" ? "bg-emerald-500/20 text-emerald-400" : priceStatus === "connecting" ? "bg-amber-500/20 text-amber-400" : "bg-gray-600/30 text-gray-500"}`}>
+          <div className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${priceStatus === "connected" ? "bg-[#22C55E]/15 text-[#5EEAD4]" : priceStatus === "connecting" ? "bg-[#F59E0B]/15 text-[#FBBF24]" : "bg-[#2A3C5A]/30 text-[#7183A1]"}`}>
             {priceStatus === "connected" ? <Wifi className="size-3" aria-hidden /> : <WifiOff className="size-3" aria-hidden />}
             {priceStatus === "connected" ? "LIVE" : priceStatus === "connecting" ? "Connecting..." : "Offline"}
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="flex items-center gap-1 rounded-md border border-gray-600 px-2 py-1 sm:gap-2 sm:px-3">
-            <span className="text-[10px] text-gray-400 sm:text-xs">Demo</span>
+          <div className="flex items-center gap-1 rounded-md border border-[#38506F] px-2 py-1 sm:gap-2 sm:px-3">
+            <span className="text-[10px] text-[#9AAAC2] sm:text-xs">Demo</span>
             <Switch checked={isDemo} onCheckedChange={setIsDemo} />
           </div>
-          <Button variant="outline" size="sm" className="hidden border-gray-600 bg-transparent text-gray-300 hover:bg-gray-700 hover:text-white sm:inline-flex" onClick={() => setShowAcademyGate(true)}>
+          <Button variant="outline" size="sm" className="hidden border-[#14B8A6]/60 bg-[#14B8A6]/10 text-[#99F6E4] shadow-[0_0_0_1px_rgba(20,184,166,0.08)] hover:bg-[#14B8A6]/20 hover:text-white sm:inline-flex" onClick={() => setShowAcademyGate(true)}>
             <Bot className="mr-1.5 size-3.5" aria-hidden />
             AI Agent
           </Button>
-          <Button asChild variant="outline" size="sm" className="border-gray-600 bg-transparent text-gray-300 hover:bg-gray-700 hover:text-white">
+          <Button asChild variant="outline" size="sm" className="border-[#38506F] bg-transparent text-[#D3DCEB] hover:bg-[#17243A] hover:text-white">
             <Link to="/dasbor">Kembali</Link>
           </Button>
         </div>
@@ -517,23 +520,23 @@ export default function LiveTradingPage() {
 
       {/* Account Info Bar */}
       {isDemo ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-gray-700 bg-gray-800/50 px-3 py-1.5 text-xs sm:gap-6 sm:px-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-[#263754] bg-[#111B2E]/85 px-3 py-1.5 text-xs sm:gap-6 sm:px-4">
           <div>
-            <span className="text-gray-500">Saldo: </span>
+            <span className="text-[#7183A1]">Saldo: </span>
             <span className="font-mono font-semibold text-white">{formatRupiah(demoBalance)}</span>
           </div>
           <div>
-            <span className="text-gray-500">Ekuitas: </span>
+            <span className="text-[#7183A1]">Ekuitas: </span>
             <span className="font-mono font-semibold text-white">{formatRupiah(equity)}</span>
           </div>
           <div>
-            <span className="text-gray-500">Open P&L: </span>
-            <span className={`font-mono font-semibold ${totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            <span className="text-[#7183A1]">Open P&L: </span>
+            <span className={`font-mono font-semibold ${totalPnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
               {totalPnl >= 0 ? "+" : ""}{formatRupiah(totalPnl)}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Posisi: </span>
+            <span className="text-[#7183A1]">Posisi: </span>
             <span className="font-mono font-semibold text-white">{openPositions.length}</span>
           </div>
         </div>
@@ -544,15 +547,15 @@ export default function LiveTradingPage() {
         {/* Chart Area */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden sm:flex-[2]">
           {/* Chart Header */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-700 bg-gray-800/30 px-3 py-2 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#263754] bg-[#111B2E]/55 px-3 py-2 sm:px-4">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                <SelectTrigger className="w-28 border-gray-600 bg-gray-700 text-xs text-white [&>svg]:text-gray-400 sm:w-32 sm:text-sm">
+                <SelectTrigger className="w-28 border-[#38506F] bg-[#17243A] text-xs text-white [&>svg]:text-[#9AAAC2] sm:w-32 sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border-gray-600 bg-gray-700">
+                <SelectContent className="border-[#38506F] bg-[#17243A]">
                   {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : allLiveSym.map((s) => ({ symbol: s.apiSymbol, label: s.label }))).map((s) => (
-                    <SelectItem key={s.symbol} value={s.symbol} className="text-white focus:bg-gray-600 focus:text-white">
+                    <SelectItem key={s.symbol} value={s.symbol} className="text-white focus:bg-[#2A3C5A] focus:text-white">
                       {s.label}
                     </SelectItem>
                   ))}
@@ -561,24 +564,24 @@ export default function LiveTradingPage() {
               {currentPrice ? (
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="font-mono text-sm font-bold text-white sm:text-lg">{formatPrice(midPrice, market)}</span>
-                  <span className={`text-[10px] font-medium sm:text-xs ${currentPrice.change >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <span className={`text-[10px] font-medium sm:text-xs ${currentPrice.change >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
                     {currentPrice.change >= 0 ? "+" : ""}{formatNum(currentPrice.change, market)}
                   </span>
                 </div>
               ) : null}
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5 rounded bg-gray-700/50 p-0.5">
+              <div className="flex items-center gap-0.5 rounded bg-[#17243A]/75 p-0.5">
                 <button
                   type="button"
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "line" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "line" ? "bg-[#2A3C5A] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                   onClick={() => setChartView("line")}
                 >
                   Line
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "candle" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "candle" ? "bg-[#2A3C5A] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                   onClick={() => setChartView("candle")}
                 >
                   Candle
@@ -586,7 +589,7 @@ export default function LiveTradingPage() {
               </div>
               <button
                 type="button"
-                className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
+                className="rounded p-1.5 text-[#9AAAC2] transition-colors hover:bg-[#17243A] hover:text-white"
                 onClick={() => setExpandedChart(true)}
                 aria-label="Perbesar chart"
               >
@@ -598,11 +601,11 @@ export default function LiveTradingPage() {
           {/* Chart */}
           <div className="min-h-[200px] flex-1 overflow-hidden p-2 sm:min-h-[300px]">
             {currentPrice ? (
-              <div className="flex h-full items-center justify-center rounded-lg bg-gray-800/30 p-2">
+              <div className="flex h-full items-center justify-center rounded-lg bg-[#111B2E]/55 p-2">
                 <div className="h-full w-full max-w-5xl">
                   {chartView === "line" ? (
                     <div className="flex flex-col items-center justify-center">
-                      <Sparkline data={currentPrice.history} color={currentPrice.change >= 0 ? "#34d399" : "#fb7185"} />
+                      <Sparkline data={currentPrice.history} color={currentPrice.change >= 0 ? "#5eead4" : "#fb7185"} />
                       <p className="mt-2 font-mono text-2xl font-bold text-white">{formatPrice(midPrice, market)}</p>
                     </div>
                   ) : (
@@ -620,20 +623,20 @@ export default function LiveTradingPage() {
               </div>
             ) : (
               <div className="flex h-full items-center justify-center">
-                <Loader2 className="size-6 animate-spin text-gray-500" aria-hidden />
+                <Loader2 className="size-6 animate-spin text-[#7183A1]" aria-hidden />
               </div>
             )}
           </div>
 
           {/* Position Tabs */}
           {isDemo ? (
-            <div className="border-t border-gray-700 bg-gray-800/20">
-              <div className="flex flex-wrap border-b border-gray-700">
+            <div className="border-t border-[#263754] bg-[#111B2E]/65">
+              <div className="flex flex-wrap border-b border-[#263754]">
                 {([["positions", "Posisi"], ["pending", "Pending"], ["history", "Riwayat"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
-                    className={`px-4 py-2 text-xs font-medium transition-colors ${positionTab === key ? "border-b-2 border-emerald-400 text-white" : "text-gray-400 hover:text-white"}`}
+                    className={`px-4 py-2 text-xs font-medium transition-colors ${positionTab === key ? "border-b-2 border-[#5EEAD4] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                     onClick={() => setPositionTab(key)}
                   >
                     {label} {key === "positions" ? `(${openPositions.length})` : ""}
@@ -643,11 +646,11 @@ export default function LiveTradingPage() {
               <div className="max-h-40 overflow-y-auto">
                 {positionTab === "positions" ? (
                   openPositions.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-gray-500">Belum ada posisi terbuka.</p>
+                    <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada posisi terbuka.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[480px] text-xs">
-                      <thead className="sticky top-0 bg-gray-800 text-gray-400">
+                      <thead className="sticky top-0 bg-[#111B2E] text-[#9AAAC2]">
                         <tr>
                           <th className="px-3 py-1.5 text-left font-medium">Symbol</th>
                           <th className="px-3 py-1.5 text-left font-medium">Side</th>
@@ -662,23 +665,23 @@ export default function LiveTradingPage() {
                         {openPositions.map((pos) => {
                           const sym = allDemoSym.find((s) => s.symbol === pos.symbol);
                           return (
-                            <tr key={pos.id} className="border-t border-gray-700/50 hover:bg-gray-700/20">
+                            <tr key={pos.id} className="border-t border-[#263754]/50 hover:bg-[#17243A]/20">
                               <td className="px-3 py-1.5 font-medium text-white">{sym?.label ?? pos.symbol}</td>
                               <td className="px-3 py-1.5">
-                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pos.side === "buy" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pos.side === "buy" ? "bg-[#22C55E]/15 text-[#5EEAD4]" : "bg-[#F43F5E]/15 text-[#FB7185]"}`}>
                                   {pos.side.toUpperCase()}
                                 </span>
                               </td>
-                              <td className="px-3 py-1.5 text-right font-mono text-gray-300">{pos.quantity}</td>
-                              <td className="px-3 py-1.5 text-right font-mono text-gray-300">{formatPrice(pos.entryPrice, market)}</td>
-                              <td className="px-3 py-1.5 text-right font-mono text-gray-300">{formatPrice(pos.currentPrice, market)}</td>
-                              <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                              <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{pos.quantity}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.entryPrice, market)}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.currentPrice, market)}</td>
+                              <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
                                 {pos.pnl >= 0 ? "+" : ""}{formatRupiah(pos.pnl)}
                               </td>
                               <td className="px-3 py-1.5 text-center">
                                 <button
                                   type="button"
-                                  className="rounded bg-gray-600 px-2 py-0.5 text-[10px] font-medium text-white transition-colors hover:bg-gray-500"
+                                  className="rounded bg-[#2A3C5A] px-2 py-0.5 text-[10px] font-medium text-white transition-colors hover:bg-[#3A5070]"
                                   onClick={() => closeDemoPosition(pos.id)}
                                 >
                                   Tutup
@@ -692,14 +695,14 @@ export default function LiveTradingPage() {
                     </div>
                   )
                 ) : positionTab === "pending" ? (
-                  <p className="py-4 text-center text-xs text-gray-500">Belum ada pending order.</p>
+                  <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada pending order.</p>
                 ) : (
                   closedPositions.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-gray-500">Belum ada riwayat trade.</p>
+                    <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada riwayat trade.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[420px] text-xs">
-                        <thead className="sticky top-0 bg-gray-800 text-gray-400">
+                        <thead className="sticky top-0 bg-[#111B2E] text-[#9AAAC2]">
                           <tr>
                             <th className="px-3 py-1.5 text-left font-medium">Symbol</th>
                             <th className="px-3 py-1.5 text-left font-medium">Side</th>
@@ -713,17 +716,17 @@ export default function LiveTradingPage() {
                           {closedPositions.map((pos) => {
                             const sym = allDemoSym.find((s) => s.symbol === pos.symbol);
                             return (
-                              <tr key={pos.id} className="border-t border-gray-700/50">
+                              <tr key={pos.id} className="border-t border-[#263754]/50">
                                 <td className="px-3 py-1.5 font-medium text-white">{sym?.label ?? pos.symbol}</td>
                                 <td className="px-3 py-1.5">
-                                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pos.side === "buy" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pos.side === "buy" ? "bg-[#22C55E]/15 text-[#5EEAD4]" : "bg-[#F43F5E]/15 text-[#FB7185]"}`}>
                                     {pos.side.toUpperCase()}
                                   </span>
                                 </td>
-                                <td className="px-3 py-1.5 text-right font-mono text-gray-300">{pos.quantity}</td>
-                                <td className="px-3 py-1.5 text-right font-mono text-gray-300">{formatPrice(pos.entryPrice, market)}</td>
-                                <td className="px-3 py-1.5 text-right font-mono text-gray-300">{formatPrice(pos.exitPrice ?? 0, market)}</td>
-                                <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{pos.quantity}</td>
+                                <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.entryPrice, market)}</td>
+                                <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.exitPrice ?? 0, market)}</td>
+                                <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
                                   {pos.pnl >= 0 ? "+" : ""}{formatRupiah(pos.pnl)}
                                 </td>
                               </tr>
@@ -740,13 +743,13 @@ export default function LiveTradingPage() {
         </div>
 
         {/* Right Panel: Watchlist + Trading */}
-        <div className="flex w-1/3 flex-col border-l border-gray-700 bg-gray-800/50 sm:w-80">
+        <div className="flex w-1/3 flex-col border-l border-[#263754] bg-[#111B2E]/85 sm:w-80">
           {/* Watchlist */}
           <div className="flex-1 overflow-y-auto">
-            <div className="border-b border-gray-700 px-3 py-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Watchlist</h3>
+            <div className="border-b border-[#263754] px-3 py-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#9AAAC2]">Watchlist</h3>
             </div>
-            <div className="divide-y divide-gray-700/50">
+            <div className="divide-y divide-[#263754]/70">
               {(isDemo ? allDemoSym.map((s) => ({ symbol: s.symbol, label: s.label })) : allLiveSym.map((s) => ({ symbol: s.apiSymbol, label: s.label }))).map((s) => {
                 const p = prices[s.symbol];
                 if (!p) return null;
@@ -755,15 +758,15 @@ export default function LiveTradingPage() {
                   <button
                     key={s.symbol}
                     type="button"
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-gray-700/30 ${isSelected ? "bg-gray-700/50" : ""}`}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-[#17243A]/45 ${isSelected ? "bg-[#17243A]/75" : ""}`}
                     onClick={() => setSelectedSymbol(s.symbol)}
                   >
                     <div>
-                      <p className={`text-xs font-semibold ${isSelected ? "text-emerald-400" : "text-white"}`}>{s.label}</p>
+                      <p className={`text-xs font-semibold ${isSelected ? "text-[#5EEAD4]" : "text-white"}`}>{s.label}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-mono text-xs font-semibold text-emerald-400">{formatPrice(p.bid, market)}</p>
-                      <p className="font-mono text-xs font-semibold text-rose-400">{formatPrice(p.ask, market)}</p>
+                      <p className="font-mono text-xs font-semibold text-[#5EEAD4]">{formatPrice(p.bid, market)}</p>
+                      <p className="font-mono text-xs font-semibold text-[#FB7185]">{formatPrice(p.ask, market)}</p>
                     </div>
                   </button>
                 );
@@ -773,14 +776,14 @@ export default function LiveTradingPage() {
 
           {/* Trading Panel */}
           {isDemo ? (
-            <div className="border-t border-gray-700 bg-gray-800 p-3">
+            <div className="border-t border-[#263754] bg-[#111B2E] p-3">
               {/* Trade Tabs */}
-              <div className="mb-3 flex gap-1 rounded bg-gray-700/50 p-0.5">
+              <div className="mb-3 flex gap-1 rounded bg-[#17243A]/75 p-0.5">
                 {([["market", "MARKET"], ["risk", "RISK"], ["sl", "SL"], ["tp", "TP"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
-                    className={`flex-1 rounded py-1 text-[10px] font-semibold transition-colors ${tradeTab === key ? "bg-gray-600 text-white" : "text-gray-400 hover:text-white"}`}
+                    className={`flex-1 rounded py-1 text-[10px] font-semibold transition-colors ${tradeTab === key ? "bg-[#2A3C5A] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                     onClick={() => setTradeTab(key)}
                   >
                     {label}
@@ -791,55 +794,55 @@ export default function LiveTradingPage() {
               {tradeTab === "market" ? (
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-[10px] text-gray-400">Jumlah (lot)</label>
+                    <label className="mb-1 block text-[10px] text-[#9AAAC2]">Jumlah (lot)</label>
                     <input
                       type="number"
                       min={1}
                       value={orderQty}
                       onChange={(e) => setOrderQty(Math.max(1, Number(e.target.value)))}
-                      className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1.5 text-xs text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                      className="w-full rounded border border-[#38506F] bg-[#17243A] px-2 py-1.5 text-xs text-white placeholder-[#7183A1] focus:border-[#14B8A6] focus:outline-none"
                     />
                   </div>
-                  <div className="text-[10px] text-gray-400">
+                  <div className="text-[10px] text-[#9AAAC2]">
                     Estimasi: {currentPrice ? (market !== "saham" ? formatPrice(midPrice * orderQty, market) : formatRupiah(midPrice * orderQty)) : "—"}
                   </div>
                 </div>
               ) : tradeTab === "risk" ? (
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-[10px] text-gray-400">Risk per trade (%)</label>
+                    <label className="mb-1 block text-[10px] text-[#9AAAC2]">Risk per trade (%)</label>
                     <input
                       type="number"
                       min={1}
                       max={100}
                       defaultValue={2}
-                      className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1.5 text-xs text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                      className="w-full rounded border border-[#38506F] bg-[#17243A] px-2 py-1.5 text-xs text-white placeholder-[#7183A1] focus:border-[#14B8A6] focus:outline-none"
                     />
                   </div>
                 </div>
               ) : tradeTab === "sl" ? (
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-[10px] text-gray-400">Stop Loss Price</label>
+                    <label className="mb-1 block text-[10px] text-[#9AAAC2]">Stop Loss Price</label>
                     <input
                       type="number"
                       value={slPrice}
                       onChange={(e) => setSlPrice(e.target.value)}
                       placeholder={currentPrice ? String(+(midPrice * 0.98).toFixed(2)) : ""}
-                      className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1.5 text-xs text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                      className="w-full rounded border border-[#38506F] bg-[#17243A] px-2 py-1.5 text-xs text-white placeholder-[#7183A1] focus:border-[#14B8A6] focus:outline-none"
                     />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-[10px] text-gray-400">Take Profit Price</label>
+                    <label className="mb-1 block text-[10px] text-[#9AAAC2]">Take Profit Price</label>
                     <input
                       type="number"
                       value={tpPrice}
                       onChange={(e) => setTpPrice(e.target.value)}
                       placeholder={currentPrice ? String(+(midPrice * 1.02).toFixed(2)) : ""}
-                      className="w-full rounded border border-gray-600 bg-gray-700 px-2 py-1.5 text-xs text-white placeholder-gray-500 focus:border-emerald-500 focus:outline-none"
+                      className="w-full rounded border border-[#38506F] bg-[#17243A] px-2 py-1.5 text-xs text-white placeholder-[#7183A1] focus:border-[#14B8A6] focus:outline-none"
                     />
                   </div>
                 </div>
@@ -849,7 +852,7 @@ export default function LiveTradingPage() {
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  className="rounded bg-rose-600 py-2 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+                  className="rounded bg-[#16A34A] py-2 text-xs font-bold text-white transition-colors hover:bg-[#15803D]"
                   onClick={() => openDemoPosition("buy")}
                 >
                   <div className="text-[10px] font-normal opacity-80">BUY</div>
@@ -857,7 +860,7 @@ export default function LiveTradingPage() {
                 </button>
                 <button
                   type="button"
-                  className="rounded bg-emerald-600 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+                  className="rounded bg-[#0F9F8F] py-2 text-xs font-bold text-white transition-colors hover:bg-[#0B8176]"
                   onClick={() => openDemoPosition("sell")}
                 >
                   <div className="text-[10px] font-normal opacity-80">SELL</div>
@@ -872,20 +875,20 @@ export default function LiveTradingPage() {
       {/* Academy Gate Modal */}
       {showAcademyGate ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-800 p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-[#263754] bg-[#111B2E] p-6 shadow-xl">
             <div className="flex flex-col items-center text-center">
-              <span className="flex size-14 items-center justify-center rounded-full bg-amber-500/20">
-                <AlertTriangle className="size-7 text-amber-400" aria-hidden />
+              <span className="flex size-14 items-center justify-center rounded-full bg-[#F59E0B]/15">
+                <AlertTriangle className="size-7 text-[#FBBF24]" aria-hidden />
               </span>
               <h2 className="mt-4 font-display text-xl font-semibold text-white">Peringatan</h2>
-              <p className="mt-3 text-sm text-gray-300">
+              <p className="mt-3 text-sm text-[#D3DCEB]">
                 Untuk menggunakan <strong className="text-white">AI Trading Agent</strong> pada akun Demo, Anda harus menyelesaikan{" "}
                 <strong className="text-white">{ACADEMY_LABEL[market]}</strong> terlebih dahulu.
               </p>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-2 text-sm text-[#9AAAC2]">
                 Akademi ini akan memberikan pemahaman dasar tentang {market === "saham" ? "perdagangan saham di Bursa Efek Indonesia" : market === "crypto" ? "perdagangan aset kripto dan blockchain" : market === "komoditas" ? "perdagangan komoditas seperti emas, minyak, dan CPO" : "perdagangan mata uang asing (forex)"} sebelum Anda menggunakan agen AI.
               </p>
-              <Button className="mt-6 w-full bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setShowAcademyGate(false)}>
+              <Button className="mt-6 w-full bg-[#0F9F8F] text-white hover:bg-[#0B8176]" onClick={() => setShowAcademyGate(false)}>
                 Mengerti
               </Button>
             </div>
@@ -902,12 +905,12 @@ export default function LiveTradingPage() {
           return `-${secsAgo}s`;
         });
         return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-gray-900 p-3 sm:p-4">
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#0B1220] p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <button
                 type="button"
-                className="flex size-8 items-center justify-center rounded-lg border border-gray-600 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                className="flex size-8 items-center justify-center rounded-lg border border-[#38506F] text-[#D3DCEB] transition-colors hover:bg-[#17243A] hover:text-white"
                 onClick={() => setExpandedChart(false)}
                 aria-label="Tutup chart"
               >
@@ -917,10 +920,10 @@ export default function LiveTradingPage() {
                 <h2 className="font-display text-lg font-semibold text-white">
                   {isDemo ? symInfo.label : (allLiveSym.find((s) => s.apiSymbol === selectedSymbol)?.label ?? selectedSymbol)}
                 </h2>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-[#9AAAC2]">
                   {formatPrice(midPrice, market)}
                   {currentPrice.change !== 0 ? (
-                    <span className={currentPrice.change >= 0 ? "ml-2 text-emerald-400" : "ml-2 text-rose-400"}>
+                    <span className={currentPrice.change >= 0 ? "ml-2 text-[#5EEAD4]" : "ml-2 text-[#FB7185]"}>
                       {currentPrice.change >= 0 ? "+" : ""}{formatNum(currentPrice.change, market)} ({((currentPrice.change / (currentPrice.history[0] || 1)) * 100).toFixed(2)}%)
                     </span>
                   ) : null}
@@ -928,17 +931,17 @@ export default function LiveTradingPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5 rounded bg-gray-700/50 p-0.5">
+              <div className="flex items-center gap-0.5 rounded bg-[#17243A]/75 p-0.5">
                 <button
                   type="button"
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "line" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "line" ? "bg-[#2A3C5A] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                   onClick={() => setChartView("line")}
                 >
                   Line
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "candle" ? "bg-gray-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${chartView === "candle" ? "bg-[#2A3C5A] text-white" : "text-[#9AAAC2] hover:text-white"}`}
                   onClick={() => setChartView("candle")}
                 >
                   Candle
@@ -947,7 +950,7 @@ export default function LiveTradingPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-1 items-center justify-center rounded-xl border border-gray-700 bg-gray-800/30 p-4">
+          <div className="mt-4 flex flex-1 items-center justify-center rounded-xl border border-[#263754] bg-[#111B2E]/55 p-4">
             <div className="h-full w-full max-w-5xl">
               <ProfessionalChart
                 candles={candles}
