@@ -11492,14 +11492,15 @@ async function groupsCreate(ctx) {
   const row = {
     id: groupId,
     name,
-    description: textOrNull(ctx.body.description, 1000),
+    // The production schema keeps description non-null even though the UI marks it optional.
+    description: text(ctx.body.description, 1000) || "",
     audience_min_role: audienceMinRole,
-    capacity: intOrNull(ctx.body.capacity, 1, 10000),
+    capacity: intOrNull(ctx.body.capacity, 1, 10000) ?? 0,
     created_by: auth.account.id,
     created_at: now(),
   };
-  const { error } = await ctx.supabase.from("groups").insert(row);
-  if (error) return fail(500, "server_error");
+  const { error: groupError } = await ctx.supabase.from("groups").insert(row);
+  if (groupError) return dbError(groupError);
 
   // Automatically add creator to group_members
   const memberRows = [{
@@ -11514,9 +11515,18 @@ async function groupsCreate(ctx) {
     ? ctx.body.memberAccountIds
     : Array.isArray(ctx.body.members) ? ctx.body.members : [];
 
-  for (const mId of initialMembers) {
-    const cleanId = text(mId, 60);
-    if (cleanId && cleanId !== auth.account.id && !memberRows.some((r) => r.account_id === cleanId)) {
+  const requestedMemberIds = [...new Set(initialMembers.map((mId) => text(mId, 60)).filter(Boolean))]
+    .filter((id) => id !== auth.account.id);
+  const { data: validMembers, error: memberLookupError } = requestedMemberIds.length
+    ? await ctx.supabase.from("accounts").select("id").in("id", requestedMemberIds).limit(200)
+    : { data: [], error: null };
+  if (memberLookupError) {
+    await ctx.supabase.from("groups").delete().eq("id", groupId);
+    return dbError(memberLookupError);
+  }
+  for (const member of validMembers ?? []) {
+    const cleanId = member.id;
+    if (cleanId && !memberRows.some((r) => r.account_id === cleanId)) {
       memberRows.push({
         id: crypto.randomUUID(),
         group_id: groupId,
@@ -11526,7 +11536,11 @@ async function groupsCreate(ctx) {
     }
   }
 
-  await ctx.supabase.from("group_members").insert(memberRows);
+  const { error: membersError } = await ctx.supabase.from("group_members").insert(memberRows);
+  if (membersError) {
+    await ctx.supabase.from("groups").delete().eq("id", groupId);
+    return dbError(membersError);
+  }
 
   return ok({
     group: {

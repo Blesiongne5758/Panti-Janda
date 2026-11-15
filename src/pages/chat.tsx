@@ -255,12 +255,12 @@ function MessageBubble({
   }, [message.body]);
 
   return (
-    <div className={`flex w-full gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+    <div className={`flex w-full min-w-0 gap-2 ${mine ? "justify-end" : "justify-start"}`}>
       {!mine ? <MemberAvatar name={message.senderName} photoData={message.senderPhoto} size={28} /> : null}
-      <div className={`max-w-[85%] sm:max-w-[78%] space-y-0.5 ${mine ? "items-end text-right" : ""}`}>
+      <div className={`min-w-0 max-w-[85%] sm:max-w-[78%] space-y-0.5 ${mine ? "items-end text-right" : ""}`}>
         {!mine ? <p className="px-1 text-[11px] font-medium text-muted-foreground">{message.senderName}</p> : null}
         <div
-          className={`inline-block overflow-hidden rounded-2xl text-sm leading-relaxed ${
+          className={`inline-block min-w-0 max-w-full overflow-hidden rounded-2xl break-words text-sm leading-relaxed [overflow-wrap:anywhere] ${
             mine
               ? "rounded-br-md bg-primary text-primary-foreground"
               : "rounded-bl-md border border-border bg-secondary text-secondary-foreground"
@@ -291,11 +291,11 @@ function MessageBubble({
 
           {/* Lampiran Dokumen — klik kartu untuk force-download ke perangkat */}
           {parsed.attachment?.type === "file" && (
-            <div className="p-1.5">
+            <div className="min-w-0 max-w-full p-1.5">
               <button
                 type="button"
                 onClick={() => void forceDownload(parsed.attachment!.url, parsed.attachment!.name)}
-                className={`flex w-full items-center gap-2.5 p-2 rounded-xl transition-colors text-left ${
+                className={`flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden p-2 rounded-xl transition-colors text-left ${
                   mine
                     ? "bg-white/10 hover:bg-white/20 text-white"
                     : "bg-background/80 hover:bg-background text-foreground border border-border/60"
@@ -306,7 +306,7 @@ function MessageBubble({
                   <FileText className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="truncate text-xs font-semibold">{parsed.attachment.name}</p>
+                  <p className="min-w-0 max-w-full truncate text-xs font-semibold">{parsed.attachment.name}</p>
                   <p className={`text-[10px] ${mine ? "text-white/80" : "text-muted-foreground"}`}>
                     {parsed.attachment.size ? formatFileSize(parsed.attachment.size) : "Berkas"}
                     {" · Ketuk untuk unduh"}
@@ -779,7 +779,7 @@ export default function ChatPage() {
       {listError ? <ErrorNote message={listError} onRetry={loadLists} /> : null}
 
       <div
-        className={`overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl ${
+        className={`w-full min-w-0 max-w-full overflow-hidden border-0 sm:border border-border bg-card shadow-sm rounded-none sm:rounded-3xl ${
           thread
             ? "flex-1 min-h-0 flex flex-col sm:grid sm:grid-cols-[300px_1fr] sm:h-[74dvh] overflow-hidden"
             : "grid lg:grid-cols-[300px_1fr]"
@@ -1245,7 +1245,7 @@ export default function ChatPage() {
         </aside>
 
         {/* CHAT CONVERSATION SECTION */}
-        <section className={`flex flex-1 min-h-0 flex-col overflow-hidden ${thread ? "flex" : "hidden lg:flex"}`}>
+        <section className={`flex min-w-0 flex-1 min-h-0 flex-col overflow-hidden ${thread ? "flex" : "hidden lg:flex"}`}>
           {thread ? (
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               {/* Header */}
@@ -1506,7 +1506,7 @@ export default function ChatPage() {
                   />
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col gap-2.5 sm:gap-3 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 sm:py-4 min-h-0">
+                <div className="flex w-full min-w-0 flex-1 flex-col gap-2.5 overflow-x-hidden overscroll-contain overflow-y-auto px-3 py-3 sm:gap-3 sm:px-4 sm:py-4 min-h-0">
                   {messages.map((message) => (
                     <MessageBubble
                       key={message.id}
