@@ -43,13 +43,25 @@ async function main() {
     fail("Tidak ada profil pemain");
     return;
   }
-  const profileId = profilesRes.data.items[0].id;
-  ok(`Profil pemain ditemukan: ${profileId}`);
+  const meRes = await api("auth.me", wulanToken, {});
+  const wulanAccountId = meRes.data?.account?.id;
+  const ownedProfile = profilesRes.data.items.find((profile) => profile.accountId === wulanAccountId);
+  if (!ownedProfile) {
+    fail("Profil pemain milik Wulan tidak ditemukan");
+    return;
+  }
+  const profileId = ownedProfile.id;
+  const otherProfile = profilesRes.data.items.find((profile) => profile.accountId !== wulanAccountId);
+  ok(`Profil pemain milik Wulan ditemukan: ${profileId}`);
 
   // Test 1: Player Stats
   console.log("\n--- Player Stats ---");
   const statsGetRes = await api("esport.transfer.stats.get", wulanToken, { id: profileId });
-  ok(`Stats get: ${statsGetRes.data?.stats ? "ada data" : "null (belum ada)"}`);
+  if (statsGetRes.status === 200) {
+    ok(`Stats get: ${statsGetRes.data?.stats ? "ada data" : "null (belum ada)"}`);
+  } else {
+    fail("Stats get gagal", JSON.stringify(statsGetRes));
+  }
 
   const statsSaveRes = await api("esport.transfer.stats.save", wulanToken, {
     id: profileId,
@@ -67,6 +79,18 @@ async function main() {
     ok(`Stats save: totalMatches=${statsSaveRes.data.stats.total_matches}`);
   } else {
     fail("Stats save gagal", JSON.stringify(statsSaveRes));
+  }
+
+  if (otherProfile) {
+    const deniedStatsSave = await api("esport.transfer.stats.save", wulanToken, {
+      id: otherProfile.id,
+      totalMatches: 1,
+    });
+    if (deniedStatsSave.status === 403 && deniedStatsSave.error === "forbidden") {
+      ok("Stats profil akun lain ditolak (403)");
+    } else {
+      fail("Stats profil akun lain harus ditolak", JSON.stringify(deniedStatsSave));
+    }
   }
 
   // Test 2: Player Reviews

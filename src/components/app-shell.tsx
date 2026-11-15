@@ -37,6 +37,7 @@ function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberO
             key={item.to}
             to={item.to}
             onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors",
               active
@@ -180,21 +181,17 @@ function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { account, profile, logout, ready } = useAuth();
-  const { navigate } = useRoute();
+  const { path } = useRoute();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const rank = account ? ROLE_RANK[account.role] : 0;
   const member = rank >= 2;
+  const dashboardActive = path.split("?")[0] === "/dasbor" || path.split("?")[0] === "/dashboard";
 
   function openProfileDialog() {
     setMenuOpen(false);
     window.setTimeout(() => setProfileDialogOpen(true), 0);
-  }
-
-  function openDashboard() {
-    setMenuOpen(false);
-    window.setTimeout(() => navigate("/dasbor"), 0);
   }
 
   return (
@@ -241,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {t("nav.dashboard")}
                   </Link>
                 </Button>
-                <NotificationBell />
+                {rank >= 2 ? <NotificationBell /> : null}
                 <Link
                   to="/feed"
                   onClick={() => {
@@ -276,7 +273,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-72">
+                  <SheetContent side="right" className="w-[min(18rem,calc(100vw-2rem))] max-h-[100dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <SheetHeader>
                       <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>
@@ -285,11 +282,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Separator className="my-3" />
                       <Link
                         to="/dasbor"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          openDashboard();
-                        }}
-                        className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary"
+                        onClick={() => setMenuOpen(false)}
+                        aria-current={dashboardActive ? "page" : undefined}
+                        className={cn(
+                          "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                          dashboardActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
                       >
                         {t("nav.dashboard")}
                       </Link>
@@ -349,7 +349,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       <Menu className="size-4" aria-hidden />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-72">
+                  <SheetContent side="right" className="w-[min(18rem,calc(100vw-2rem))] max-h-[100dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <SheetHeader>
                       <SheetTitle className="font-display">{t("nav.menu")}</SheetTitle>
                     </SheetHeader>

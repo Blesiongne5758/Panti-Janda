@@ -298,3 +298,27 @@ export async function api<T = unknown>(
     throw error;
   }
 }
+
+export async function chatStorageApi<T = unknown>(
+  action: string,
+  payload: Record<string, unknown> = {},
+): Promise<T> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  const token = getToken();
+  if (token) headers["x-app-session"] = token;
+  const apiUrl = import.meta.env.VITE_SUPABASE_URL
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-storage`
+    : "/functions/v1/chat-storage";
+  if (import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    headers.authorization = `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`;
+    headers.apikey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  }
+
+  const response = await requestJson(apiUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ ...payload, action }),
+  });
+  const data = response as { data?: T };
+  return data.data as T;
+}

@@ -90,6 +90,8 @@ async function seed() {
   const ayu = await account("ayu@contoh.id", "high_society", "Ayu", { level: 40, xp: 156800 });
   const citra = await account("citra@contoh.id", "the_ceo", "Citra", { level: 48, xp: 217800 });
   const budi = await account("budi@contoh.id", "kades", "Budi S.", { level: 5, xp: 3000 });
+  // Legacy generic-public role fixture: notification APIs intentionally deny rank 1.
+  await account("legacy-public@local.test", "public", "Public Test");
 
   const pWulan = profile(wulan, {
     nickname: "Wulan",
@@ -2367,6 +2369,9 @@ async function seed() {
     donations,
     reports: [],
     sessions: [],
+    call_signals: [],
+    call_signal_negotiations: [],
+    call_signal_candidates: [],
     notifications: [
       {
         id: id(),
@@ -2574,4 +2579,5 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log("  ayu@contoh.id        (high society)");
   console.log("  citra@contoh.id      (the CEO)");
   console.log("  budi@contoh.id       (non janda)");
+  console.log("  legacy-public@local.test (non janda, legacy public role)");
 });
