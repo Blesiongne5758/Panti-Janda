@@ -98,8 +98,13 @@ jobs:
             exit 1
           fi
 
-      # Keep the currently deployed `app` function unchanged; its production
-      # version is intentionally different from this repository's source.
+      # Deploy the application router so new chat actions are available in production.
+      - name: Deploy application Edge Function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ steps.derive-project-ref.outputs.project_ref }}
+        run: supabase functions deploy app --remote="$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt --yes
+
       - name: Deploy private chat-storage Edge Function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
