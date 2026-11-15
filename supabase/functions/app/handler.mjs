@@ -6105,6 +6105,8 @@ const ROUTES = {
   "chat.contacts": chatContacts,
   "chat.thread": chatThread,
   "chat.send": chatSend,
+  "chat.message.delete": chatMessageDelete,
+  "chat.clear": chatClear,
   "friends.list": friendsList,
   "friends.search": friendsSearch,
   "friends.request": friendsRequest,
@@ -12257,6 +12259,48 @@ async function chatSend(ctx) {
   await notify(ctx.supabase, withId, "message", auth.account.id, "Mengirimkan pesan", `#/pesan?with=${auth.account.id}`);
   const names = await namesFor(ctx.supabase, [auth.account.id]);
   return ok({ message: messagePublic(row, names) });
+}
+
+async function chatMessageDelete(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60);
+  if (!id) return fail(400, "invalid_input");
+  const { data: message, error: lookupError } = await ctx.supabase
+    .from("messages")
+    .select("id,sender_account_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (lookupError) return fail(500, "server_error");
+  if (!message) return fail(404, "not_found");
+  if (message.sender_account_id !== auth.account.id) return fail(403, "forbidden");
+  const { error } = await ctx.supabase.from("messages").delete().eq("id", id).eq("sender_account_id", auth.account.id);
+  if (error) return fail(500, "server_error");
+  return ok({ deleted: true, id });
+}
+
+async function chatClear(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const kind = ctx.body.kind === "group" ? "group" : "dm";
+  if (kind === "group") {
+    const guard = await groupChatGuard(ctx);
+    if (guard.error) return guard.error;
+    const { error } = await ctx.supabase.from("messages").delete().eq("thread_kind", "group").eq("group_id", guard.group.id);
+    if (error) return fail(500, "server_error");
+    return ok({ cleared: true, kind, id: guard.group.id });
+  }
+  const withId = text(ctx.body.withAccountId, 60);
+  if (!withId || withId === auth.account.id) return fail(400, "invalid_input");
+  const { data: target } = await ctx.supabase.from("accounts").select("id,status").eq("id", withId).maybeSingle();
+  if (!target || target.status !== "active") return fail(404, "not_found");
+  const { error } = await ctx.supabase
+    .from("messages")
+    .delete()
+    .eq("thread_kind", "dm")
+    .or(`and(sender_account_id.eq.${auth.account.id},recipient_account_id.eq.${withId}),and(sender_account_id.eq.${withId},recipient_account_id.eq.${auth.account.id})`);
+  if (error) return fail(500, "server_error");
+  return ok({ cleared: true, kind, withAccountId: withId });
 }
 
 // ---------- voice & video calling (durable WebRTC signaling) ----------

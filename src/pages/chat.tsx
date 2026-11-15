@@ -22,6 +22,7 @@ import {
   Paperclip,
   FileText,
   Download,
+  Trash2,
   ZoomIn,
   ZoomOut,
   Eye,
@@ -246,10 +247,12 @@ function MessageBubble({
   message,
   mine,
   onPreviewImage,
+  onDelete,
 }: {
   message: ChatMessage;
   mine: boolean;
   onPreviewImage?: (url: string, name: string) => void;
+  onDelete?: (message: ChatMessage) => void;
 }) {
   const parsed = useMemo<{ text: string; attachment?: ParsedAttachment }>(() => {
     if (message.body && message.body.startsWith('{"__attachment":true')) {
@@ -334,7 +337,20 @@ function MessageBubble({
             <p className="px-3.5 py-2 text-left whitespace-pre-line leading-relaxed">{parsed.text}</p>
           ) : null}
         </div>
-        <p className="px-1 text-[10px] text-muted-foreground">{timeOf(message.createdAt)}</p>
+        <div className={`flex items-center gap-1 px-1 text-[10px] text-muted-foreground ${mine ? "justify-end" : "justify-start"}`}>
+          <span>{timeOf(message.createdAt)}</span>
+          {mine && onDelete ? (
+            <button
+              type="button"
+              className="rounded-full p-0.5 text-muted-foreground/70 transition-colors hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+              onClick={() => onDelete(message)}
+              title="Hapus pesan"
+              aria-label="Hapus pesan"
+            >
+              <Trash2 className="size-3" />
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -680,6 +696,32 @@ export default function ChatPage() {
       await loadLists();
     } catch (error) {
       toast.error(errorText(error) || "Gagal keluar dari grup.");
+    }
+  };
+
+  const handleDeleteMessage = async (message: ChatMessage) => {
+    if (!window.confirm("Hapus pesan ini? Pesan akan dihapus dari percakapan.")) return;
+    try {
+      await api("chat.message.delete", { id: message.id });
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      toast.success("Pesan dihapus.");
+      void loadLists();
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal menghapus pesan.");
+    }
+  };
+
+  const handleClearChat = async () => {
+    if (!thread) return;
+    const label = thread.kind === "group" ? activeGroup?.name ?? "grup ini" : activeContact?.nickname ?? "percakapan ini";
+    if (!window.confirm(`Hapus seluruh pesan di ${label}? Tindakan ini berlaku untuk semua pihak dan tidak dapat dibatalkan.`)) return;
+    try {
+      await api("chat.clear", thread.kind === "group" ? { kind: "group", id: thread.id } : { kind: "dm", withAccountId: thread.accountId });
+      setMessages([]);
+      toast.success("Percakapan dibersihkan.");
+      void loadLists();
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal membersihkan percakapan.");
     }
   };
 
@@ -1363,6 +1405,17 @@ export default function ChatPage() {
                           </Link>
                         </Button>
                       ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full border-rose-300 text-rose-500 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        onClick={() => void handleClearChat()}
+                        title="Bersihkan Chat"
+                        aria-label="Bersihkan Chat"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
                     </div>
                   </>
                 ) : activeGroup ? (
@@ -1412,6 +1465,17 @@ export default function ChatPage() {
                         aria-label="Keluar dari Grup"
                       >
                         <LogOut className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-full border-rose-300 text-rose-500 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                        onClick={() => void handleClearChat()}
+                        title="Bersihkan Chat"
+                        aria-label="Bersihkan Chat"
+                      >
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   </>
@@ -1536,6 +1600,7 @@ export default function ChatPage() {
                       message={message}
                       mine={account ? message.senderAccountId === account.id : false}
                       onPreviewImage={(url, name) => setPreviewImageModal({ url, name })}
+                      onDelete={(item) => void handleDeleteMessage(item)}
                     />
                   ))}
                   <div ref={bottomRef} />
