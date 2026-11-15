@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { RouterProvider, matchRoute, useRoute } from "@/lib/router";
 import { AuthProvider, useAuth } from "@/lib/session";
 import { VoiceCallProvider } from "@/lib/call-context";
@@ -8,46 +8,47 @@ import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Toaster } from "@/components/ui/sonner";
-import { LandingPage } from "@/pages/landing";
-import { ExplorePage } from "@/pages/explore";
-import { ProfileDetailPage } from "@/pages/profile-detail";
-import ProgramsPage from "@/pages/programs";
-import EventsPage from "@/pages/events";
-import { EventWizardPage } from "@/pages/event-wizard";
-import EventDetailPage from "@/pages/event-detail";
-import EventManagePage from "@/pages/event-manage";
-import { CampaignsPage } from "@/pages/campaigns";
-import { CampaignCreatePage } from "@/pages/campaign-create";
-import BusinessesPage from "@/pages/businesses";
-import BusinessDetailPage from "@/pages/business-detail";
-import BusinessFormPage from "@/pages/business-form";
-import SubscriptionPage from "@/pages/subscription";
-import AIMentorPage from "@/pages/ai-mentor";
-import MarketplacePage from "@/pages/marketplace";
-import MarketplaceDetailPage from "@/pages/marketplace-detail";
-import MarketplaceFormPage from "@/pages/marketplace-form";
-import CoinsPage from "@/pages/coins";
-import LiveTradingPage from "@/pages/live-trading";
-import AiAgentPage from "@/pages/ai-agent";
-import LearningCenterPage from "@/pages/learning-center";
-import EsportPage from "@/pages/esport";
-import EsportDetailPage from "@/pages/esport-detail";
-import EsportTeamsPage from "@/pages/esport-teams";
-import EsportCreatePage from "@/pages/esport-create";
-import EsportManagePage from "@/pages/esport-manage";
-import EsportLeaderboardPage from "@/pages/esport-leaderboard";
-import BursaTransferPage from "@/pages/bursa-transfer";
-import { FeedPage } from "@/pages/feed";
-import GroupsPage from "@/pages/groups";
-import ChatPage from "@/pages/chat";
-import DashboardPage from "@/pages/dashboard";
-import AdminPage from "@/pages/admin";
-import FinancePage from "@/pages/finance";
-import PaymentSuccessPage from "@/pages/payment-success";
-import PaymentFailedPage from "@/pages/payment-failed";
-import LoginPage from "@/pages/login";
-import RegisterPage from "@/pages/register";
 import NotFoundPage from "@/pages/not-found";
+
+const LandingPage = lazy(() => import("@/pages/landing").then((module) => ({ default: module.LandingPage })));
+const ExplorePage = lazy(() => import("@/pages/explore").then((module) => ({ default: module.ExplorePage })));
+const ProfileDetailPage = lazy(() => import("@/pages/profile-detail").then((module) => ({ default: module.ProfileDetailPage })));
+const ProgramsPage = lazy(() => import("@/pages/programs"));
+const EventsPage = lazy(() => import("@/pages/events"));
+const EventWizardPage = lazy(() => import("@/pages/event-wizard").then((module) => ({ default: module.EventWizardPage })));
+const EventDetailPage = lazy(() => import("@/pages/event-detail"));
+const EventManagePage = lazy(() => import("@/pages/event-manage"));
+const CampaignsPage = lazy(() => import("@/pages/campaigns").then((module) => ({ default: module.CampaignsPage })));
+const CampaignCreatePage = lazy(() => import("@/pages/campaign-create").then((module) => ({ default: module.CampaignCreatePage })));
+const BusinessesPage = lazy(() => import("@/pages/businesses"));
+const BusinessDetailPage = lazy(() => import("@/pages/business-detail"));
+const BusinessFormPage = lazy(() => import("@/pages/business-form"));
+const SubscriptionPage = lazy(() => import("@/pages/subscription"));
+const AIMentorPage = lazy(() => import("@/pages/ai-mentor"));
+const MarketplacePage = lazy(() => import("@/pages/marketplace"));
+const MarketplaceDetailPage = lazy(() => import("@/pages/marketplace-detail"));
+const MarketplaceFormPage = lazy(() => import("@/pages/marketplace-form"));
+const CoinsPage = lazy(() => import("@/pages/coins"));
+const LiveTradingPage = lazy(() => import("@/pages/live-trading"));
+const AiAgentPage = lazy(() => import("@/pages/ai-agent"));
+const LearningCenterPage = lazy(() => import("@/pages/learning-center"));
+const EsportPage = lazy(() => import("@/pages/esport"));
+const EsportDetailPage = lazy(() => import("@/pages/esport-detail"));
+const EsportTeamsPage = lazy(() => import("@/pages/esport-teams"));
+const EsportCreatePage = lazy(() => import("@/pages/esport-create"));
+const EsportManagePage = lazy(() => import("@/pages/esport-manage"));
+const EsportLeaderboardPage = lazy(() => import("@/pages/esport-leaderboard"));
+const BursaTransferPage = lazy(() => import("@/pages/bursa-transfer"));
+const FeedPage = lazy(() => import("@/pages/feed").then((module) => ({ default: module.FeedPage })));
+const GroupsPage = lazy(() => import("@/pages/groups"));
+const ChatPage = lazy(() => import("@/pages/chat"));
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const AdminPage = lazy(() => import("@/pages/admin"));
+const FinancePage = lazy(() => import("@/pages/finance"));
+const PaymentSuccessPage = lazy(() => import("@/pages/payment-success"));
+const PaymentFailedPage = lazy(() => import("@/pages/payment-failed"));
+const LoginPage = lazy(() => import("@/pages/login"));
+const RegisterPage = lazy(() => import("@/pages/register"));
 
 function Routes() {
   const { path } = useRoute();
@@ -156,7 +157,13 @@ export default function App() {
           <VoiceCallProvider>
             <ThemeSync />
             <AppShell>
-              <Routes />
+              <Suspense fallback={(
+                <div className="flex min-h-[50vh] items-center justify-center px-4 py-16 text-sm text-muted-foreground" role="status" aria-live="polite">
+                  Memuat halaman…
+                </div>
+              )}>
+                <Routes />
+              </Suspense>
             </AppShell>
             <VoiceCallOverlay />
             <MobileNav />

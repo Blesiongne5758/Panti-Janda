@@ -14704,14 +14704,20 @@ async function metaTrader5Settings(ctx) {
 }
 
 async function aiTradingAgentSettings(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   return ok({ aiTradingAgent: APP_SETTINGS.aiTradingAgent });
 }
 
 async function aiSubAgentsList(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   return ok({ subAgents: APP_SETTINGS.aiTradingAgent.subAgents || [] });
 }
 
 async function aiSubAgentsUpdate(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const agent = (APP_SETTINGS.aiTradingAgent.subAgents || []).find((a) => a.id === id);
@@ -14728,10 +14734,14 @@ async function aiSubAgentsUpdate(ctx) {
 }
 
 async function aiTradingServersList(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   return ok({ tradingServers: APP_SETTINGS.aiTradingAgent.tradingServers || [] });
 }
 
 async function aiTradingServersUpdate(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const server = (APP_SETTINGS.aiTradingAgent.tradingServers || []).find((s) => s.id === id);
@@ -14752,10 +14762,14 @@ async function aiTradingServersUpdate(ctx) {
 }
 
 async function aiPromptsList(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   return ok({ prompts: APP_SETTINGS.aiTradingAgent.promptLibrary || [] });
 }
 
 async function aiPromptsGet(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
@@ -14764,6 +14778,8 @@ async function aiPromptsGet(ctx) {
 }
 
 async function aiPromptsCreate(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const now = new Date().toISOString();
   const prompt = {
@@ -14785,6 +14801,8 @@ async function aiPromptsCreate(ctx) {
 }
 
 async function aiPromptsUpdate(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
@@ -14802,6 +14820,8 @@ async function aiPromptsUpdate(ctx) {
 }
 
 async function aiPromptsDelete(ctx) {
+  const auth = await actor(ctx, 8);
+  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const idx = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).findIndex((p) => p.id === id);
