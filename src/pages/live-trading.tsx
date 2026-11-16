@@ -41,6 +41,9 @@ interface DemoPosition {
   status: "open" | "closed";
   closedAt?: string;
   exitPrice?: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  closeReason?: "manual" | "stop_loss" | "take_profit";
 }
 
 interface DemoTrade {
@@ -431,10 +434,31 @@ export default function LiveTradingPage() {
         const cur = prices[pos.symbol];
         if (!cur) return pos;
         const midPrice = (cur.bid + cur.ask) / 2;
+        const exitPrice = pos.side === "buy" ? cur.bid : cur.ask;
+        const hitStopLoss = pos.stopLoss !== undefined && (pos.side === "buy" ? exitPrice <= pos.stopLoss : exitPrice >= pos.stopLoss);
+        const hitTakeProfit = pos.takeProfit !== undefined && (pos.side === "buy" ? exitPrice >= pos.takeProfit : exitPrice <= pos.takeProfit);
+        const closeReason = hitStopLoss ? "stop_loss" : hitTakeProfit ? "take_profit" : null;
         const pnl = pos.side === "buy"
           ? (midPrice - pos.entryPrice) * pos.quantity
           : (pos.entryPrice - midPrice) * pos.quantity;
         const pnlPercent = ((pos.side === "buy" ? midPrice - pos.entryPrice : pos.entryPrice - midPrice) / pos.entryPrice) * 100;
+        if (closeReason) {
+          const realizedPnl = pos.side === "buy"
+            ? (exitPrice - pos.entryPrice) * pos.quantity
+            : (pos.entryPrice - exitPrice) * pos.quantity;
+          setDemoBalance((balance) => balance + (pos.side === "buy" ? exitPrice : -exitPrice) * pos.quantity);
+          setDemoTrades((trades) => [...trades, {
+            id: `t_${Date.now()}_${pos.id}`,
+            symbol: pos.symbol,
+            side: pos.side === "buy" ? "sell" : "buy",
+            price: exitPrice,
+            quantity: pos.quantity,
+            timestamp: new Date().toISOString(),
+            pnl: realizedPnl,
+          }]);
+          toast.info(`${pos.side === "buy" ? "BUY" : "SELL"} ${closeReason === "stop_loss" ? "Stop Loss" : "Take Profit"} tercapai.`);
+          return { ...pos, status: "closed" as const, closedAt: new Date().toISOString(), exitPrice, pnl: realizedPnl, pnlPercent: (realizedPnl / (pos.entryPrice * pos.quantity)) * 100, closeReason };
+        }
         return { ...pos, currentPrice: midPrice, pnl, pnlPercent };
       }),
     );
@@ -447,6 +471,32 @@ export default function LiveTradingPage() {
     const cur = prices[selectedSymbol];
     if (!cur) return;
     const execPrice = side === "buy" ? cur.ask : cur.bid;
+    const stopLoss = slPrice.trim() ? Number(slPrice) : undefined;
+    const takeProfit = tpPrice.trim() ? Number(tpPrice) : undefined;
+    if (stopLoss !== undefined && (!Number.isFinite(stopLoss) || stopLoss <= 0)) {
+      toast.error("Harga Stop Loss tidak valid.");
+      return;
+    }
+    if (takeProfit !== undefined && (!Number.isFinite(takeProfit) || takeProfit <= 0)) {
+      toast.error("Harga Take Profit tidak valid.");
+      return;
+    }
+    if (side === "buy" && stopLoss !== undefined && stopLoss >= execPrice) {
+      toast.error("Stop Loss BUY harus di bawah harga masuk.");
+      return;
+    }
+    if (side === "buy" && takeProfit !== undefined && takeProfit <= execPrice) {
+      toast.error("Take Profit BUY harus di atas harga masuk.");
+      return;
+    }
+    if (side === "sell" && stopLoss !== undefined && stopLoss <= execPrice) {
+      toast.error("Stop Loss SELL harus di atas harga masuk.");
+      return;
+    }
+    if (side === "sell" && takeProfit !== undefined && takeProfit >= execPrice) {
+      toast.error("Take Profit SELL harus di bawah harga masuk.");
+      return;
+    }
     const cost = execPrice * orderQty;
     if (side === "buy" && cost > demoBalance) {
       toast.error("Saldo demo tidak mencukupi.");
@@ -463,6 +513,8 @@ export default function LiveTradingPage() {
       pnl: 0,
       pnlPercent: 0,
       status: "open",
+      stopLoss,
+      takeProfit,
     };
     setDemoPositions((prev) => [pos, ...prev]);
     if (side === "buy") setDemoBalance((b) => b - cost);
@@ -489,11 +541,9 @@ export default function LiveTradingPage() {
         const pnl = pos.side === "buy"
           ? (exitPrice - pos.entryPrice) * pos.quantity
           : (pos.entryPrice - exitPrice) * pos.quantity;
-        if (pos.side === "sell") setDemoBalance((b) => b - (exitPrice * pos.quantity - pnl));
-        else setDemoBalance((b) => b + exitPrice * pos.quantity + pnl - (pos.entryPrice * pos.quantity));
-        setDemoBalance((b) => b + pnl);
+        setDemoBalance((b) => b + (pos.side === "buy" ? exitPrice : -exitPrice) * pos.quantity);
         const trade: DemoTrade = {
-          id: `t_${Date.now()}`,
+          id: `t_${Date.now()}_${pos.id}`,
           symbol: pos.symbol,
           side: pos.side === "buy" ? "sell" : "buy",
           price: exitPrice,
@@ -502,7 +552,7 @@ export default function LiveTradingPage() {
           pnl,
         };
         setDemoTrades((prev2) => [trade, ...prev2]);
-        return { ...pos, status: "closed" as const, closedAt: new Date().toISOString(), exitPrice, pnl, pnlPercent: ((pos.side === "buy" ? exitPrice - pos.entryPrice : pos.entryPrice - exitPrice) / pos.entryPrice) * 100 };
+        return { ...pos, status: "closed" as const, closedAt: new Date().toISOString(), exitPrice, pnl, pnlPercent: (pnl / (pos.entryPrice * pos.quantity)) * 100, closeReason: "manual" as const };
       }),
     );
     toast.success("Posisi ditutup.");
@@ -735,7 +785,7 @@ export default function LiveTradingPage() {
                     <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada posisi terbuka.</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[480px] text-xs">
+                      <table className="w-full min-w-[650px] text-xs">
                       <thead className="sticky top-0 bg-[#111B2E] text-[#9AAAC2]">
                         <tr>
                           <th className="px-3 py-1.5 text-left font-medium">Symbol</th>
@@ -743,6 +793,8 @@ export default function LiveTradingPage() {
                           <th className="px-3 py-1.5 text-right font-medium">Qty</th>
                           <th className="px-3 py-1.5 text-right font-medium">Entry</th>
                           <th className="px-3 py-1.5 text-right font-medium">Current</th>
+                          <th className="px-3 py-1.5 text-right font-medium">SL</th>
+                          <th className="px-3 py-1.5 text-right font-medium">TP</th>
                           <th className="px-3 py-1.5 text-right font-medium">P&L</th>
                           <th className="px-3 py-1.5 text-center font-medium">Aksi</th>
                         </tr>
@@ -761,6 +813,8 @@ export default function LiveTradingPage() {
                               <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{pos.quantity}</td>
                               <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.entryPrice, market)}</td>
                               <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.currentPrice, market)}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-[#FB7185]">{pos.stopLoss !== undefined ? formatPrice(pos.stopLoss, market) : "—"}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-[#5EEAD4]">{pos.takeProfit !== undefined ? formatPrice(pos.takeProfit, market) : "—"}</td>
                               <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
                                 {pos.pnl >= 0 ? "+" : ""}{formatRupiah(pos.pnl)}
                               </td>
@@ -796,6 +850,7 @@ export default function LiveTradingPage() {
                             <th className="px-3 py-1.5 text-right font-medium">Entry</th>
                             <th className="px-3 py-1.5 text-right font-medium">Exit</th>
                             <th className="px-3 py-1.5 text-right font-medium">P&L</th>
+                            <th className="px-3 py-1.5 text-left font-medium">Alasan</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -814,6 +869,9 @@ export default function LiveTradingPage() {
                                 <td className="px-3 py-1.5 text-right font-mono text-[#D3DCEB]">{formatPrice(pos.exitPrice ?? 0, market)}</td>
                                 <td className={`px-3 py-1.5 text-right font-mono font-semibold ${pos.pnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>
                                   {pos.pnl >= 0 ? "+" : ""}{formatRupiah(pos.pnl)}
+                                </td>
+                                <td className="px-3 py-1.5 text-left text-[#9AAAC2]">
+                                  {pos.closeReason === "stop_loss" ? "Stop Loss" : pos.closeReason === "take_profit" ? "Take Profit" : "Manual"}
                                 </td>
                               </tr>
                             );
