@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, type ReactNode } from "react";
-import { Bell, Crown, ExternalLink, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
@@ -279,17 +279,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </SheetHeader>
                     <div className="flex flex-col gap-1 px-4">
                       <NavLinks memberOnly={member} onNavigate={() => setMenuOpen(false)} />
-                      <a
-                        href="https://managerconcet.lovable.app/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex min-h-11 items-center justify-between rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        AI Manager Konten
-                        <ExternalLink className="size-4" aria-hidden="true" />
-                        <span className="sr-only">(membuka tab baru)</span>
-                      </a>
                       <Separator className="my-3" />
                       <Link
                         to="/dasbor"
@@ -366,17 +355,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </SheetHeader>
                     <div className="flex flex-col gap-1 px-4">
                       <NavLinks memberOnly={false} onNavigate={() => setMenuOpen(false)} />
-                      <a
-                        href="https://managerconcet.lovable.app/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex min-h-11 items-center justify-between rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        AI Manager Konten
-                        <ExternalLink className="size-4" aria-hidden="true" />
-                        <span className="sr-only">(membuka tab baru)</span>
-                      </a>
                       <Separator className="my-3" />
                       <Link
                         to="/masuk"
