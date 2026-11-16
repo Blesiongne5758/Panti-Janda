@@ -56,6 +56,14 @@ interface DemoTrade {
   pnl?: number;
 }
 
+interface RiskAlert {
+  id: string;
+  symbol: string;
+  reason: "stop_loss" | "take_profit";
+  price: number;
+  createdAt: string;
+}
+
 type MarketKind = "saham" | "crypto" | "komoditas" | "forex";
 
 const LIVE_SYMBOLS: Record<MarketKind, { symbol: string; label: string; apiSymbol: string }[]> = {
@@ -379,6 +387,8 @@ export default function LiveTradingPage() {
   const [demoBalance, setDemoBalance] = useState(DEMO_BALANCE);
   const [demoPositions, setDemoPositions] = useState<DemoPosition[]>([]);
   const [demoTrades, setDemoTrades] = useState<DemoTrade[]>([]);
+  const [riskAlerts, setRiskAlerts] = useState<RiskAlert[]>([]);
+  const [browserAlertsEnabled, setBrowserAlertsEnabled] = useState(false);
   const [orderQty, setOrderQty] = useState(100);
   const [showAcademyGate, setShowAcademyGate] = useState(false);
   const [chartView, setChartView] = useState<"line" | "candle">("candle");
@@ -389,6 +399,36 @@ export default function LiveTradingPage() {
   const [positionTab, setPositionTab] = useState<"positions" | "pending" | "history">("positions");
   const [slPrice, setSlPrice] = useState("");
   const [tpPrice, setTpPrice] = useState("");
+
+  const enableBrowserAlerts = async () => {
+    if (typeof Notification === "undefined") {
+      toast.error("Browser ini tidak mendukung notifikasi desktop.");
+      return;
+    }
+    const permission = Notification.permission === "default"
+      ? await Notification.requestPermission()
+      : Notification.permission;
+    if (permission === "granted") {
+      setBrowserAlertsEnabled(true);
+      toast.success("Notifikasi Stop Loss/Take Profit diaktifkan.");
+    } else {
+      toast.error("Izin notifikasi ditolak. Alert tetap tampil di dalam aplikasi.");
+    }
+  };
+
+  const notifyRiskAlert = useCallback((position: DemoPosition, reason: "stop_loss" | "take_profit", price: number) => {
+    const createdAt = new Date().toISOString();
+    const alert: RiskAlert = { id: `alert_${Date.now()}_${position.id}`, symbol: position.symbol, reason, price, createdAt };
+    setRiskAlerts((previous) => [alert, ...previous].slice(0, 20));
+    const label = reason === "stop_loss" ? "Stop Loss" : "Take Profit";
+    toast.info(`${label} tercapai: ${position.symbol} @ ${formatPrice(price, market)}`);
+    if (browserAlertsEnabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification(`${label} tercapai — ${position.symbol}`, {
+        body: `${position.side.toUpperCase()} ditutup pada ${formatPrice(price, market)}.`,
+        tag: alert.id,
+      });
+    }
+  }, [browserAlertsEnabled, market]);
 
   const liveStreamSymbols = getLiveSymbols(market).map((s) => s.apiSymbol);
   const apiKey = settings?.apiKey ?? "";
@@ -456,13 +496,13 @@ export default function LiveTradingPage() {
             timestamp: new Date().toISOString(),
             pnl: realizedPnl,
           }]);
-          toast.info(`${pos.side === "buy" ? "BUY" : "SELL"} ${closeReason === "stop_loss" ? "Stop Loss" : "Take Profit"} tercapai.`);
+          notifyRiskAlert(pos, closeReason, exitPrice);
           return { ...pos, status: "closed" as const, closedAt: new Date().toISOString(), exitPrice, pnl: realizedPnl, pnlPercent: (realizedPnl / (pos.entryPrice * pos.quantity)) * 100, closeReason };
         }
         return { ...pos, currentPrice: midPrice, pnl, pnlPercent };
       }),
     );
-  }, [prices, isDemo]);
+  }, [prices, isDemo, notifyRiskAlert]);
 
   const openDemoPosition = (side: "buy" | "sell") => {
     const allDemo = getDemoSymbols(market);
@@ -652,6 +692,24 @@ export default function LiveTradingPage() {
             <span className="text-[#7183A1]">Posisi: </span>
             <span className="font-mono font-semibold text-white">{openPositions.length}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => void enableBrowserAlerts()}
+            className={`rounded border px-2 py-1 text-[10px] font-semibold transition-colors ${browserAlertsEnabled ? "border-[#22C55E]/50 bg-[#22C55E]/10 text-[#5EEAD4]" : "border-[#38506F] text-[#D3DCEB] hover:bg-[#17243A]"}`}
+          >
+            {browserAlertsEnabled ? "Alert desktop aktif" : "Aktifkan alert"}
+          </button>
+        </div>
+      ) : null}
+
+      {isDemo && riskAlerts.length > 0 ? (
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-[#263754] bg-[#17243A]/70 px-3 py-1.5 text-[10px] sm:px-4">
+          <span className="shrink-0 font-semibold uppercase tracking-wider text-[#9AAAC2]">Alert terbaru</span>
+          {riskAlerts.slice(0, 3).map((alert) => (
+            <span key={alert.id} className={`shrink-0 rounded px-2 py-1 font-medium ${alert.reason === "stop_loss" ? "bg-[#F43F5E]/15 text-[#FB7185]" : "bg-[#22C55E]/15 text-[#5EEAD4]"}`}>
+              {alert.reason === "stop_loss" ? "SL" : "TP"} {alert.symbol} @ {formatPrice(alert.price, market)} · {new Date(alert.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          ))}
         </div>
       ) : null}
 
