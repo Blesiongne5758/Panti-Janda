@@ -79,7 +79,7 @@ The workflow runs on pushes to `main` and supports `workflow_dispatch`. After de
 
 After a successful workflow, use an approved production test account and read-only actions wherever possible. Record UTC/local time, tested role, route, and result—never passwords, session tokens, or personal profile data.
 
-- [ ] Open `https://www.panijanda.my.id/`; verify HTTPS, expected page content, and no redirect loop or blank screen.
+- [ ] Open `https://www.pantijanda.my.id/`; verify HTTPS, expected page content, and no redirect loop or blank screen.
 - [ ] Verify the built frontend and its static assets load successfully (no broken JavaScript/CSS or unexpected 404/500 responses).
 - [ ] Verify the app's hash routes work, including login and the dashboard route `/#/dasbor`.
 - [ ] On mobile, open the menu/drawer and select **Dasbor**; confirm the route changes, the drawer closes, and the dashboard heading/content render.
