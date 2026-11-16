@@ -59,6 +59,11 @@ Platform komunitas digital untuk pemberdayaan janda — menghubungkan anggota, m
 - **AI Trading Agent** — Agent trading otomatis dengan strategi AI, risk management, dan auto-execute
 - **AI Mentor** — Asisten AI untuk konsultasi bisnis dan dokumen
 
+### Sumber Data Trading
+- **Crypto live dan demo** menggunakan Binance Spot public market-data API: candle awal diambil dari endpoint klines dan harga berjalan diterima melalui WebSocket publik tanpa API key.
+- **Saham, forex, dan komoditas** menggunakan quote serta histori candle Twelve Data. API key provider dikonfigurasi dari Admin → Live Trading; jika key atau kuota tidak tersedia, UI menampilkan Offline dan tidak mengganti data dengan harga acak.
+- **Demo trading** memakai sumber harga pasar yang sama dengan Live Trading, tetapi saldo, posisi, dan eksekusinya tetap virtual.
+
 ### Admin
 - **Dashboard Admin** — Statistik akun, profil pending, laporan, total donasi
 - **Manajemen Akun** — Lihat, suspend, verifikasi anggota

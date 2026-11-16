@@ -1,338 +1,109 @@
 import { useEffect, useRef, useState } from "react";
-
-export interface PriceTick {
-  bid: number;
-  ask: number;
-  change: number;
-  history: number[];
-}
-
-export interface Candle {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
+export interface PriceTick { bid: number; ask: number; change: number; history: number[]; }
+export interface Candle { open: number; high: number; low: number; close: number; }
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
-
-interface StreamSymbol {
-  symbol: string;
-  base: number;
-}
-
-const TICKS_PER_CANDLE = 6;
-const MAX_CANDLES = 30;
-
-function generatePrice(base: number, volatility = 0.005): number {
-  const isDecimal = base % 1 !== 0;
-  if (isDecimal) {
-    const decimals = base < 1 ? 6 : base < 10 ? 5 : base < 200 ? 2 : 4;
-    const change = +(Math.random() - 0.5) * 2 * volatility * base;
-    return Math.max(base < 1 ? 0.001 : base * 0.9, +(base + change).toFixed(decimals));
-  }
-  const change = Math.round((Math.random() - 0.5) * 2 * volatility * base);
-  return Math.max(1, Math.round(base + change));
-}
-
-export function useRealtimePrices(symbols: StreamSymbol[]) {
-  const [prices, setPrices] = useState<Record<string, PriceTick>>({});
-  const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (symbols.length === 0) {
-      setPrices({});
-      setStatus("disconnected");
-      return;
-    }
-
-    setStatus("connecting");
-
-    const initial: Record<string, PriceTick> = {};
-    for (const s of symbols) {
-      const price = generatePrice(s.base);
-      const spread = price * 0.0002;
-      const seed: number[] = [];
-      let p = s.base;
-      for (let j = 0; j < 30; j++) {
-        p = generatePrice(p, 0.003);
-        seed.push(p);
-      }
-      initial[s.symbol] = { bid: price - spread / 2, ask: price + spread / 2, change: 0, history: seed };
-    }
-    setPrices(initial);
-
-    const connectTimer = setTimeout(() => setStatus("connected"), 300);
-
-    intervalRef.current = setInterval(() => {
-      setPrices((prev) => {
-        const next = { ...prev };
-        for (const s of symbols) {
-          const cur = next[s.symbol];
-          if (!cur) continue;
-          const mid = (cur.bid + cur.ask) / 2;
-          const newPrice = generatePrice(mid, 0.001);
-          const spread = newPrice * 0.0002;
-          const history = [...cur.history.slice(-59), newPrice];
-          next[s.symbol] = {
-            bid: newPrice - spread / 2,
-            ask: newPrice + spread / 2,
-            change: newPrice - cur.history[0],
-            history,
-          };
-        }
-        return next;
-      });
-    }, 500);
-
-    return () => {
-      clearTimeout(connectTimer);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setStatus("disconnected");
-    };
-  }, [symbols.map((s) => s.symbol).join(",")]);
-
-  return { prices, status };
-}
-
-interface TwelveDataQuote {
-  symbol: string;
-  close: string;
-  open: string;
-  high: string;
-  low: string;
-  change: string;
-  percent_change: string;
-  previous_close: string;
-}
-
+interface TwelveDataQuote { symbol: string; close: string; open: string; high: string; low: string; change: string; percent_change: string; previous_close: string; }
+interface TwelveDataSeriesValue { datetime: string; open: string; high: string; low: string; close: string; }
 const TWELVEDATA_BASE = "https://api.twelvedata.com";
-const POLL_ROUND_INTERVAL = 15_000;
-
-export function useTwelveDataPrices(symbols: string[], apiKey: string, activeSymbol?: string) {
+const BINANCE_REST = "https://api.binance.com/api/v3";
+const BINANCE_WS = "wss://stream.binance.com:9443/ws";
+const MAX_HISTORY = 60;
+const MAX_CANDLES = 30;
+const TICKS_PER_CANDLE = 6;
+function toPriceTick(price: number, change: number, history: number[]): PriceTick {
+  const safePrice = Number.isFinite(price) && price > 0 ? price : 0;
+  const spread = safePrice * 0.0002;
+  return { bid: safePrice - spread / 2, ask: safePrice + spread / 2, change: Number.isFinite(change) ? change : 0, history: history.filter((value) => Number.isFinite(value) && value > 0).slice(-MAX_HISTORY) };
+}
+function parseSeries(values: TwelveDataSeriesValue[] | undefined): number[] {
+  return (values ?? []).map((item) => Number(item.close)).filter((value) => Number.isFinite(value) && value > 0).reverse().slice(-MAX_HISTORY);
+}
+/** Real market quotes for stocks, forex and commodities via Twelve Data REST. */
+export function useTwelveDataPrices(symbols: string[], apiKey: string, activeSymbol?: string, refreshSeconds = 15) {
   const [prices, setPrices] = useState<Record<string, PriceTick>>({});
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const activeRef = useRef(activeSymbol);
   const symbolKey = symbols.join(",");
+  const activeRef = useRef(activeSymbol);
   activeRef.current = activeSymbol;
-
   useEffect(() => {
-    if (!apiKey || symbols.length === 0) {
-      setPrices({});
-      setStatus("disconnected");
-      return;
-    }
-
+    if (!apiKey || symbols.length === 0) { setPrices({}); setStatus("disconnected"); return; }
     let cancelled = false;
-    const history: Record<string, number[]> = {};
-    for (const sym of symbols) {
-      history[sym] = [];
-    }
-
-    const fetchQuote = async (sym: string): Promise<{ quote: TwelveDataQuote | null; rateLimited: boolean }> => {
-      try {
-        const res = await fetch(
-          `${TWELVEDATA_BASE}/quote?symbol=${encodeURIComponent(sym)}&apikey=${apiKey}`,
-        );
-        if (res.status === 429) return { quote: null, rateLimited: true };
-        if (!res.ok) return { quote: null, rateLimited: false };
-        const data = await res.json();
-        if (data.code || !data.close) return { quote: null, rateLimited: false };
-        return { quote: data as TwelveDataQuote, rateLimited: false };
-      } catch {
-        return { quote: null, rateLimited: false };
-      }
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const histories: Record<string, number[]> = {};
+    const historyLoaded = new Set<string>();
+    const delay = Math.max(10, Math.floor(refreshSeconds || 15)) * 1000;
+    const fetchJson = async <T,>(url: string): Promise<T | null> => {
+      try { const response = await fetch(url); if (!response.ok) return null; const data = await response.json(); if (data?.code || data?.status === "error") return null; return data as T; } catch { return null; }
     };
-
-    const fetchSingleQuote = async (sym: string): Promise<{ quote: TwelveDataQuote | null; rateLimited: boolean }> => {
-      if (cancelled) return { quote: null, rateLimited: false };
-      const result = await fetchQuote(sym);
-      if (!result.quote) return result;
-      const q = result.quote;
-      const price = parseFloat(q.close);
-      if (price <= 0) return { quote: null, rateLimited: false };
-      const spread = price * 0.0002;
-      const prev = history[sym] || [];
-      const hist = prev.length === 0
-        ? (() => {
-            const seed: number[] = [];
-            let p = parseFloat(q.open) || parseFloat(q.previous_close) || price;
-            for (let j = 0; j < 30; j++) {
-              p = p + (price - p) * 0.1 + (Math.random() - 0.5) * spread * 2;
-              seed.push(+p.toFixed(6));
-            }
-            seed.push(price);
-            return seed;
-          })()
-        : [...prev, price].slice(-60);
-      history[sym] = hist;
-      return { quote: q, rateLimited: false };
-    };
-
-    const applyQuote = (sym: string, q: TwelveDataQuote) => {
-      const price = parseFloat(q.close);
-      const change = parseFloat(q.change) || 0;
-      const spread = price * 0.0002;
-      const hist = history[sym] || [];
-      setPrices((prev) => ({
-        ...prev,
-        [sym]: {
-          bid: price - spread / 2,
-          ask: price + spread / 2,
-          change,
-          history: hist,
-        },
-      }));
-    };
-
-    const simulateTick = (sym: string) => {
-      const prev = history[sym];
-      if (!prev || prev.length === 0) return;
-      const last = prev[prev.length - 1];
-      const volatility = 0.001;
-      const change = (Math.random() - 0.5) * 2 * volatility * last;
-      const price = +(last + change).toFixed(6);
-      const spread = price * 0.0002;
-      const hist = [...prev, price].slice(-60);
-      history[sym] = hist;
-      setPrices((p) => ({
-        ...p,
-        [sym]: {
-          bid: price - spread / 2,
-          ask: price + spread / 2,
-          change: price - hist[0],
-          history: hist,
-        },
-      }));
-    };
-
-    const init = async () => {
-      setStatus("connecting");
-      const target = activeRef.current || symbols[0];
-      const result = await fetchSingleQuote(target);
-      if (result.quote && !cancelled) {
-        applyQuote(target, result.quote);
-        setStatus("connected");
-        startSimulation();
-        schedulePoll(POLL_ROUND_INTERVAL);
-      } else if (!cancelled) {
-        schedulePoll(result.rateLimited ? 60_000 : 30_000);
-      }
-    };
-
-    const startSimulation = () => {
-      if (tickRef.current) return;
-      tickRef.current = setInterval(() => {
-        if (cancelled) return;
-        const target = activeRef.current || symbols[0];
-        simulateTick(target);
-      }, 2000);
-    };
-
-    const schedulePoll = (delay: number) => {
+    const refresh = async () => {
       if (cancelled) return;
-      pollRef.current = setTimeout(async () => {
-        if (cancelled) return;
-        const target = activeRef.current || symbols[0];
-        const result = await fetchSingleQuote(target);
-        if (result.quote) {
-          applyQuote(target, result.quote);
-          setStatus("connected");
-          if (!tickRef.current) startSimulation();
-          schedulePoll(POLL_ROUND_INTERVAL);
-        } else {
-          const next = result.rateLimited ? 60_000 : 30_000;
-          schedulePoll(next);
+      const symbol = activeRef.current && symbols.includes(activeRef.current) ? activeRef.current : symbols[0];
+      setStatus("connecting");
+      const encoded = encodeURIComponent(symbol);
+      const quote = await fetchJson<TwelveDataQuote>(`${TWELVEDATA_BASE}/quote?symbol=${encoded}&apikey=${encodeURIComponent(apiKey)}`);
+      if (quote?.close) {
+        const price = Number(quote.close);
+        if (!historyLoaded.has(symbol)) {
+          const series = await fetchJson<{ values?: TwelveDataSeriesValue[] }>(`${TWELVEDATA_BASE}/time_series?symbol=${encoded}&interval=1min&outputsize=${MAX_HISTORY}&apikey=${encodeURIComponent(apiKey)}`);
+          histories[symbol] = parseSeries(series?.values);
+          historyLoaded.add(symbol);
         }
-      }, delay);
+        histories[symbol] = [...(histories[symbol] ?? []), price].slice(-MAX_HISTORY);
+        if (!cancelled) { setPrices((previous) => ({ ...previous, [symbol]: toPriceTick(price, Number(quote.change) || 0, histories[symbol]) })); setStatus("connected"); }
+      } else if (!cancelled) setStatus("disconnected");
+      if (!cancelled) timer = setTimeout(() => void refresh(), delay);
     };
-
-    void init();
-
-    return () => {
-      cancelled = true;
-      if (pollRef.current) clearTimeout(pollRef.current);
-      if (tickRef.current) clearInterval(tickRef.current);
-      setStatus("disconnected");
-    };
-  }, [symbolKey, apiKey]);
-
+    void refresh();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); setStatus("disconnected"); };
+  }, [symbolKey, apiKey, refreshSeconds]);
   return { prices, status };
 }
-
-export function useStableCandles(prices: Record<string, PriceTick>, symbol: string): Candle[] {
-  const [candles, setCandles] = useState<Candle[]>([]);
-  const candlesRef = useRef<Candle[]>([]);
-  const tickCountRef = useRef(0);
-  const prevSymbolRef = useRef(symbol);
-  const seededRef = useRef<Record<string, boolean>>({});
-
+function binanceSymbol(symbol: string): string { return symbol.replace(/[^A-Za-z0-9]/g, "").replace(/USD$/i, "USDT").toLowerCase(); }
+/** Free Binance public market-data stream; no account or API key is required. */
+export function useBinancePrices(symbols: string[], activeSymbol?: string) {
+  const [prices, setPrices] = useState<Record<string, PriceTick>>({});
+  const [status, setStatus] = useState<ConnectionStatus>("disconnected");
+  const symbolKey = symbols.join(",");
+  const activeRef = useRef(activeSymbol);
+  activeRef.current = activeSymbol;
   useEffect(() => {
-    if (prevSymbolRef.current !== symbol) {
-      candlesRef.current = [];
-      tickCountRef.current = 0;
-      prevSymbolRef.current = symbol;
-      seededRef.current = {};
-      setCandles([]);
-    }
-
-    const tick = prices[symbol];
-    if (!tick) return;
-
+    if (symbols.length === 0) { setPrices({}); setStatus("disconnected"); return; }
+    let cancelled = false; let socket: WebSocket | null = null;
+    const symbol = activeRef.current && symbols.includes(activeRef.current) ? activeRef.current : symbols[0];
+    const stream = binanceSymbol(symbol); const restSymbol = stream.toUpperCase();
+    const connect = async () => {
+      setStatus("connecting");
+      try {
+        const response = await fetch(`${BINANCE_REST}/klines?symbol=${restSymbol}&interval=1m&limit=${MAX_HISTORY}`);
+        if (!response.ok) throw new Error("Binance klines unavailable");
+        const rows = await response.json() as unknown[][];
+        const history = rows.map((row) => Number(row[4])).filter((value) => Number.isFinite(value) && value > 0);
+        const last = history.at(-1) ?? 0; if (!last || cancelled) throw new Error("No Binance price");
+        setPrices({ [symbol]: toPriceTick(last, last - (history.at(-2) ?? last), history) });
+        socket = new WebSocket(`${BINANCE_WS}/${stream}@trade`);
+        socket.onopen = () => { if (!cancelled) setStatus("connected"); };
+        socket.onmessage = (event) => { if (cancelled) return; try { const payload = JSON.parse(event.data) as { p?: string }; const price = Number(payload.p); if (!Number.isFinite(price) || price <= 0) return; setPrices((previous) => { const historyNow = [...(previous[symbol]?.history ?? history), price].slice(-MAX_HISTORY); return { [symbol]: toPriceTick(price, price - (historyNow.at(-2) ?? price), historyNow) }; }); } catch { /* Ignore malformed stream messages. */ } };
+        socket.onerror = () => { if (!cancelled) setStatus("disconnected"); };
+        socket.onclose = () => { if (!cancelled) setStatus("disconnected"); };
+      } catch { if (!cancelled) setStatus("disconnected"); }
+    };
+    void connect();
+    return () => { cancelled = true; socket?.close(); setStatus("disconnected"); };
+  }, [symbolKey]);
+  return { prices, status };
+}
+export function useStableCandles(prices: Record<string, PriceTick>, symbol: string): Candle[] {
+  const [candles, setCandles] = useState<Candle[]>([]); const candlesRef = useRef<Candle[]>([]); const tickCountRef = useRef(0); const prevSymbolRef = useRef(symbol); const seededRef = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    if (prevSymbolRef.current !== symbol) { candlesRef.current = []; tickCountRef.current = 0; prevSymbolRef.current = symbol; seededRef.current = {}; setCandles([]); }
+    const tick = prices[symbol]; if (!tick || tick.history.length === 0) return;
     const mid = (tick.bid + tick.ask) / 2;
-
     if (candlesRef.current.length === 0 && !seededRef.current[symbol] && tick.history.length >= TICKS_PER_CANDLE * 2) {
-      const hist = tick.history;
-      const built: Candle[] = [];
-      for (let i = 0; i + TICKS_PER_CANDLE <= hist.length; i += TICKS_PER_CANDLE) {
-        const slice = hist.slice(i, i + TICKS_PER_CANDLE);
-        built.push({
-          open: slice[0],
-          high: Math.max(...slice),
-          low: Math.min(...slice),
-          close: slice[slice.length - 1],
-        });
-      }
-      if (built.length > 0) {
-        candlesRef.current = built;
-        tickCountRef.current = hist.length - built.length * TICKS_PER_CANDLE;
-        seededRef.current[symbol] = true;
-      }
+      const built: Candle[] = []; for (let i = 0; i + TICKS_PER_CANDLE <= tick.history.length; i += TICKS_PER_CANDLE) { const slice = tick.history.slice(i, i + TICKS_PER_CANDLE); built.push({ open: slice[0], high: Math.max(...slice), low: Math.min(...slice), close: slice.at(-1) ?? slice[0] }); }
+      candlesRef.current = built; tickCountRef.current = tick.history.length - built.length * TICKS_PER_CANDLE; seededRef.current[symbol] = true;
     }
-
-    if (candlesRef.current.length === 0) {
-      candlesRef.current = [{ open: mid, high: mid, low: mid, close: mid }];
-      tickCountRef.current = 1;
-    } else {
-      const idx = candlesRef.current.length - 1;
-      const last = candlesRef.current[idx];
-
-      if (tickCountRef.current >= TICKS_PER_CANDLE) {
-        candlesRef.current = [
-          ...candlesRef.current,
-          { open: mid, high: mid, low: mid, close: mid },
-        ];
-        tickCountRef.current = 1;
-      } else {
-        candlesRef.current[idx] = {
-          open: last.open,
-          high: Math.max(last.high, mid),
-          low: Math.min(last.low, mid),
-          close: mid,
-        };
-        tickCountRef.current++;
-      }
-    }
-
-    if (candlesRef.current.length > MAX_CANDLES) {
-      candlesRef.current = candlesRef.current.slice(-MAX_CANDLES);
-    }
-
-    setCandles([...candlesRef.current]);
+    if (candlesRef.current.length === 0) { candlesRef.current = [{ open: mid, high: mid, low: mid, close: mid }]; tickCountRef.current = 1; } else { const index = candlesRef.current.length - 1; const last = candlesRef.current[index]; if (tickCountRef.current >= TICKS_PER_CANDLE) { candlesRef.current = [...candlesRef.current, { open: mid, high: mid, low: mid, close: mid }]; tickCountRef.current = 1; } else { candlesRef.current[index] = { open: last.open, high: Math.max(last.high, mid), low: Math.min(last.low, mid), close: mid }; tickCountRef.current++; } }
+    if (candlesRef.current.length > MAX_CANDLES) candlesRef.current = candlesRef.current.slice(-MAX_CANDLES); setCandles([...candlesRef.current]);
   }, [prices, symbol]);
-
   return candles;
 }

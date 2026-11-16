@@ -20,7 +20,7 @@ import { Link } from "@/lib/router";
 import { formatRupiah } from "@/lib/format";
 import { ROLE_RANK } from "@/lib/constants";
 import type { AppSettings } from "@/lib/types";
-import { useRealtimePrices, useTwelveDataPrices, useStableCandles } from "@/lib/price-stream";
+import { useBinancePrices, useTwelveDataPrices, useStableCandles } from "@/lib/price-stream";
 import type { Candle } from "@/lib/price-stream";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,50 +52,6 @@ interface DemoTrade {
   timestamp: string;
   pnl?: number;
 }
-
-const DEMO_SYMBOLS = [
-  { symbol: "IDX:IHSG", label: "IHSG", basePrice: 7250 },
-  { symbol: "IDX:BBCA", label: "BBCA", basePrice: 9150 },
-  { symbol: "IDX:BBRI", label: "BBRI", basePrice: 5425 },
-  { symbol: "IDX:TLKM", label: "TLKM", basePrice: 3820 },
-  { symbol: "IDX:GOTO", label: "GOTO", basePrice: 74 },
-  { symbol: "IDX:BRIS", label: "BRIS", basePrice: 1520 },
-  { symbol: "IDX:BMRI", label: "BMRI", basePrice: 6375 },
-  { symbol: "IDX:UNVR", label: "UNVR", basePrice: 2910 },
-];
-
-const DEMO_CRYPTO = [
-  { symbol: "BTC:USDT", label: "Bitcoin", basePrice: 67500 },
-  { symbol: "ETH:USDT", label: "Ethereum", basePrice: 3450 },
-  { symbol: "BNB:USDT", label: "BNB", basePrice: 580 },
-  { symbol: "SOL:USDT", label: "Solana", basePrice: 172 },
-  { symbol: "XRP:USDT", label: "XRP", basePrice: 0.58 },
-  { symbol: "DOGE:USDT", label: "Dogecoin", basePrice: 0.165 },
-  { symbol: "ADA:USDT", label: "Cardano", basePrice: 0.45 },
-  { symbol: "AVAX:USDT", label: "Avalanche", basePrice: 35.5 },
-];
-
-const DEMO_COMMODITIES = [
-  { symbol: "COM:GOLD", label: "Emas", basePrice: 2345 },
-  { symbol: "COM:SILVER", label: "Perak", basePrice: 27.5 },
-  { symbol: "COM:OIL", label: "Minyak Mentah", basePrice: 78.5 },
-  { symbol: "COM:GAS", label: "Gas Alam", basePrice: 2.85 },
-  { symbol: "COM:COPPER", label: "Tembaga", basePrice: 4.15 },
-  { symbol: "COM:CPO", label: "CPO", basePrice: 850 },
-  { symbol: "COM:WHEAT", label: "Gandum", basePrice: 580 },
-  { symbol: "COM:CORN", label: "Jagung", basePrice: 425 },
-];
-
-const DEMO_FOREX = [
-  { symbol: "FX:EURUSD", label: "EUR/USD", basePrice: 1.0865 },
-  { symbol: "FX:GBPUSD", label: "GBP/USD", basePrice: 1.2715 },
-  { symbol: "FX:USDJPY", label: "USD/JPY", basePrice: 151.45 },
-  { symbol: "FX:USDCHF", label: "USD/CHF", basePrice: 0.8825 },
-  { symbol: "FX:AUDUSD", label: "AUD/USD", basePrice: 0.6545 },
-  { symbol: "FX:USDCAD", label: "USD/CAD", basePrice: 1.3615 },
-  { symbol: "FX:NZDUSD", label: "NZD/USD", basePrice: 0.6015 },
-  { symbol: "FX:USDIDR", label: "USD/IDR", basePrice: 15875 },
-];
 
 type MarketKind = "saham" | "crypto" | "komoditas" | "forex";
 
@@ -154,10 +110,11 @@ const ACADEMY_LABEL: Record<MarketKind, string> = {
 };
 
 function getDemoSymbols(market: MarketKind) {
-  if (market === "crypto") return DEMO_CRYPTO;
-  if (market === "komoditas") return DEMO_COMMODITIES;
-  if (market === "forex") return DEMO_FOREX;
-  return DEMO_SYMBOLS;
+  return getLiveSymbols(market).map((item) => ({
+    symbol: item.apiSymbol,
+    label: item.label,
+    basePrice: 0,
+  }));
 }
 
 function formatPrice(price: number, market: MarketKind): string {
@@ -324,13 +281,12 @@ export default function LiveTradingPage() {
   const [slPrice, setSlPrice] = useState("");
   const [tpPrice, setTpPrice] = useState("");
 
-  const demoStreamSymbols = getDemoSymbols(market).map((s) => ({ symbol: s.symbol, base: s.basePrice }));
   const liveStreamSymbols = getLiveSymbols(market).map((s) => s.apiSymbol);
   const apiKey = settings?.apiKey ?? "";
 
-  const demoData = useRealtimePrices(isDemo ? demoStreamSymbols : []);
-  const LiveData = useTwelveDataPrices(!isDemo ? liveStreamSymbols : [], apiKey, selectedSymbol);
-  const activeData = isDemo ? demoData : LiveData;
+  const twelveData = useTwelveDataPrices(market !== "crypto" ? liveStreamSymbols : [], apiKey, selectedSymbol, settings?.refreshInterval ?? 15);
+  const binanceData = useBinancePrices(market === "crypto" ? liveStreamSymbols : [], selectedSymbol);
+  const activeData = market === "crypto" ? binanceData : twelveData;
   const prices = activeData.prices;
   const priceStatus = activeData.status;
   const stableCandles = useStableCandles(prices, selectedSymbol);
@@ -613,9 +569,9 @@ export default function LiveTradingPage() {
                     (() => {
                       const candles = stableCandles;
                       const labels = candles.map((_, i) => {
-                        const secsAgo = (candles.length - 1 - i) * 3;
-                        if (secsAgo === 0) return "now";
-                        return `-${secsAgo}s`;
+                        const minutesAgo = (candles.length - 1 - i) * 6;
+                        if (minutesAgo === 0) return "now";
+                        return `-${minutesAgo}m`;
                       });
                       return <ProfessionalChart candles={candles} labels={labels} market={market} viewMode={chartView} />;
                     })()
@@ -901,9 +857,9 @@ export default function LiveTradingPage() {
       {expandedChart && currentPrice ? (() => {
         const candles = stableCandles;
         const labels = candles.map((_, i) => {
-          const secsAgo = (candles.length - 1 - i) * 3;
-          if (secsAgo === 0) return "now";
-          return `-${secsAgo}s`;
+          const minutesAgo = (candles.length - 1 - i) * 6;
+          if (minutesAgo === 0) return "now";
+          return `-${minutesAgo}m`;
         });
         return (
         <div className="fixed inset-0 z-50 flex flex-col bg-[#0B1220] p-3 sm:p-4">
