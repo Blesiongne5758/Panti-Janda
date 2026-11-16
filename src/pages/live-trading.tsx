@@ -166,7 +166,7 @@ function ProfessionalChart({
   labels: string[];
   market: MarketKind;
   viewMode: "line" | "candle";
-  indicator: "none" | "sma" | "ema";
+  indicator: "none" | "sma" | "ema" | "rsi" | "macd";
   indicatorPeriod: number;
 }) {
   if (candles.length < 2) return null;
@@ -183,9 +183,10 @@ function ProfessionalChart({
   const chartH = h - padT - padB;
 
   const closes = candles.map((c) => c.close);
-  const indicatorValues: (number | null)[] = indicator === "none"
-    ? candles.map(() => null)
-    : closes.map((_, index) => {
+  const isOscillator = indicator === "rsi" || indicator === "macd";
+  const priceChartH = isOscillator ? chartH - 92 : chartH;
+  const indicatorValues: (number | null)[] = indicator === "sma" || indicator === "ema"
+    ? closes.map((_, index) => {
       if (index + 1 < indicatorPeriod) return null;
       if (indicator === "sma") {
         const window = closes.slice(index + 1 - indicatorPeriod, index + 1);
@@ -195,11 +196,12 @@ function ProfessionalChart({
       let ema = closes[0];
       for (let i = 1; i <= index; i++) ema = closes[i] * smoothing + ema * (1 - smoothing);
       return ema;
-    });
+    })
+    : candles.map(() => null);
   const allPrices = candles.flatMap((c, index) => [
     c.high,
     c.low,
-    ...(indicatorValues[index] === null ? [] : [indicatorValues[index] as number]),
+    ...(!isOscillator && indicatorValues[index] !== null ? [indicatorValues[index] as number] : []),
   ]);
   const rawMin = Math.min(...allPrices);
   const rawMax = Math.max(...allPrices);
@@ -208,7 +210,7 @@ function ProfessionalChart({
   const max = rawMax + padding;
   const range = max - min || 1;
 
-  const yScale = (v: number) => padT + chartH * (1 - (v - min) / range);
+  const yScale = (v: number) => padT + priceChartH * (1 - (v - min) / range);
   const candleW = chartW / candles.length;
   const bodyW = Math.max(2, candleW * 0.6);
 
@@ -217,15 +219,54 @@ function ProfessionalChart({
     yLabels.push(min + (range * i) / yLabelCount);
   }
 
+  const rsiValues: (number | null)[] = closes.map((_, index) => {
+    if (index < indicatorPeriod) return null;
+    let gains = 0;
+    let losses = 0;
+    for (let i = index - indicatorPeriod + 1; i <= index; i++) {
+      const change = closes[i] - closes[i - 1];
+      if (change >= 0) gains += change;
+      else losses -= change;
+    }
+    if (losses === 0) return 100;
+    const relativeStrength = (gains / indicatorPeriod) / (losses / indicatorPeriod);
+    return 100 - (100 / (1 + relativeStrength));
+  });
+  const emaSeries = (period: number): number[] => {
+    const smoothing = 2 / (period + 1);
+    const values = [closes[0]];
+    for (let i = 1; i < closes.length; i++) values.push(closes[i] * smoothing + values[i - 1] * (1 - smoothing));
+    return values;
+  };
+  const fastEma = emaSeries(12);
+  const slowEma = emaSeries(26);
+  const macdValues = fastEma.map((value, index) => value - slowEma[index]);
+  const signalValues: number[] = [];
+  const signalSmoothing = 2 / 10;
+  for (let index = 0; index < macdValues.length; index++) {
+    signalValues.push(index === 0
+      ? macdValues[0]
+      : macdValues[index] * signalSmoothing + signalValues[index - 1] * (1 - signalSmoothing));
+  }
+  const oscillatorSeries = indicator === "rsi" ? rsiValues : macdValues.map((value, index) => index < 25 ? null : value);
+  const signalSeries = indicator === "macd" ? signalValues.map((value, index) => index < 25 ? null : value) : [];
+  const oscillatorValues = [...oscillatorSeries.filter((value): value is number => value !== null), ...signalSeries.filter((value): value is number => value !== null)];
+  const oscillatorMin = indicator === "rsi" ? 0 : Math.min(0, ...(oscillatorValues.length ? oscillatorValues : [0]));
+  const oscillatorMax = indicator === "rsi" ? 100 : Math.max(0, ...(oscillatorValues.length ? oscillatorValues : [0]));
+  const oscillatorRange = oscillatorMax - oscillatorMin || 1;
+  const oscillatorTop = padT + priceChartH + 16;
+  const oscillatorHeight = h - padB - oscillatorTop;
+  const oscillatorScale = (value: number) => oscillatorTop + oscillatorHeight * (1 - (value - oscillatorMin) / oscillatorRange);
+
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
       <defs>
-        <pattern id="grid" width={chartW / 8} height={chartH / yLabelCount} patternUnits="userSpaceOnUse" x={padL} y={padT}>
-          <path d={`M ${chartW / 8} 0 L 0 0 0 ${chartH / yLabelCount}`} fill="none" stroke="currentColor" strokeWidth={0.3} opacity={0.15} />
+        <pattern id="grid" width={chartW / 8} height={priceChartH / yLabelCount} patternUnits="userSpaceOnUse" x={padL} y={padT}>
+          <path d={`M ${chartW / 8} 0 L 0 0 0 ${priceChartH / yLabelCount}`} fill="none" stroke="currentColor" strokeWidth={0.3} opacity={0.15} />
         </pattern>
       </defs>
 
-      <rect x={padL} y={padT} width={chartW} height={chartH} fill="url(#grid)" />
+      <rect x={padL} y={padT} width={chartW} height={priceChartH} fill="url(#grid)" />
 
       {yLabels.map((v, i) => (
         <g key={i}>
@@ -241,7 +282,7 @@ function ProfessionalChart({
         const x = padL + i * candleW + candleW / 2;
         return (
           <g key={i}>
-            <line x1={x} x2={x} y1={padT} y2={padT + chartH} stroke="currentColor" strokeWidth={0.3} opacity={0.08} />
+            <line x1={x} x2={x} y1={padT} y2={padT + priceChartH} stroke="currentColor" strokeWidth={0.3} opacity={0.08} />
             <text x={x} y={h - 6} className="fill-muted-foreground" fontSize={8} textAnchor="middle" fontFamily="monospace">
               {label}
             </text>
@@ -277,7 +318,7 @@ function ProfessionalChart({
         })
       )}
 
-      {indicator !== "none" ? (
+      {indicator === "sma" || indicator === "ema" ? (
         <>
           <polyline
             fill="none"
@@ -294,8 +335,32 @@ function ProfessionalChart({
         </>
       ) : null}
 
-      <line x1={padL} x2={padL + chartW} y1={padT + chartH} y2={padT + chartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
-      <line x1={padL} x2={padL} y1={padT} y2={padT + chartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
+      {isOscillator ? (
+        <>
+          <rect x={padL} y={oscillatorTop} width={chartW} height={oscillatorHeight} fill="currentColor" opacity={0.025} />
+          <line x1={padL} x2={padL + chartW} y1={oscillatorScale(0)} y2={oscillatorScale(0)} stroke="currentColor" strokeWidth={0.6} opacity={0.35} />
+          {indicator === "rsi" ? (
+            <>
+              <line x1={padL} x2={padL + chartW} y1={oscillatorScale(30)} y2={oscillatorScale(30)} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={0.7} opacity={0.7} />
+              <line x1={padL} x2={padL + chartW} y1={oscillatorScale(70)} y2={oscillatorScale(70)} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={0.7} opacity={0.7} />
+              <polyline fill="none" stroke="#a78bfa" strokeWidth={1.8} points={rsiValues.map((value, i) => value === null ? null : `${padL + i * candleW + candleW / 2},${oscillatorScale(value)}`).filter((point): point is string => point !== null).join(" ")} />
+              <text x={padL + 6} y={oscillatorTop + 13} fill="#a78bfa" fontSize={10} fontFamily="monospace">RSI({indicatorPeriod})</text>
+              <text x={padL + chartW + 6} y={oscillatorScale(70) + 3} fill="#f59e0b" fontSize={9} fontFamily="monospace">70</text>
+              <text x={padL + chartW + 6} y={oscillatorScale(30) + 3} fill="#f59e0b" fontSize={9} fontFamily="monospace">30</text>
+            </>
+          ) : (
+            <>
+              {macdValues.map((value, i) => i < 25 ? null : <rect key={`hist-${i}`} x={padL + i * candleW + candleW * 0.25} y={Math.min(oscillatorScale(0), oscillatorScale(value - signalValues[i]))} width={Math.max(1, candleW * 0.5)} height={Math.max(1, Math.abs(oscillatorScale(value - signalValues[i]) - oscillatorScale(0)))} fill={value >= signalValues[i] ? "#22c55e" : "#f43f5e"} opacity={0.45} />)}
+              <polyline fill="none" stroke="#38bdf8" strokeWidth={1.8} points={oscillatorSeries.map((value, i) => value === null ? null : `${padL + i * candleW + candleW / 2},${oscillatorScale(value)}`).filter((point): point is string => point !== null).join(" ")} />
+              <polyline fill="none" stroke="#f59e0b" strokeWidth={1.4} points={signalSeries.map((value, i) => value === null ? null : `${padL + i * candleW + candleW / 2},${oscillatorScale(value)}`).filter((point): point is string => point !== null).join(" ")} />
+              <text x={padL + 6} y={oscillatorTop + 13} fill="#38bdf8" fontSize={10} fontFamily="monospace">MACD(12,26,9)</text>
+            </>
+          )}
+        </>
+      ) : null}
+
+      <line x1={padL} x2={padL + chartW} y1={padT + priceChartH} y2={padT + priceChartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
+      <line x1={padL} x2={padL} y1={padT} y2={padT + priceChartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
     </svg>
   );
 }
@@ -314,7 +379,7 @@ export default function LiveTradingPage() {
   const [orderQty, setOrderQty] = useState(100);
   const [showAcademyGate, setShowAcademyGate] = useState(false);
   const [chartView, setChartView] = useState<"line" | "candle">("candle");
-  const [indicator, setIndicator] = useState<"none" | "sma" | "ema">("sma");
+  const [indicator, setIndicator] = useState<"none" | "sma" | "ema" | "rsi" | "macd">("sma");
   const [indicatorPeriod, setIndicatorPeriod] = useState(5);
   const [expandedChart, setExpandedChart] = useState(false);
   const [tradeTab, setTradeTab] = useState<"market" | "risk" | "sl" | "tp">("market");
@@ -585,7 +650,7 @@ export default function LiveTradingPage() {
                   Candle
                 </button>
               </div>
-              <Select value={indicator} onValueChange={(value) => setIndicator(value as "none" | "sma" | "ema")}>
+              <Select value={indicator} onValueChange={(value) => setIndicator(value as "none" | "sma" | "ema" | "rsi" | "macd")}>
                 <SelectTrigger className="h-7 w-24 border-[#38506F] bg-[#17243A] text-[10px] text-white">
                   <SelectValue placeholder="Indikator" />
                 </SelectTrigger>
@@ -593,9 +658,11 @@ export default function LiveTradingPage() {
                   <SelectItem value="none" className="text-white focus:bg-[#2A3C5A] focus:text-white">Tanpa MA</SelectItem>
                   <SelectItem value="sma" className="text-white focus:bg-[#2A3C5A] focus:text-white">SMA</SelectItem>
                   <SelectItem value="ema" className="text-white focus:bg-[#2A3C5A] focus:text-white">EMA</SelectItem>
+                  <SelectItem value="rsi" className="text-white focus:bg-[#2A3C5A] focus:text-white">RSI</SelectItem>
+                  <SelectItem value="macd" className="text-white focus:bg-[#2A3C5A] focus:text-white">MACD</SelectItem>
                 </SelectContent>
               </Select>
-              {indicator !== "none" ? (
+              {indicator !== "none" && indicator !== "macd" ? (
                 <input
                   aria-label="Periode indikator moving average"
                   className="h-7 w-12 rounded border border-[#38506F] bg-[#17243A] px-1.5 text-center font-mono text-[10px] text-white outline-none focus:border-[#5EEAD4]"
