@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   ArrowLeft,
   CalendarDays,
@@ -50,7 +51,7 @@ import { PaymentQris } from "@/components/payment-qris";
 export default function EventDetailPage({ id }: { id: string }) {
   const { account } = useAuth();
   const { navigate } = useRoute();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [data, setData] = useState<EventDetail["event"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import type { ReactNode } from "react";
 import {
   AlertCircle,
@@ -175,7 +176,7 @@ function SectionCard({ icon, title, description, action, children }: {
 
 export default function BursaTransferPage() {
   const { account } = useAuth();
-  const rank = account ? (ROLE_RANK[account.role] ?? 0) : 0;
+  const rank = getAccountRank(account);
 
   const [tab, setTab] = useState<TabId>("pasar");
   const [games, setGames] = useState<EsportGame[]>([]);

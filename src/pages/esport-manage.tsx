@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
@@ -4057,7 +4058,7 @@ export default function EsportManagePage({ id }: { id: string }) {
   const openDisputes = data.disputes.filter((d) => d.status === "open").length;
   const liveCount = data.matches.filter((m) => m.status === "live").length;
   const activeStreams = data.streams.filter((s) => s.isActive).length;
-  const canResetPrize = account ? (ROLE_RANK[account.role] ?? 0) >= 6 : false;
+  const canResetPrize = getAccountRank(account) >= 6;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6">

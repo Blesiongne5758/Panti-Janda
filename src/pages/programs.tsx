@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { GraduationCap, Loader2, Plus } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -155,7 +156,7 @@ function CreateProgramDialog({ onCreated }: { onCreated: () => void }) {
 
 export default function ProgramsPage() {
   const { account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [items, setItems] = useState<ProgramItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

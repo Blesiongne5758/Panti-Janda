@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
@@ -360,7 +361,7 @@ export default function ChatPage() {
   const { account, ready } = useAuth();
   const { navigate } = useRoute();
   const { startCall, mediaPermissionIssue } = useVoiceCall();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const withParam = useQueryParam("with");
   const groupParam = useQueryParam("grup");
   const tabParam = useQueryParam("tab");

@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef, type ReactNode } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
@@ -185,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const member = rank >= 2;
   const dashboardActive = path.split("?")[0] === "/dasbor" || path.split("?")[0] === "/dashboard";
 

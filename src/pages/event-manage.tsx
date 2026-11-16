@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   Activity,
   Archive,
@@ -137,7 +138,7 @@ const AUDIT_LABEL: Record<string, string> = {
 export default function EventManagePage({ id }: { id: string }) {
   const { account } = useAuth();
   const { navigate } = useRoute();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [data, setData] = useState<EventDetail["event"] | null>(null);
   const [manage, setManage] = useState<EventManageData | null>(null);
   const [loading, setLoading] = useState(true);

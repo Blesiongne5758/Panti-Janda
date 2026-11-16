@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   Activity,
   AlertTriangle,
@@ -305,7 +306,7 @@ function ProfessionalChart({
 
 export default function LiveTradingPage() {
   const { ready, account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [settings, setSettings] = useState<AppSettings["liveTrading"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);

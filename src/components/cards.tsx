@@ -22,6 +22,7 @@ import { Chip, MemberAvatar, TierBadge } from "@/components/common";
 import { cn } from "@/lib/utils";
 
 export function ProfileCard({ profile }: { profile: Profile }) {
+  const tierMeta = profile.tier ? TIER_META[profile.tier] : null;
   const facts = [
     profile.city ? { icon: MapPin, text: profile.city } : null,
     profile.age ? { icon: UserRound, text: `${profile.age} tahun` } : null,
@@ -31,19 +32,21 @@ export function ProfileCard({ profile }: { profile: Profile }) {
 
   return (
     <Card className="hover-lift flex h-full flex-col gap-0 overflow-hidden py-0">
-      <div className="h-1.5 w-full" style={{ backgroundColor: TIER_META[profile.tier].accent }} aria-hidden />
+      <div className="h-1.5 w-full" style={{ backgroundColor: tierMeta?.accent ?? "#64748b" }} aria-hidden />
       <CardHeader className="gap-3 pt-5">
         <div className="flex items-start gap-3">
           <MemberAvatar name={profile.nickname} tier={profile.tier} size={46} photoData={profile.photoData} />
           <div className="min-w-0 flex-1">
             <p className="truncate font-display text-lg font-semibold text-foreground">{profile.nickname}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <TierBadge tier={profile.tier} size="sm" />
-              {profile.status === "verified" ? (
+              {profile.tier ? <TierBadge tier={profile.tier} size="sm" /> : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">Mitra komunitas</span>}
+              {profile.status === "verified" && profile.tier ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700">
                   <BadgeCheck className="size-3.5" aria-hidden />
                   Terverifikasi
                 </span>
+              ) : profile.status === "verified" ? (
+                <span className="text-[11px] font-medium text-muted-foreground">Akun komunitas</span>
               ) : null}
             </div>
           </div>
@@ -75,7 +78,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
       </CardContent>
       <CardFooter className="border-t border-border bg-secondary/40 px-6 py-3">
         <Button asChild size="sm" className="w-full">
-          <Link to={`/janda/${profile.id}`}>Lihat profil & dukung</Link>
+          <Link to={`/janda/${profile.id}`}>{profile.tier ? "Lihat profil & dukung" : "Lihat profil komunitas"}</Link>
         </Button>
       </CardFooter>
     </Card>

@@ -430,7 +430,7 @@ function PledgeDialog({
 }
 
 export function ProfileDetailPage({ profileId }: { profileId: string }) {
-  const { account, profile: ownProfile } = useAuth();
+  const { account, profile: ownProfile, refresh } = useAuth();
   const { navigate } = useRoute();
   const [data, setData] = useState<ProfileDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -441,6 +441,9 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const [follow, setFollow] = useState({ following: false, followerCount: 0, followingCount: 0 });
   const [followBusy, setFollowBusy] = useState(false);
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [giftAmount, setGiftAmount] = useState("");
+  const [giftBusy, setGiftBusy] = useState(false);
+  const [giftRequestId, setGiftRequestId] = useState(() => crypto.randomUUID());
 
   const load = useCallback(() => {
     setLoading(true);
@@ -497,6 +500,28 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     }
   };
 
+  const sendCoinGift = async () => {
+    if (!data || !giftAmount || Number(giftAmount) <= 0) return;
+    setGiftBusy(true);
+    try {
+      const result = await api<{ success: boolean; amount: number; newBalance: number; replayed?: boolean }>("coins.gift", {
+        recipientAccountId: data.profile.accountId,
+        amount: Number(giftAmount),
+        requestId: giftRequestId,
+      });
+      toast.success(result.replayed
+        ? "Gift sebelumnya sudah berhasil; tidak ada debit atau XP tambahan."
+        : `Gift ${result.amount.toLocaleString("id-ID")} koin berhasil dikirim. +20 XP.`);
+      if (!result.replayed) void refresh();
+      setGiftAmount("");
+      setGiftRequestId(crypto.randomUUID());
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setGiftBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
@@ -527,7 +552,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { profile, support } = data;
   const isOwn = account?.id === profile.accountId;
   const canComment = Boolean(account);
-  const canFollow = account !== null && !isOwn && profile.tier !== null;
+  const canFollow = account !== null && !isOwn;
   const canMessage = account !== null && !isOwn;
 
   const facts = [
@@ -570,12 +595,12 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    {profile.status === "verified" ? (
+                    {profile.status === "verified" && profile.tier ? (
                       <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
                         <BadgeCheck className="size-3.5" aria-hidden />
                         Terverifikasi admin
                       </span>
-                    ) : null}
+                    ) : profile.status === "verified" ? <span>Akun komunitas non-janda</span> : null}
                     <span>Bergabung {new Date(profile.createdAt).getFullYear()}</span>
                     <span className="inline-flex items-center gap-1">
                       <strong className="text-foreground">{follow.followerCount}</strong> pengikut
@@ -762,6 +787,37 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {account && !isOwn ? (
+            <Card>
+              <CardContent className="space-y-3 px-5 py-5">
+                <div className="flex items-center gap-2 font-display text-lg font-semibold">
+                  <Coins className="size-5 text-amber-600" aria-hidden />
+                  Kirim gift koin
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Koin dikirim 1:1 tanpa biaya. Anda mendapatkan +20 XP setelah transfer berhasil.
+                </p>
+                <Label htmlFor="profile-gift-amount">Jumlah koin</Label>
+                <Input
+                  id="profile-gift-amount"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={giftAmount}
+                  onChange={(event) => {
+                    setGiftAmount(event.target.value);
+                    setGiftRequestId(crypto.randomUUID());
+                  }}
+                  inputMode="numeric"
+                  placeholder="Contoh: 50"
+                />
+                <Button className="w-full" onClick={() => void sendCoinGift()} disabled={giftBusy || !giftAmount || Number(giftAmount) <= 0}>
+                  {giftBusy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Coins className="size-4" aria-hidden />}
+                  {giftBusy ? "Mengirim…" : "Kirim koin"}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
           {profile.tier ? <Card className="py-0">
             <CardContent className="space-y-5 px-5 py-6">
               <div className="flex items-center justify-between">

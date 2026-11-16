@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   Activity,
   BadgeCheck,
@@ -34,7 +35,6 @@ import {
   ROLE_RANK,
   SIM_CLASS_OPTIONS,
   SUPPORT_META,
-  WIDOW_ROLES,
 } from "@/lib/constants";
 import type { DonationItem, FollowsMine, KpiSummary, PledgeItem, Profile } from "@/lib/types";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareProfilePhoto, prepareVerificationDoc } from "@/lib/verify-doc";
@@ -716,7 +716,7 @@ export default function DashboardPage() {
 
   // Treat newly introduced or legacy public roles as public instead of letting
   // an undefined rank make every role-gated section disappear.
-  const rank = account ? (ROLE_RANK[account.role] ?? 1) : 0;
+  const rank = getAccountRank(account);
 
   const loadSupport = useCallback(async () => {
     if (rank < 2) return;
@@ -769,7 +769,6 @@ export default function DashboardPage() {
   }
 
   const verified = profile?.status === "verified";
-  const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
   const roleLabel = ROLE_LABEL[account.role] ?? "Non Janda";
   const donationTotal = (donations ?? [])
     .filter((item) => item.status === "settled")
@@ -799,7 +798,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="font-display text-xl font-semibold">{profile.nickname}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <TierBadge tier={profile.tier} size="sm" />
+                    {profile.tier ? <TierBadge tier={profile.tier} size="sm" /> : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">Mitra komunitas</span>}
                     <StatusPill kind="profile" status={profile.status} />
                   </div>
                 </div>
@@ -889,23 +888,21 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {!isWidow ? (
-        <Card className="border-primary/20 bg-primary/[0.03]">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-display text-lg">Ruang dukungan komunitas</CardTitle>
-            <CardDescription>
-              Sebagai mitra non-janda, Anda dapat menjelajahi profil anggota, mengikuti kegiatan terbuka, dan mendukung komunitas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button asChild size="sm"><Link to="/jelajah">Jelajahi profil</Link></Button>
-            <Button asChild size="sm" variant="outline"><Link to="/program">Program</Link></Button>
-            <Button asChild size="sm" variant="outline"><Link to="/event">Event</Link></Button>
-            <Button asChild size="sm" variant="outline"><Link to="/marketplace">Marketplace</Link></Button>
-            <Button asChild size="sm" variant="outline"><Link to="/galang-dana">Dukung kampanye</Link></Button>
-          </CardContent>
-        </Card>
-      ) : null}
+      <Card className="border-primary/20 bg-primary/[0.03]">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-display text-lg">Jelajahi fitur komunitas</CardTitle>
+          <CardDescription>
+            Akun janda dan non-janda dapat menjelajahi profil anggota, mengikuti kegiatan, dan mendukung komunitas.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild size="sm"><Link to="/jelajah">Jelajahi profil</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to="/program">Program</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to="/event">Event</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to="/marketplace">Marketplace</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to="/galang-dana">Dukung kampanye</Link></Button>
+        </CardContent>
+      </Card>
 
       {rank >= 2 ? <DashboardCalendar /> : null}
 

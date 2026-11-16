@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { Heart, Calendar, Users, TrendingUp } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -42,7 +43,7 @@ export function CampaignsPage() {
     if (res) setSelected(res);
   };
 
-  const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
+  const rank = getAccountRank(account);
   const canCreate = rank >= 2;
 
   return (
@@ -163,7 +164,7 @@ function CampaignDetailDialog({
   onClose: () => void;
   onDonated: () => void;
 }) {
-  const { account } = useAuth();
+  const { account, refresh } = useAuth();
   const [amount, setAmount] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -172,6 +173,7 @@ function CampaignDetailDialog({
   const [donationMethod, setDonationMethod] = useState<"idr" | "coins">("idr");
   const [coinAmount, setCoinAmount] = useState("");
   const [coinConversionRate, setCoinConversionRate] = useState(100);
+  const donationRequestId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     let active = true;
@@ -188,11 +190,12 @@ function CampaignDetailDialog({
     if (donationMethod === "coins" && (!coins || coins < 1)) return;
     setBusy(true);
     try {
-      const res = await api<{ redirectUrl?: string | null; donated?: boolean }>("campaigns.donate", {
+      const res = await api<{ redirectUrl?: string | null; donated?: boolean; replayed?: boolean }>("campaigns.donate", {
         campaignId: campaign.id,
         paymentMethod: donationMethod === "coins" ? "coins" : "qris",
         amount: amt,
         coinAmount: coins,
+        ...(donationMethod === "coins" ? { requestId: donationRequestId.current } : {}),
         supporterName: name || undefined,
         supporterEmail: email || undefined,
         message: message || undefined,
@@ -201,7 +204,11 @@ function CampaignDetailDialog({
         window.open(res.redirectUrl, "_blank");
         onDonated();
       } else if (res?.donated) {
-        toast.success("Donasi koin berhasil dikirim ke kampanye.");
+        toast.success(res.replayed
+          ? "Donasi sebelumnya sudah berhasil; tidak ada debit atau XP tambahan."
+          : "Donasi koin berhasil dikirim ke kampanye. +20 XP.");
+        if (!res.replayed) void refresh();
+        donationRequestId.current = crypto.randomUUID();
         onDonated();
       }
     } catch (err) {

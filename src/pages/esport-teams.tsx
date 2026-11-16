@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   ArrowLeft,
   ImagePlus,
@@ -53,7 +54,7 @@ const MEMBER_ROLE_LABEL: Record<string, string> = {
 
 export default function EsportTeamsPage() {
   const { account } = useAuth();
-  const rank = account ? (ROLE_RANK[account.role] ?? 0) : 0;
+  const rank = getAccountRank(account);
   const [teams, setTeams] = useState<EsportTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

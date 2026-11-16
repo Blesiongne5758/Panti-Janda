@@ -3,7 +3,6 @@ import { RouterProvider, matchRoute, useRoute } from "@/lib/router";
 import { AuthProvider, useAuth } from "@/lib/session";
 import { VoiceCallProvider } from "@/lib/call-context";
 import { VoiceCallOverlay } from "@/components/voice-call-overlay";
-import { WIDOW_ROLES } from "@/lib/constants";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AppShell } from "@/components/app-shell";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -143,7 +142,7 @@ function ThemeSync() {
   const { account } = useAuth();
 
   useEffect(() => {
-    const usePublicTheme = !!account && !(WIDOW_ROLES as readonly string[]).includes(account.role);
+    const usePublicTheme = !!account && account.accountKind !== "janda";
     document.documentElement.classList.toggle("theme-public", usePublicTheme);
   }, [account]);
 

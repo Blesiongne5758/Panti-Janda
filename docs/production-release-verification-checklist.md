@@ -44,20 +44,20 @@ Run checks against the release commit and a local or isolated test fixture—not
 ## 3. Database and migration gate
 
 - [ ] Compare the release with `supabase/migrations/` and identify whether schema or database-function changes are required.
-- [ ] Confirm GitHub Actions' read-only migration check compares local files with the production migration history and previews pending migrations.
-- [ ] If the workflow reports a pending migration or history mismatch, stop the release; apply or reconcile it through the reviewed migration procedure, then rerun the workflow.
+- [ ] Confirm GitHub Actions compares local files with production migration history and previews pending migrations before any deployment.
+- [ ] If migration history shows anything other than the specifically approved migration, stop and reconcile it separately; the workflow may apply only `007_coin_contribution_flows.sql`, and only when that is the sole pending migration and the manual `apply_approved_coin_migration` input is true.
 - [ ] Apply required migrations through the approved, reviewed process and confirm their completion before deploying code that depends on them.
 - [ ] Confirm the new and previous application versions remain compatible during rollout, especially for expand/contract or data backfill changes.
 - [ ] If no migration is needed, record `none` in the release record.
 
-> **Important:** the workflow runs [`supabase migration list`](https://supabase.com/docs/reference/cli/supabase-migration-list) and [`supabase db push --dry-run`](https://supabase.com/docs/reference/cli/supabase-db-push). The dry-run does not apply SQL; this gate blocks when it detects pending migrations. The history comparison is version-based and does not detect edits to the SQL content of an already-applied migration. It is not a SQL execution or schema-behavior test. Migration application remains a separate reviewed step.
+> **Important:** the workflow runs [`supabase migration list`](https://supabase.com/docs/reference/cli/supabase-migration-list) and [`supabase db push --dry-run`](https://supabase.com/docs/reference/cli/supabase-db-push). A push to `main` never applies migrations. A manual workflow dispatch can apply only migration `007_coin_contribution_flows.sql`, and only when the dry-run identifies it as the sole pending migration; unknown output, additional pending migrations, or remaining postflight changes block deployment. The history comparison is version-based and does not detect edits to the SQL content of an already-applied migration. It is not a SQL execution or schema-behavior test.
 
 ## 4. Production configuration and secrets
 
 Before starting the workflow, verify that the GitHub Environment named `production` is attached to the job and the required secret *names* are configured. Do not print or copy secret values into logs, this checklist, or release notes.
 
 - [ ] Build/runtime configuration: `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
-- [ ] Supabase deployment and function secrets: `SUPABASE_ACCESS_TOKEN`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+- [ ] Supabase deployment credential: `SUPABASE_ACCESS_TOKEN`.
 - [ ] Database password used by the migration preflight: `SUPABASE_DB_PASSWORD`, stored as a masked secret in the `production` GitHub Environment. This remains a privileged database credential; restrict access to the production environment and never expose its value.
 - [ ] FTP deployment credentials: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`.
 - [ ] Confirm the Supabase URL resolves to the intended production project and the FTP destination is the intended site root (`/htdocs/`).
@@ -66,11 +66,11 @@ Before starting the workflow, verify that the GitHub Environment named `producti
 
 ## 5. Deploy and verify the workflow
 
-The workflow runs on pushes to `main` and supports `workflow_dispatch`. After dependency installation, backend validation, and build, it derives the Supabase project ref and checks local/remote migration history with a non-applying dry-run. Only if that gate passes does it configure Cloudinary function secrets, deploy Supabase Edge Function `app`, and sync `dist/` to `/htdocs/` over FTP.
+The workflow runs on pushes to `main` and supports `workflow_dispatch`. After dependency installation, backend validation, and build, it derives the Supabase project ref and checks migration history with a non-applying dry-run. Only a manual dispatch with `apply_approved_coin_migration=true` can apply migration `007`, and only if it is the sole pending migration. After a clean postflight, it deploys Edge Functions `app` and `chat-storage`, then syncs `dist/` to `/htdocs/` over FTP.
 
 - [ ] Start the deployment only after sections 1–4 are complete.
 - [ ] Open **Actions → Deploy Website** and select the run for the recorded commit SHA.
-- [ ] Confirm each relevant step completed: checkout, dependency install, backend validation, build, project-ref derivation, migration history/dry-run gate, function-secret configuration, Edge Function deployment, and FTP sync.
+- [ ] Confirm each relevant step completed: checkout, dependency install, backend validation, build, project-ref derivation, migration preflight/authorized apply/postflight as applicable, deployment of both Edge Functions, and FTP sync.
 - [ ] Confirm the final run conclusion is `success` and the run's commit SHA exactly matches the intended release SHA.
 - [ ] If a run is `cancelled`, confirm whether the concurrency rule (`cancel-in-progress: true`) replaced it with a newer release; verify the newest run's SHA and completion instead of assuming the earlier push deployed.
 - [ ] If any step fails, record the failed step and stop treating the release as complete. Diagnose before retrying; do not claim production is current based on the push alone.

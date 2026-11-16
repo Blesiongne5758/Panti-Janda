@@ -1003,7 +1003,7 @@ export default function AdminPage() {
                             <p className="text-xs text-muted-foreground">Nama lengkap: {profile.fullName}</p>
                           ) : null}
                           <p className="text-xs text-muted-foreground">
-                            {TIER_META[profile.tier].label} · diajukan {timeAgo(profile.createdAt)}
+                            {profile.tier ? TIER_META[profile.tier].label : "Mitra komunitas"} · diajukan {timeAgo(profile.createdAt)}
                           </p>
                         </div>
                       </div>

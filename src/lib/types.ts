@@ -3,6 +3,7 @@ export type WidowRole = "wonder_woman" | "sosialita" | "high_society" | "the_ceo
 export type PublicRole = "kades" | "walikota" | "gubernur" | "panglima" | "presiden" | "ceo" | "sultan";
 export type VerificationDocType = "ktp" | "pengadilan";
 export type AccountStatus = "active" | "suspended";
+export type AccountKind = "janda" | "non_janda" | "admin";
 export type ProfileStatus = "pending" | "rejected" | "verified" | "suspended";
 export type Audience = "umum" | "anggota" | "undangan";
 export type ProgramCategory = "akademi" | "pelatihan" | "seminar" | "penempatan_kerja";
@@ -13,6 +14,7 @@ export interface Account {
   id: string;
   email: string;
   role: Role;
+  accountKind: AccountKind;
   status: AccountStatus;
   displayName: string | null;
   level: number;
@@ -35,7 +37,7 @@ export interface Profile {
   id: string;
   accountId: string;
   nickname: string;
-  tier: WidowRole;
+  tier: WidowRole | null;
   city: string | null;
   age: number | null;
   dependents: number | null;
@@ -707,6 +709,7 @@ export type ListingStatus = "draft" | "active" | "sold" | "archived";
 export interface MarketplaceListing {
   id: string;
   sellerProfileId: string;
+  sellerAccountId: string | null;
   sellerName: string;
   sellerPhoto: string | null;
   sellerCity: string | null;
@@ -714,6 +717,7 @@ export interface MarketplaceListing {
   title: string;
   description: string | null;
   price: number | null;
+  coinPrice: number | null;
   category: string;
   photos: string[];
   status: ListingStatus;
@@ -730,7 +734,7 @@ export interface CoinPackage {
   popular: boolean;
 }
 
-export type CoinTransactionType = "purchase" | "spend" | "refund" | "bonus" | "withdraw";
+export type CoinTransactionType = "purchase" | "spend" | "refund" | "bonus" | "withdraw" | "gift_sent" | "gift_received" | "campaign_donation" | "marketplace_purchase" | "marketplace_sale";
 
 export interface CoinTransaction {
   id: string;

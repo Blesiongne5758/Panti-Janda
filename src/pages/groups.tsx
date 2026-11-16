@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { Loader2, Lock, Plus, Users } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -142,7 +143,7 @@ function CreateGroupDialog({ onCreated }: { onCreated: () => void }) {
 
 export default function GroupsPage() {
   const { account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [items, setItems] = useState<GroupItem[]>([]);
   const [loading, setLoading] = useState(rank >= 2);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +217,7 @@ export default function GroupsPage() {
           <CardContent className="flex flex-col items-center gap-3">
             {account ? (
               <p className="text-sm text-muted-foreground">
-                Akunmu saat ini berperan sebagai {ROLE_RANK[account.role] >= 2 ? "anggota" : "pengguna non janda"}. Jika
+                Akunmu saat ini berperan sebagai {getAccountRank(account) >= 2 ? "anggota" : "pengguna non janda"}. Jika
                 kamu anggota janda, tunggu verifikasi admin atau hubungi pengurus komunitas.
               </p>
             ) : (

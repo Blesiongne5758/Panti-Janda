@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { ShoppingBag, MapPin, Briefcase } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -45,7 +46,7 @@ export default function MarketplacePage() {
     return () => { active = false; };
   }, [kindFilter, categoryFilter, reloadKey]);
 
-  const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
+  const rank = getAccountRank(account);
   const canCreate = rank >= 2;
 
   return (
@@ -141,6 +142,7 @@ export default function MarketplacePage() {
                     <p className="mt-3 font-display text-xl font-bold text-primary">
                       {formatRupiah(item.price)}
                     </p>
+                    {item.coinPrice ? <p className="mt-1 text-sm font-semibold text-amber-700">{item.coinPrice.toLocaleString("id-ID")} koin</p> : null}
                   </CardContent>
                   <div className="flex items-center gap-2 border-t border-border bg-secondary/40 px-6 py-3">
                     <MemberAvatar

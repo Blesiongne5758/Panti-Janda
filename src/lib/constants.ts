@@ -1,4 +1,4 @@
-import type { Audience, EsportBudgetTemplate, ProgramCategory, PublicRole, Role, SupportType, WidowRole } from "./types";
+import type { Account, Audience, EsportBudgetTemplate, ProgramCategory, PublicRole, Role, SupportType, WidowRole } from "./types";
 
 export const TIER_META: Record<
   WidowRole,
@@ -126,6 +126,11 @@ export const ROLE_RANK: Record<Role, number> = {
   sultan: 6,
   admin: 8,
 };
+export function getAccountRank(account: Pick<Account, "role" | "accountKind"> | null | undefined): number {
+  if (!account) return 0;
+  const memberBaseline = account.accountKind === "janda" || account.accountKind === "non_janda" ? 2 : 0;
+  return Math.max(ROLE_RANK[account.role] ?? 0, memberBaseline);
+}
 
 export const COMMITTEE_ROLE_LABEL: Record<string, string> = {
   ketua_panitia: "Ketua Panitia",
@@ -563,6 +568,11 @@ export const COIN_TRANSACTION_TYPE_LABEL: Record<string, string> = {
   refund: "Pengembalian koin",
   bonus: "Bonus koin",
   withdraw: "Penarikan koin",
+  gift_sent: "Gift koin terkirim",
+  gift_received: "Gift koin diterima",
+  campaign_donation: "Donasi kampanye dengan koin",
+  marketplace_purchase: "Pembelian marketplace dengan koin",
+  marketplace_sale: "Penjualan marketplace dengan koin",
 };
 
 export const SUBSCRIPTION_STATUS_LABEL: Record<string, string> = {

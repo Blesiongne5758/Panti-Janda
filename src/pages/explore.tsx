@@ -15,7 +15,7 @@ const PER_PAGE = 12;
 
 export function ExplorePage() {
   const { account } = useAuth();
-  const canFilterTier = Boolean(account && WIDOW_ROLES.includes(account.role as WidowRole));
+  const canFilterTier = Boolean(account && (account.accountKind === "janda" || account.accountKind === "non_janda"));
 
   const [query, setQuery] = useState("");
   const [applied, setApplied] = useState("");
@@ -39,8 +39,7 @@ export function ExplorePage() {
           q: q || undefined,
           tier: tierFilter || undefined,
         });
-        const validProfiles = data.items.filter((profile) => WIDOW_ROLES.includes(profile.tier));
-        setItems((prev) => (replace ? validProfiles : [...prev, ...validProfiles]));
+        setItems((prev) => (replace ? data.items : [...prev, ...data.items]));
         setHasMore(Boolean(data.hasMore));
         setPage(pageNo);
       } catch (error) {

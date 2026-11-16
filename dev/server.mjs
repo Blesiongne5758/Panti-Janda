@@ -27,6 +27,7 @@ async function seed() {
       email,
       password_hash: password,
       role,
+      account_kind: role === "admin" ? "admin" : ["wonder_woman", "sosialita", "high_society", "the_ceo"].includes(role) ? "janda" : "non_janda",
       status: "active",
       display_name: displayName,
       level: extra.level ?? 1,
@@ -90,7 +91,7 @@ async function seed() {
   const ayu = await account("ayu@contoh.id", "high_society", "Ayu", { level: 40, xp: 156800 });
   const citra = await account("citra@contoh.id", "the_ceo", "Citra", { level: 48, xp: 217800 });
   const budi = await account("budi@contoh.id", "kades", "Budi S.", { level: 5, xp: 3000 });
-  // Legacy generic-public role fixture: notification APIs intentionally deny rank 1.
+  // Legacy progression role `public`: account_kind still grants full non-janda member access.
   await account("legacy-public@local.test", "public", "Public Test");
 
   const pWulan = profile(wulan, {

@@ -9,7 +9,6 @@ import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
 import { PjLogo } from "@/components/common";
 import { useTranslation } from "@/lib/i18n-context";
-import { WIDOW_ROLES } from "@/lib/constants";
 
 export default function LoginPage() {
   const { account, login } = useAuth();
@@ -22,13 +21,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (account) {
-      const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
       if (account.role === "admin") {
         navigate("/admin");
-      } else if (isWidow) {
-        navigate("/dasbor");
       } else {
-        navigate("/feed");
+        navigate("/dasbor");
       }
     }
   }, [account, navigate]);
@@ -39,13 +35,10 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const loggedAccount = await login(email.trim(), password);
-      const isWidow = (WIDOW_ROLES as readonly string[]).includes(loggedAccount.role);
       if (loggedAccount.role === "admin") {
         navigate("/admin");
-      } else if (isWidow) {
-        navigate("/dasbor");
       } else {
-        navigate("/feed");
+        navigate("/dasbor");
       }
     } catch (err) {
       setError(errorText(err));

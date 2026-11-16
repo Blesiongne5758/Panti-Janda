@@ -25,7 +25,7 @@ export default function SubscriptionPage() {
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
-  const isJanda = account ? ["wonder_woman", "sosialita", "high_society", "the_ceo"].includes(account.role) : false;
+  const isJanda = account?.accountKind === "janda";
   const tiers = isJanda ? JANDA_TIERS : NON_JANDA_TIERS;
 
   const load = async () => {

@@ -4,6 +4,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      apply_approved_coin_migration:
+        description: "Apply migration 007 only if it is the sole pending migration"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-production
@@ -76,11 +82,12 @@ jobs:
             exit 1
           fi
 
-      - name: Check Supabase migration state (read-only)
+      - name: Check and optionally apply the approved coin migration
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ steps.derive-project-ref.outputs.project_ref }}
+          APPLY_APPROVED_COIN_MIGRATION: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_approved_coin_migration || 'false' }}
         run: |
           set -euo pipefail
           : "${SUPABASE_ACCESS_TOKEN:?Add SUPABASE_ACCESS_TOKEN to the production GitHub Environment}"
@@ -91,11 +98,37 @@ jobs:
           supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
           echo "Checking for pending migrations with a non-applying dry run..."
-          dry_run_output="$(supabase db push --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+          dry_run_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
           printf '%s\n' "$dry_run_output"
-          if grep -Eiq 'Would (push|apply) migration ' <<<"$dry_run_output"; then
-            echo "::error::Unapplied database migration(s) detected. Apply them through the reviewed migration procedure, then rerun this workflow. This workflow does not apply database SQL."
+          pending_lines="$(grep -Ei 'Would (push|apply) migration ' <<<"$dry_run_output" || true)"
+          if [[ -z "$pending_lines" ]] && grep -Eiq 'Would (push|apply)' <<<"$dry_run_output"; then
+            echo "::error::Unrecognized pending-migration output; refusing to apply or deploy."
             exit 1
+          fi
+
+          if [[ -n "$pending_lines" ]]; then
+            if [[ "$APPLY_APPROVED_COIN_MIGRATION" != "true" ]]; then
+              echo "::error::Pending migration(s) detected. For the approved migration, rerun Deploy Website manually with apply_approved_coin_migration=true."
+              exit 1
+            fi
+
+            pending_count="$(printf '%s\n' "$pending_lines" | grep -c .)"
+            if [[ "$pending_count" != "1" ]] || ! grep -Eiq 'Would (push|apply) migration 007(_coin_contribution_flows)?(\.sql)?([[:space:]]|$)' <<<"$pending_lines"; then
+              echo "::error::Only 007_coin_contribution_flows may be applied by this authorization. Reconcile any other pending migration separately."
+              exit 1
+            fi
+
+            echo "Applying the single approved migration 007..."
+            supabase db push --include-all --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+            echo "Verifying migration history and confirming no pending migrations remain..."
+            supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+            postflight_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+            printf '%s\n' "$postflight_output"
+            if grep -Eiq 'Would (push|apply)' <<<"$postflight_output"; then
+              echo "::error::Migration postflight still reports pending changes; refusing to deploy."
+              exit 1
+            fi
           fi
 
       # Deploy the application router so new chat actions are available in production.

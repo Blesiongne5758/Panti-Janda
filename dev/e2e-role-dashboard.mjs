@@ -18,7 +18,7 @@ async function login(page, email) {
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill("rahasia123");
   await page.getByRole("button", { name: /masuk/i }).click();
-  await page.waitForURL("**/#/feed");
+  await page.waitForURL("**/#/dasbor");
 }
 
 try {
@@ -55,7 +55,7 @@ try {
             timeout: 3000,
           });
           const mainText = await page.locator("main").innerText();
-          assert.match(mainText, /Ruang dukungan komunitas/, `${account.role} ${entry} @${width}px lost the public dashboard content`);
+          assert.match(mainText, /Jelajahi fitur komunitas/, `${account.role} ${entry} @${width}px lost the shared community dashboard content`);
           assert.equal(
             await page.evaluate(() => document.documentElement.scrollWidth),
             width,

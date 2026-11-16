@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
-import { TIER_META, WIDOW_ROLES } from "@/lib/constants";
+import { TIER_META } from "@/lib/constants";
 import { DOC_TYPE_OPTIONS, docErrorText, docKb, prepareVerificationDoc } from "@/lib/verify-doc";
 import { PjLogo } from "@/components/common";
 import { useTranslation } from "@/lib/i18n-context";
@@ -35,13 +35,10 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (account) {
-      const isWidow = (WIDOW_ROLES as readonly string[]).includes(account.role);
       if (account.role === "admin") {
         navigate("/admin");
-      } else if (isWidow) {
-        navigate("/dasbor");
       } else {
-        navigate("/feed");
+        navigate("/dasbor");
       }
     }
   }, [account, navigate]);
@@ -153,13 +150,10 @@ export default function RegisterPage() {
         navigate("/admin");
         return;
       }
-      const isWidow = (WIDOW_ROLES as readonly string[]).includes(result.account.role);
       if (result.account.role === "admin") {
         navigate("/admin");
-      } else if (isWidow) {
-        navigate("/dasbor");
       } else {
-        navigate("/feed");
+        navigate("/dasbor");
       }
     } catch (err) {
       setError(errorText(err));

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { MapPin, MessageCircle, ArrowLeft } from "lucide-react";
-import { api } from "@/lib/api";
+import { useState, useEffect, useRef } from "react";
+import { MapPin, MessageCircle, ArrowLeft, Coins } from "lucide-react";
+import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link, useRoute } from "@/lib/router";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { MemberAvatar, PageBanner } from "@/components/common";
 import { LISTING_KIND_LABEL, LISTING_STATUS_LABEL } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
 import { PaymentQris } from "@/components/payment-qris";
+import { toast } from "sonner";
 
 function formatRupiah(amount: number | null) {
   if (amount === null) return "Hubungi penjual";
@@ -17,12 +18,18 @@ function formatRupiah(amount: number | null) {
 
 export default function MarketplaceDetailPage() {
   const { navigate } = useRoute();
-  const { account } = useAuth();
+  const { account, refresh } = useAuth();
   const pathParts = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "").split("/").filter(Boolean) : [];
   const id = pathParts[1] ?? "";
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [sellerWhatsapp, setSellerWhatsapp] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
+  const purchaseRequestId = useRef(crypto.randomUUID());
+
+  useEffect(() => {
+    purchaseRequestId.current = crypto.randomUUID();
+  }, [id]);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +77,26 @@ export default function MarketplaceDetailPage() {
     ? `https://wa.me/${sellerWhatsapp.replace(/\D/g, "")}?text=Halo, saya tertarik dengan "${listing.title}" di Marketplace Panti Janda.`
     : null;
 
+  const handleCoinPurchase = async () => {
+    if (!listing.coinPrice) return;
+    setPurchasing(true);
+    try {
+      const result = await api<{ purchased: boolean; coinAmount: number; newBalance: number; replayed?: boolean }>("marketplace.purchase", {
+        listingId: listing.id,
+        requestId: purchaseRequestId.current,
+      });
+      toast.success(result.replayed
+        ? "Pembelian sebelumnya sudah berhasil; tidak ada debit atau XP tambahan."
+        : `Pembelian berhasil. ${result.coinAmount.toLocaleString("id-ID")} koin dikirim ke penjual; +20 XP.`);
+      if (!result.replayed) void refresh();
+      setListing((current) => current ? { ...current, status: "sold" } : current);
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   return (
     <>
       <PageBanner art="/images/banner-event.svg">
@@ -99,6 +126,7 @@ export default function MarketplaceDetailPage() {
             <CardTitle className="font-display text-2xl">
               {formatRupiah(listing.price)}
             </CardTitle>
+            {listing.coinPrice ? <p className="flex items-center gap-1.5 font-semibold text-amber-700"><Coins className="size-4" aria-hidden />{listing.coinPrice.toLocaleString("id-ID")} koin</p> : null}
           </CardHeader>
           <CardContent className="space-y-6">
             {listing.photos && listing.photos.length > 0 && (
@@ -136,6 +164,16 @@ export default function MarketplaceDetailPage() {
                 <p className="whitespace-pre-wrap text-sm text-muted-foreground">{listing.description}</p>
               </div>
             )}
+
+            {listing.coinPrice && listing.status === "active" && account && account.id !== listing.sellerAccountId ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-950">Pembelian koin mendebit saldo Anda dan mengirimkan seluruh jumlah kepada penjual. Anda memperoleh +20 XP setelah berhasil.</p>
+                <Button onClick={() => void handleCoinPurchase()} disabled={purchasing} className="mt-3 w-full">
+                  <Coins className="size-4" aria-hidden />
+                  {purchasing ? "Memproses pembelian…" : `Beli dengan ${listing.coinPrice.toLocaleString("id-ID")} koin`}
+                </Button>
+              </div>
+            ) : null}
 
             <div className="rounded-xl border border-border bg-secondary/40 p-4">
               <h3 className="mb-3 font-medium">Penjual</h3>

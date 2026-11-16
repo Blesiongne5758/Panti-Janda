@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { CalendarDays, Plus } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -17,7 +18,7 @@ const DRAFT_STATUSES = ["draft", "planning", "budgeting", "pending_approval"];
 
 export default function EventsPage() {
   const { account } = useAuth();
-  const rank = account ? ROLE_RANK[account.role] : 0;
+  const rank = getAccountRank(account);
   const [items, setItems] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

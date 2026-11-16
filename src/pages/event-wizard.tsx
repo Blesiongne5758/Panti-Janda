@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import {
   ArrowLeft,
   ArrowRight,
@@ -215,7 +216,7 @@ export function EventWizardPage() {
   const { account } = useAuth();
   const { navigate } = useRoute();
   const resumeId = useQueryParam("id");
-  const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
+  const rank = getAccountRank(account);
 
   const [step, setStep] = useState(0);
   const [eventId, setEventId] = useState<string | null>(null);

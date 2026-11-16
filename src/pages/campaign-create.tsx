@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAccountRank } from "@/lib/constants";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useRoute } from "@/lib/router";
@@ -16,7 +17,7 @@ export function CampaignCreatePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const rank = account ? ROLE_RANK[account.role] ?? 0 : 0;
+  const rank = getAccountRank(account);
   if (rank < 2) {
     return (
       <>

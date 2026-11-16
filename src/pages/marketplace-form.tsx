@@ -18,6 +18,7 @@ export default function MarketplaceFormPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [coinPrice, setCoinPrice] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -76,6 +77,7 @@ export default function MarketplaceFormPage() {
         title: title.trim(),
         description: description.trim() || null,
         price: price.trim() ? Number(price.trim()) : null,
+        coinPrice: coinPrice.trim() ? Number(coinPrice.trim()) : null,
         photos,
       });
       if (res?.listing?.id) {
@@ -199,6 +201,23 @@ export default function MarketplaceFormPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Kosongkan jika ingin pembeli menghubungi Anda untuk harga.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="mk-coin-price">Harga alternatif (koin)</Label>
+                <Input
+                  id="mk-coin-price"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={coinPrice}
+                  onChange={(e) => setCoinPrice(e.target.value)}
+                  placeholder="Opsional, harga koin terpisah"
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Harga Rupiah di atas tetap berlaku terpisah. Pembayaran koin dikirim penuh kepada penjual.
                 </p>
               </div>
 
