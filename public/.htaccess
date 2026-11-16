@@ -1,3 +1,10 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP_HOST} !^www\.pantijanda\.my\.id(?::[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.pantijanda.my.id%{REQUEST_URI} [R=301,L]
+</IfModule>
+
 <IfModule mod_headers.c>
   <Files "index.html">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
