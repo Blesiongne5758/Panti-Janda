@@ -396,7 +396,7 @@ export default function LiveTradingPage() {
   const [indicatorPeriod, setIndicatorPeriod] = useState(5);
   const [expandedChart, setExpandedChart] = useState(false);
   const [tradeTab, setTradeTab] = useState<"market" | "risk" | "sl" | "tp">("market");
-  const [positionTab, setPositionTab] = useState<"positions" | "pending" | "history">("positions");
+  const [positionTab, setPositionTab] = useState<"portfolio" | "positions" | "pending" | "history">("portfolio");
   const [slPrice, setSlPrice] = useState("");
   const [tpPrice, setTpPrice] = useState("");
 
@@ -624,7 +624,15 @@ export default function LiveTradingPage() {
     : (allLiveSym.find((s) => s.apiSymbol === selectedSymbol) ?? { label: selectedSymbol, basePrice: 0 });
   const openPositions = demoPositions.filter((p) => p.status === "open");
   const closedPositions = demoPositions.filter((p) => p.status === "closed");
-  const totalPnl = openPositions.reduce((sum, p) => sum + p.pnl, 0) + closedPositions.reduce((sum, p) => sum + p.pnl, 0);
+  const realizedPnl = closedPositions.reduce((sum, p) => sum + p.pnl, 0);
+  const unrealizedPnl = openPositions.reduce((sum, p) => sum + p.pnl, 0);
+  const totalPnl = realizedPnl + unrealizedPnl;
+  const exposure = openPositions.reduce((sum, p) => sum + p.entryPrice * p.quantity, 0);
+  const winningPositions = closedPositions.filter((p) => p.pnl > 0);
+  const losingPositions = closedPositions.filter((p) => p.pnl < 0);
+  const winRate = closedPositions.length > 0 ? (winningPositions.length / closedPositions.length) * 100 : 0;
+  const bestTrade = closedPositions.length > 0 ? Math.max(...closedPositions.map((p) => p.pnl)) : 0;
+  const worstTrade = closedPositions.length > 0 ? Math.min(...closedPositions.map((p) => p.pnl)) : 0;
   const midPrice = currentPrice ? (currentPrice.bid + currentPrice.ask) / 2 : 0;
   const equity = demoBalance + openPositions.reduce((sum, p) => sum + p.pnl, 0);
 
@@ -826,7 +834,7 @@ export default function LiveTradingPage() {
           {isDemo ? (
             <div className="border-t border-[#263754] bg-[#111B2E]/65">
               <div className="flex flex-wrap border-b border-[#263754]">
-                {([["positions", "Posisi"], ["pending", "Pending"], ["history", "Riwayat"]] as const).map(([key, label]) => (
+                {([["portfolio", "Portofolio"], ["positions", "Posisi"], ["pending", "Pending"], ["history", "Riwayat"]] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
@@ -838,7 +846,47 @@ export default function LiveTradingPage() {
                 ))}
               </div>
               <div className="max-h-40 overflow-y-auto">
-                {positionTab === "positions" ? (
+                {positionTab === "portfolio" ? (
+                  <div className="space-y-3 p-3">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        ["Ekuitas", formatRupiah(equity), "text-white"],
+                        ["Exposure", market === "saham" ? formatRupiah(exposure) : formatPrice(exposure, market), "text-[#D3DCEB]"],
+                        ["Unrealized P&L", `${unrealizedPnl >= 0 ? "+" : ""}${formatRupiah(unrealizedPnl)}`, unrealizedPnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"],
+                        ["Realized P&L", `${realizedPnl >= 0 ? "+" : ""}${formatRupiah(realizedPnl)}`, realizedPnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"],
+                      ].map(([label, value, color]) => (
+                        <div key={label} className="rounded border border-[#263754] bg-[#17243A]/60 p-2">
+                          <p className="text-[10px] text-[#7183A1]">{label}</p>
+                          <p className={`mt-1 truncate font-mono text-xs font-semibold ${color}`}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-[10px] text-[#9AAAC2]">
+                      <span>Posisi aktif: <strong className="text-white">{openPositions.length}</strong></span>
+                      <span>Total P&L: <strong className={totalPnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}>{totalPnl >= 0 ? "+" : ""}{formatRupiah(totalPnl)}</strong></span>
+                      <span>Trade selesai: <strong className="text-white">{closedPositions.length}</strong></span>
+                    </div>
+                    {openPositions.length === 0 ? (
+                      <p className="py-2 text-center text-xs text-[#7183A1]">Belum ada posisi aktif di portofolio.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {openPositions.map((pos) => {
+                          const sym = allDemoSym.find((s) => s.symbol === pos.symbol);
+                          const allocation = exposure > 0 ? (pos.entryPrice * pos.quantity / exposure) * 100 : 0;
+                          return (
+                            <div key={pos.id} className="flex items-center justify-between rounded border border-[#263754]/70 bg-[#17243A]/35 px-2.5 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-white">{sym?.label ?? pos.symbol} <span className="ml-1 text-[10px] text-[#9AAAC2]">{pos.side.toUpperCase()}</span></p>
+                                <p className="text-[10px] text-[#7183A1]">{pos.quantity} unit · {allocation.toFixed(1)}% exposure</p>
+                              </div>
+                              <p className={`font-mono font-semibold ${pos.pnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"}`}>{pos.pnl >= 0 ? "+" : ""}{formatRupiah(pos.pnl)}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : positionTab === "positions" ? (
                   openPositions.length === 0 ? (
                     <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada posisi terbuka.</p>
                   ) : (
@@ -898,7 +946,22 @@ export default function LiveTradingPage() {
                   closedPositions.length === 0 ? (
                     <p className="py-4 text-center text-xs text-[#7183A1]">Belum ada riwayat trade.</p>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="space-y-3 p-3">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        {[
+                          ["Total P&L", `${realizedPnl >= 0 ? "+" : ""}${formatRupiah(realizedPnl)}`, realizedPnl >= 0 ? "text-[#5EEAD4]" : "text-[#FB7185]"],
+                          ["Win rate", `${winRate.toFixed(1)}%`, "text-white"],
+                          ["Menang", String(winningPositions.length), "text-[#5EEAD4]"],
+                          ["Kalah", String(losingPositions.length), "text-[#FB7185]"],
+                          ["Best / Worst", `${formatRupiah(bestTrade)} / ${formatRupiah(worstTrade)}`, "text-[#D3DCEB]"],
+                        ].map(([label, value, color]) => (
+                          <div key={label} className="rounded border border-[#263754] bg-[#17243A]/60 p-2">
+                            <p className="text-[10px] text-[#7183A1]">{label}</p>
+                            <p className={`mt-1 truncate font-mono text-xs font-semibold ${color}`}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="overflow-x-auto">
                       <table className="w-full min-w-[420px] text-xs">
                         <thead className="sticky top-0 bg-[#111B2E] text-[#9AAAC2]">
                           <tr>
@@ -936,6 +999,7 @@ export default function LiveTradingPage() {
                           })}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )
                 )}
