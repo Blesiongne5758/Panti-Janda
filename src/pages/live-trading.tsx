@@ -159,11 +159,15 @@ function ProfessionalChart({
   labels,
   market,
   viewMode,
+  indicator,
+  indicatorPeriod,
 }: {
   candles: Candle[];
   labels: string[];
   market: MarketKind;
   viewMode: "line" | "candle";
+  indicator: "none" | "sma" | "ema";
+  indicatorPeriod: number;
 }) {
   if (candles.length < 2) return null;
 
@@ -178,7 +182,25 @@ function ProfessionalChart({
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  const allPrices = candles.flatMap((c) => [c.high, c.low]);
+  const closes = candles.map((c) => c.close);
+  const indicatorValues: (number | null)[] = indicator === "none"
+    ? candles.map(() => null)
+    : closes.map((_, index) => {
+      if (index + 1 < indicatorPeriod) return null;
+      if (indicator === "sma") {
+        const window = closes.slice(index + 1 - indicatorPeriod, index + 1);
+        return window.reduce((sum, value) => sum + value, 0) / indicatorPeriod;
+      }
+      const smoothing = 2 / (indicatorPeriod + 1);
+      let ema = closes[0];
+      for (let i = 1; i <= index; i++) ema = closes[i] * smoothing + ema * (1 - smoothing);
+      return ema;
+    });
+  const allPrices = candles.flatMap((c, index) => [
+    c.high,
+    c.low,
+    ...(indicatorValues[index] === null ? [] : [indicatorValues[index] as number]),
+  ]);
   const rawMin = Math.min(...allPrices);
   const rawMax = Math.max(...allPrices);
   const padding = (rawMax - rawMin) * 0.05 || rawMax * 0.01;
@@ -255,6 +277,23 @@ function ProfessionalChart({
         })
       )}
 
+      {indicator !== "none" ? (
+        <>
+          <polyline
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth={2}
+            points={indicatorValues
+              .map((value, i) => value === null ? null : `${padL + i * candleW + candleW / 2},${yScale(value)}`)
+              .filter((point): point is string => point !== null)
+              .join(" ")}
+          />
+          <text x={padL + 6} y={padT + 14} fill="#f59e0b" fontSize={10} fontFamily="monospace">
+            {indicator.toUpperCase()}({indicatorPeriod})
+          </text>
+        </>
+      ) : null}
+
       <line x1={padL} x2={padL + chartW} y1={padT + chartH} y2={padT + chartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
       <line x1={padL} x2={padL} y1={padT} y2={padT + chartH} stroke="currentColor" strokeWidth={0.5} opacity={0.2} />
     </svg>
@@ -275,6 +314,8 @@ export default function LiveTradingPage() {
   const [orderQty, setOrderQty] = useState(100);
   const [showAcademyGate, setShowAcademyGate] = useState(false);
   const [chartView, setChartView] = useState<"line" | "candle">("candle");
+  const [indicator, setIndicator] = useState<"none" | "sma" | "ema">("sma");
+  const [indicatorPeriod, setIndicatorPeriod] = useState(5);
   const [expandedChart, setExpandedChart] = useState(false);
   const [tradeTab, setTradeTab] = useState<"market" | "risk" | "sl" | "tp">("market");
   const [positionTab, setPositionTab] = useState<"positions" | "pending" | "history">("positions");
@@ -544,6 +585,27 @@ export default function LiveTradingPage() {
                   Candle
                 </button>
               </div>
+              <Select value={indicator} onValueChange={(value) => setIndicator(value as "none" | "sma" | "ema")}>
+                <SelectTrigger className="h-7 w-24 border-[#38506F] bg-[#17243A] text-[10px] text-white">
+                  <SelectValue placeholder="Indikator" />
+                </SelectTrigger>
+                <SelectContent className="border-[#38506F] bg-[#17243A]">
+                  <SelectItem value="none" className="text-white focus:bg-[#2A3C5A] focus:text-white">Tanpa MA</SelectItem>
+                  <SelectItem value="sma" className="text-white focus:bg-[#2A3C5A] focus:text-white">SMA</SelectItem>
+                  <SelectItem value="ema" className="text-white focus:bg-[#2A3C5A] focus:text-white">EMA</SelectItem>
+                </SelectContent>
+              </Select>
+              {indicator !== "none" ? (
+                <input
+                  aria-label="Periode indikator moving average"
+                  className="h-7 w-12 rounded border border-[#38506F] bg-[#17243A] px-1.5 text-center font-mono text-[10px] text-white outline-none focus:border-[#5EEAD4]"
+                  type="number"
+                  min={2}
+                  max={30}
+                  value={indicatorPeriod}
+                  onChange={(event) => setIndicatorPeriod(Math.min(30, Math.max(2, Number(event.target.value) || 2)))}
+                />
+              ) : null}
               <button
                 type="button"
                 className="rounded p-1.5 text-[#9AAAC2] transition-colors hover:bg-[#17243A] hover:text-white"
@@ -573,7 +635,7 @@ export default function LiveTradingPage() {
                         if (minutesAgo === 0) return "now";
                         return `-${minutesAgo}m`;
                       });
-                      return <ProfessionalChart candles={candles} labels={labels} market={market} viewMode={chartView} />;
+                      return <ProfessionalChart candles={candles} labels={labels} market={market} viewMode={chartView} indicator={indicator} indicatorPeriod={indicatorPeriod} />;
                     })()
                   )}
                 </div>
@@ -914,6 +976,8 @@ export default function LiveTradingPage() {
                 labels={labels}
                 market={market}
                 viewMode={chartView}
+                indicator={indicator}
+                indicatorPeriod={indicatorPeriod}
               />
             </div>
           </div>
