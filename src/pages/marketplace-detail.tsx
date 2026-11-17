@@ -6,6 +6,7 @@ import { Link, useRoute } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MemberAvatar, PageBanner } from "@/components/common";
+import { MarketplacePhotoFallback } from "@/components/marketplace-photo-fallback";
 import { LISTING_KIND_LABEL, LISTING_STATUS_LABEL } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
 import { PaymentQris } from "@/components/payment-qris";
@@ -131,13 +132,14 @@ export default function MarketplaceDetailPage() {
           <CardContent className="space-y-6">
             {listing.photos && listing.photos.length > 0 ? (
               <div className="space-y-3">
-                <div className="overflow-hidden rounded-xl border border-border">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border sm:aspect-[16/9]">
                   <img
                     src={listing.photos[0]}
                     alt={listing.title}
-                    className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]"
-                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    className="size-full object-cover"
+                    onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.nextElementSibling?.classList.remove("hidden"); }}
                   />
+                  <MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[listing.kind] ?? listing.kind} category={listing.category} className="absolute inset-0 hidden" />
                 </div>
                 {listing.photos.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
@@ -158,7 +160,7 @@ export default function MarketplaceDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-border bg-secondary/40 text-sm text-muted-foreground sm:aspect-[16/9]">Foto produk belum tersedia</div>
+              <MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[listing.kind] ?? listing.kind} category={listing.category} className="aspect-[4/3] rounded-xl border border-border/70 sm:aspect-[16/9]" />
             )}
 
             {listing.description && (

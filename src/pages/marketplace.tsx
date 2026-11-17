@@ -7,6 +7,7 @@ import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorNote, MemberAvatar, PageBanner } from "@/components/common";
+import { MarketplacePhotoFallback } from "@/components/marketplace-photo-fallback";
 import { SEO } from "@/components/seo";
 import { LISTING_CATEGORIES, LISTING_KIND_LABEL } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
@@ -92,8 +93,7 @@ export default function MarketplacePage() {
               <Link key={item.id} to={`/marketplace/${item.id}`} className="group min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                 <Card className="flex h-full flex-col gap-0 overflow-hidden rounded-2xl border-border/80 bg-card py-0 shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md">
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-secondary/70">
-                    {item.photos?.[0] ? <><img src={item.photos[0]} alt={item.title} className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} /><div className="absolute inset-0 hidden flex-col items-center justify-center gap-2 text-muted-foreground"><ShoppingBag className="size-8 opacity-40" /><span className="text-xs">Foto belum tersedia</span></div></> : <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground"><ShoppingBag className="size-8 opacity-40" /><span className="text-xs">Foto belum tersedia</span></div>}
-                    <span className="absolute left-2 top-2 rounded-full bg-card/90 px-2.5 py-1 text-[10px] font-semibold text-primary shadow-sm backdrop-blur sm:text-xs">{LISTING_KIND_LABEL[item.kind] ?? item.kind}</span>
+                    {item.photos?.[0] ? <><img src={item.photos[0]} alt={item.title} className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.nextElementSibling?.classList.remove("hidden"); }} /><MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[item.kind] ?? item.kind} category={item.category} className="absolute inset-0 hidden" /><span className="absolute left-2 top-2 rounded-full bg-card/90 px-2.5 py-1 text-[10px] font-semibold text-primary shadow-sm backdrop-blur sm:text-xs">{LISTING_KIND_LABEL[item.kind] ?? item.kind}</span></> : <MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[item.kind] ?? item.kind} category={item.category} className="size-full" />}
                   </div>
                   <CardContent className="flex flex-1 flex-col p-3 sm:p-4">
                     <span className="line-clamp-1 text-[10px] text-muted-foreground sm:text-xs">{item.category}</span>
