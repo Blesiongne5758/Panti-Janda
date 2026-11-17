@@ -82,7 +82,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check and optionally apply the approved coin migration
+      - name: Check migration history and optionally apply the approved coin migration
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -95,39 +95,87 @@ jobs:
           : "${SUPABASE_PROJECT_REF:?Could not derive the Supabase project ref}"
 
           echo "Comparing local migration files with the remote migration history..."
-          supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          migration_list_output="$(supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+          printf '%s\n' "$migration_list_output"
 
-          echo "Checking for pending migrations with a non-applying dry run..."
-          dry_run_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
-          printf '%s\n' "$dry_run_output"
-          pending_lines="$(grep -Ei 'Would (push|apply) migration ' <<<"$dry_run_output" || true)"
-          if [[ -z "$pending_lines" ]] && grep -Eiq 'Would (push|apply)' <<<"$dry_run_output"; then
-            echo "::error::Unrecognized pending-migration output; refusing to apply or deploy."
-            exit 1
-          fi
+          # The Panti Janda production database has one previously applied
+          # demo_trading_portfolios migration whose SQL source is absent from
+          # this repository. Permit deployment only when that exact version
+          # is the sole remote-only entry and every local version matches.
+          # This does not execute or roll back that migration. Any local-only,
+          # differing, or additional remote-only version still blocks release.
+          migration_state="$(node - "$migration_list_output" <<'NODE'
+          const lines = (process.argv[2] || "").split(/\r?\n/);
+          const remoteOnly = [];
+          const localOnly = [];
+          const mismatched = [];
+          for (const line of lines) {
+            if (!line.includes("|")) continue;
+            const fields = line.split("|").map((value) => value.replaceAll("`", "").trim());
+            if (line.trimStart().startsWith("|") && line.trimEnd().endsWith("|")) {
+              fields.shift();
+              fields.pop();
+            }
+            if (fields.length < 3) continue;
+            const [local, remote] = fields;
+            if (local === "Local" || remote === "Remote") continue;
+            if (!/^\d+$/.test(local) && !/^\d+$/.test(remote)) continue;
+            if (!local && remote) remoteOnly.push(remote);
+            else if (local && !remote) localOnly.push(local);
+            else if (local !== remote) mismatched.push(`${local}/${remote}`);
+          }
+          if (localOnly.length === 0 && mismatched.length === 0 && remoteOnly.length === 0) {
+            console.log("clean");
+          } else if (
+            process.env.SUPABASE_PROJECT_REF === "ivvaglofgvfjfgfuecbe" &&
+            localOnly.length === 0 &&
+            mismatched.length === 0 &&
+            remoteOnly.length === 1 &&
+            remoteOnly[0] === "20261116192220"
+          ) {
+            console.log("remote-only-demo-trading-portfolios");
+          } else {
+            console.error(JSON.stringify({ localOnly, remoteOnly, mismatched }));
+            process.exit(1);
+          }
+          NODE
+          )"
 
-          if [[ -n "$pending_lines" ]]; then
-            if [[ "$APPLY_APPROVED_COIN_MIGRATION" != "true" ]]; then
-              echo "::error::Pending migration(s) detected. For the approved migration, rerun Deploy Website manually with apply_approved_coin_migration=true."
+          if [[ "$migration_state" == "remote-only-demo-trading-portfolios" ]]; then
+            echo "::notice::All local migrations are already applied; ignoring only the known remote-only demo_trading_portfolios history entry. No migration SQL will run."
+          else
+            echo "Checking for pending migrations with a non-applying dry run..."
+            dry_run_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+            printf '%s\n' "$dry_run_output"
+            pending_lines="$(grep -Ei 'Would (push|apply) migration ' <<<"$dry_run_output" || true)"
+            if [[ -z "$pending_lines" ]] && grep -Eiq 'Would (push|apply)' <<<"$dry_run_output"; then
+              echo "::error::Unrecognized pending-migration output; refusing to apply or deploy."
               exit 1
             fi
 
-            pending_count="$(printf '%s\n' "$pending_lines" | grep -c .)"
-            if [[ "$pending_count" != "1" ]] || ! grep -Eiq 'Would (push|apply) migration 007(_coin_contribution_flows)?(\.sql)?([[:space:]]|$)' <<<"$pending_lines"; then
-              echo "::error::Only 007_coin_contribution_flows may be applied by this authorization. Reconcile any other pending migration separately."
-              exit 1
-            fi
+            if [[ -n "$pending_lines" ]]; then
+              if [[ "$APPLY_APPROVED_COIN_MIGRATION" != "true" ]]; then
+                echo "::error::Pending migration(s) detected. For the approved migration, rerun Deploy Website manually with apply_approved_coin_migration=true."
+                exit 1
+              fi
 
-            echo "Applying the single approved migration 007..."
-            supabase db push --include-all --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+              pending_count="$(printf '%s\n' "$pending_lines" | grep -c .)"
+              if [[ "$pending_count" != "1" ]] || ! grep -Eiq 'Would (push|apply) migration 007(_coin_contribution_flows)?(\.sql)?([[:space:]]|$)' <<<"$pending_lines"; then
+                echo "::error::Only 007_coin_contribution_flows may be applied by this authorization. Reconcile any other pending migration separately."
+                exit 1
+              fi
 
-            echo "Verifying migration history and confirming no pending migrations remain..."
-            supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-            postflight_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
-            printf '%s\n' "$postflight_output"
-            if grep -Eiq 'Would (push|apply)' <<<"$postflight_output"; then
-              echo "::error::Migration postflight still reports pending changes; refusing to deploy."
-              exit 1
+              echo "Applying the single approved migration 007..."
+              supabase db push --include-all --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+              echo "Verifying migration history and confirming no pending migrations remain..."
+              supabase migration list --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+              postflight_output="$(supabase db push --include-all --dry-run --remote="$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" 2>&1)"
+              printf '%s\n' "$postflight_output"
+              if grep -Eiq 'Would (push|apply)' <<<"$postflight_output"; then
+                echo "::error::Migration postflight still reports pending changes; refusing to deploy."
+                exit 1
+              fi
             fi
           fi
 
