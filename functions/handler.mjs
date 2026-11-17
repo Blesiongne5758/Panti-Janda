@@ -11876,17 +11876,20 @@ async function chatContacts(ctx) {
 
 // ---------- friendships (search, requests & approval) ----------
 
-async function getFriendshipStatus(supabase, myAccountId, otherAccountId) {
+async function getFriendshipStatus(supabase, myAccountId, otherAccountId, hasDmConversation) {
   if (myAccountId === otherAccountId) return "accepted";
 
-  const { data: dm } = await supabase
-    .from("messages")
-    .select("id")
-    .eq("thread_kind", "dm")
-    .or("and(sender_account_id.eq." + myAccountId + ",recipient_account_id.eq." + otherAccountId + "),and(sender_account_id.eq." + otherAccountId + ",recipient_account_id.eq." + myAccountId + ")")
-    .limit(1);
+  if (hasDmConversation === true) return "accepted";
+  if (hasDmConversation === undefined) {
+    const { data: dm } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("thread_kind", "dm")
+      .or("and(sender_account_id.eq." + myAccountId + ",recipient_account_id.eq." + otherAccountId + "),and(sender_account_id.eq." + otherAccountId + ",recipient_account_id.eq." + myAccountId + ")")
+      .limit(1);
 
-  if (dm && dm.length > 0) return "accepted";
+    if (dm && dm.length > 0) return "accepted";
+  }
 
   const { data: rows } = await supabase
     .from("messages")
@@ -12218,8 +12221,10 @@ async function chatThread(ctx) {
   const merged = [...(sent ?? []), ...(received ?? [])].sort((a, b) =>
     String(a.created_at).localeCompare(String(b.created_at)),
   );
+  const friendshipStatus = await getFriendshipStatus(ctx.supabase, auth.account.id, withId, merged.length > 0);
   const names = await namesFor(ctx.supabase, [auth.account.id, withId]);
   return ok({
+    friendshipStatus,
     contact: {
       accountId: withId,
       profileId: profileRow?.id ?? null,
