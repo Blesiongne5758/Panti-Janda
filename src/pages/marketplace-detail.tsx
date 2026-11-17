@@ -129,13 +129,14 @@ export default function MarketplaceDetailPage() {
             {listing.coinPrice ? <p className="flex items-center gap-1.5 font-semibold text-amber-700"><Coins className="size-4" aria-hidden />{listing.coinPrice.toLocaleString("id-ID")} koin</p> : null}
           </CardHeader>
           <CardContent className="space-y-6">
-            {listing.photos && listing.photos.length > 0 && (
+            {listing.photos && listing.photos.length > 0 ? (
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-xl border border-border">
                   <img
                     src={listing.photos[0]}
                     alt={listing.title}
-                    className="aspect-[16/9] w-full object-cover"
+                    className="aspect-[4/3] w-full object-cover sm:aspect-[16/9]"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
                   />
                 </div>
                 {listing.photos.length > 1 && (
@@ -156,6 +157,8 @@ export default function MarketplaceDetailPage() {
                   </div>
                 )}
               </div>
+            ) : (
+              <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-dashed border-border bg-secondary/40 text-sm text-muted-foreground sm:aspect-[16/9]">Foto produk belum tersedia</div>
             )}
 
             {listing.description && (
@@ -198,8 +201,16 @@ export default function MarketplaceDetailPage() {
                   )}
                 </div>
               </div>
-              {whatsappLink && account && (
+              {account && listing.sellerAccountId && account.id !== listing.sellerAccountId && (
                 <Button asChild className="mt-4 w-full sm:w-auto">
+                  <Link to={`/pesan?with=${encodeURIComponent(listing.sellerAccountId)}`}>
+                    <MessageCircle className="mr-2 size-4" />
+                    Tanya lewat PJchat
+                  </Link>
+                </Button>
+              )}
+              {whatsappLink && account && account.id !== listing.sellerAccountId && (
+                <Button asChild variant="outline" className="mt-3 w-full sm:ml-2 sm:mt-4 sm:w-auto">
                   <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
                     <MessageCircle className="mr-2 size-4" />
                     Hubungi via WhatsApp

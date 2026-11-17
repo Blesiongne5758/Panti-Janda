@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageBanner } from "@/components/common";
 import { LISTING_CATEGORIES } from "@/lib/constants";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
+import { compressImage, formatFileSize } from "@/lib/image-compress";
 
 export default function MarketplaceFormPage() {
   const { navigate } = useRoute();
@@ -22,6 +23,7 @@ export default function MarketplaceFormPage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploading: hookUploading, uploadFile, error: uploadHookError } = usePresignedUpload();
   const uploading = hookUploading;
@@ -34,26 +36,39 @@ export default function MarketplaceFormPage() {
 
     try {
       const newPhotos: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (!file.type.startsWith("image/")) {
-          setError("Hanya file gambar yang diperbolehkan.");
+      const slots = Math.max(0, 5 - photos.length);
+      const selected = Array.from(files).slice(0, slots);
+      if (files.length > slots) setError(`Maksimal 5 foto. Hanya ${slots} foto pertama yang diproses.`);
+      for (let i = 0; i < selected.length; i++) {
+        const original = selected[i];
+        if (!/^image\/(jpeg|png|webp)$/i.test(original.type)) {
+          setError("Gunakan foto JPG, PNG, atau WebP.");
           continue;
         }
+        if (original.size > 15 * 1024 * 1024) {
+          setError("Ukuran foto sebelum kompresi maksimal 15 MB.");
+          continue;
+        }
+        setUploadProgress(`Mengoptimalkan foto ${i + 1} dari ${selected.length}…`);
+        const file = await compressImage(original, { maxWidth: 1440, maxHeight: 1440, quality: 0.78, mimeType: "image/jpeg" });
         if (file.size > 5 * 1024 * 1024) {
-          setError("Ukuran file maksimal 5 MB.");
+          setError(`Foto ${original.name} masih terlalu besar setelah kompresi (${formatFileSize(file.size)}). Pilih foto lain.`);
           continue;
         }
+        setUploadProgress(`Mengunggah foto ${i + 1} dari ${selected.length}…`);
         const result = await uploadFile(file, "public");
         if (result) {
-          newPhotos.push(result.publicUrl || result.key);
+          const imageUrl = result.publicUrl || result.key;
+          if (imageUrl?.startsWith("data:image/") && imageUrl.length > 1_500_000) {
+            setError(`Penyimpanan foto ${original.name} tidak tersedia dan ukuran hasil masih terlalu besar. Coba foto yang lebih kecil.`);
+          } else if (imageUrl) newPhotos.push(imageUrl);
         }
       }
-      if (uploadHookError) setError(uploadHookError);
       setPhotos((prev) => [...prev, ...newPhotos].slice(0, 5));
     } catch (err) {
-      setError("Gagal mengunggah foto.");
+      setError(err instanceof Error ? err.message : uploadHookError || "Gagal mengunggah foto.");
     } finally {
+      setUploadProgress("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -223,6 +238,9 @@ export default function MarketplaceFormPage() {
 
               <div className="space-y-2">
                 <Label>Foto Produk (Maksimal 5)</Label>
+                <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.035] p-3 text-xs text-muted-foreground">
+                  Foto otomatis diperkecil dan dioptimalkan sebelum diunggah agar lebih hemat ruang dan cepat dimuat.
+                </div>
                 <div className="flex flex-wrap gap-3">
                   {photos.map((photo, index) => (
                     <div key={index} className="group relative size-24 overflow-hidden rounded-lg border border-border">
@@ -230,7 +248,8 @@ export default function MarketplaceFormPage() {
                       <button
                         type="button"
                         onClick={() => removePhoto(index)}
-                        className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-destructive text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-label={`Hapus foto ${index + 1}`}
+                        className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-destructive text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         <X className="size-3.5" />
                       </button>
@@ -241,7 +260,7 @@ export default function MarketplaceFormPage() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         multiple
                         onChange={handleFileSelect}
                         className="hidden"
@@ -258,9 +277,8 @@ export default function MarketplaceFormPage() {
                     </label>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tambahkan foto produk/jasa Anda. Format: JPG, PNG, atau WebP. Maksimal 5 MB per file.
-                </p>
+                {uploadProgress && <p role="status" className="text-sm font-medium text-primary">{uploadProgress}</p>}
+                <p className="text-xs text-muted-foreground">JPG, PNG, atau WebP; maksimal 15 MB sebelum dioptimalkan dan 5 MB setelah kompresi. Maksimal 5 foto.</p>
               </div>
 
               <div className="flex gap-3 pt-2">

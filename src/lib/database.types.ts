@@ -407,6 +407,7 @@ export interface Database {
           description: string;
           price: number | null;
           category: string;
+          photos: string[];
           status: string;
           created_at: string;
           updated_at: string;
@@ -419,6 +420,7 @@ export interface Database {
           description: string;
           price?: number | null;
           category: string;
+          photos?: string[];
           status?: string;
           created_at?: string;
           updated_at?: string;
@@ -431,6 +433,7 @@ export interface Database {
           description?: string;
           price?: number | null;
           category?: string;
+          photos?: string[];
           status?: string;
           created_at?: string;
           updated_at?: string;

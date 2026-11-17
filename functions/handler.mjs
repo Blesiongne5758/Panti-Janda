@@ -14394,6 +14394,13 @@ const LISTING_CATEGORIES = [
   "Lainnya",
 ];
 
+function listingPhotos(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 5).filter((photo) => {
+    if (typeof photo !== "string" || photo.length > 1500000) return false;
+    return /^https?:\/\//i.test(photo) || /^data:image\/(?:jpeg|png|webp);base64,/i.test(photo);
+  });
+}
 function publicListing(row, profile) {
   return {
     id: row.id,
@@ -14408,6 +14415,7 @@ function publicListing(row, profile) {
     price: row.price ?? null,
     coinPrice: row.coin_price ?? null,
     category: row.category,
+    photos: listingPhotos(row.photos),
     status: row.status ?? "active",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -14480,6 +14488,7 @@ async function marketplaceCreate(ctx) {
     price,
     coin_price: coinPrice,
     category,
+    photos: listingPhotos(ctx.body.photos),
     status: "active",
     created_at: now(),
     updated_at: now(),
