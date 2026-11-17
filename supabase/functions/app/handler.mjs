@@ -13810,6 +13810,26 @@ async function notify(supabase, recipientAccountId, type, actorAccountId, messag
   });
 }
 
+const MARKETPLACE_LOW_STOCK_THRESHOLD = 5;
+async function notifyMarketplaceLowStock(supabase, listing, stock) {
+  const recipientAccountId = listing?.seller_account_id ?? null;
+  const listingId = listing?.id ?? null;
+  const numericStock = Number(stock);
+  if (!recipientAccountId || !listingId || !Number.isFinite(numericStock)) return;
+  const link = `#/marketplace/${listingId}/edit`;
+  if (numericStock > MARKETPLACE_LOW_STOCK_THRESHOLD) {
+    await supabase.from("notifications").update({ read: true })
+      .eq("recipient_account_id", recipientAccountId).eq("type", "marketplace_low_stock")
+      .eq("link", link).eq("read", false);
+    return;
+  }
+  const { data: existing } = await supabase.from("notifications").select("id")
+    .eq("recipient_account_id", recipientAccountId).eq("type", "marketplace_low_stock")
+    .eq("link", link).eq("read", false).limit(1);
+  if (existing?.length) return;
+  await notify(supabase, recipientAccountId, "marketplace_low_stock", null,
+    `Stok produk "${listing.title}" tersisa ${numericStock} unit. Segera perbarui stok Anda.`, link);
+}
 async function notificationsList(ctx) {
   const auth = await actor(ctx, 2);
   if (auth.error) return auth.error;
@@ -14397,6 +14417,7 @@ async function marketplaceCreate(ctx) {
     updated_at: now(),
   }).select("*").maybeSingle();
   if (error) return fail(500, "server_error");
+  await notifyMarketplaceLowStock(ctx.supabase, { ...row, seller_account_id: profile.account_id }, stock);
   return ok({ listing: publicListing(row, profile) });
 }
 
@@ -14423,7 +14444,7 @@ async function marketplaceUpdate(ctx) {
   if (!id) return fail(400, "invalid_input");
   const { data: existing } = await ctx.supabase
     .from("marketplace_listings")
-    .select("id,seller_profile_id")
+    .select("id,seller_profile_id,stock,title")
     .eq("id", id)
     .maybeSingle();
   if (!existing || existing.seller_profile_id !== profile.id) return fail(404, "not_found");
@@ -14460,6 +14481,8 @@ async function marketplaceUpdate(ctx) {
   }
   await ctx.supabase.from("marketplace_listings").update(updates).eq("id", id);
   const { data: row } = await ctx.supabase.from("marketplace_listings").select("*").eq("id", id).maybeSingle();
+  const nextStock = updates.stock ?? row?.stock ?? existing.stock;
+  await notifyMarketplaceLowStock(ctx.supabase, { ...row, title: row?.title ?? existing.title, seller_account_id: profile.account_id }, nextStock);
   return ok({ listing: publicListing(row, profile) });
 }
 

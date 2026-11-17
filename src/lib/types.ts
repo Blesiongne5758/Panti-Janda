@@ -636,7 +636,7 @@ export interface CampaignDonation {
   createdAt: string;
 }
 
-export type NotificationType = "follow" | "message" | "donation" | "verification";
+export type NotificationType = "follow" | "message" | "donation" | "verification" | "marketplace_low_stock";
 
 export interface NotificationItem {
   id: string;
