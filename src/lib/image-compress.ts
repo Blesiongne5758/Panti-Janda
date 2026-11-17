@@ -9,6 +9,8 @@ export interface CompressOptions {
   maxHeight?: number;
   quality?: number;
   mimeType?: "image/jpeg" | "image/webp";
+  maxSizeBytes?: number;
+  failOnError?: boolean;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -24,6 +26,7 @@ export async function compressImage(
 ): Promise<File> {
   // Hanya kompres file berformat gambar standar (abaikan GIF/SVG agar animasi/vektor tidak rusak)
   if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") {
+    if (options.failOnError) throw new Error("Format foto ini tidak dapat dioptimalkan.");
     return file;
   }
 
@@ -32,7 +35,14 @@ export async function compressImage(
   const quality = options.quality ?? 0.75;
   const targetMime = options.mimeType ?? "image/jpeg";
 
-  return new Promise((resolve) => {
+  const maxSizeBytes = options.maxSizeBytes;
+  const failOnError = options.failOnError ?? false;
+
+  return new Promise((resolve, reject) => {
+    const fail = (message: string) => {
+      if (failOnError) reject(new Error(message));
+      else resolve(file);
+    };
     const reader = new FileReader();
 
     reader.onload = (event) => {
@@ -49,57 +59,79 @@ export async function compressImage(
         }
 
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        let currentQuality = quality;
+        let qualityAttempts = 0;
 
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          resolve(file); // fallback
-          return;
-        }
+        const encode = () => {
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            fail("Browser tidak dapat mengoptimalkan foto. Coba browser lain atau foto yang berbeda.");
+            return;
+          }
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
 
-        // Background putih untuk format JPEG jika ada alpha channel
-        if (targetMime === "image/jpeg") {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, width, height);
-        }
+          // Background putih untuk format JPEG jika ada alpha channel.
+          if (targetMime === "image/jpeg") {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+          }
+          ctx.drawImage(img, 0, 0, width, height);
 
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
+          canvas.toBlob((blob) => {
             if (!blob) {
+              fail("Browser gagal mengoptimalkan foto. Coba pilih foto lain.");
+              return;
+            }
+
+            if (maxSizeBytes && blob.size > maxSizeBytes) {
+              if (currentQuality > 0.4 && qualityAttempts < 4) {
+                currentQuality = Math.max(0.4, currentQuality - 0.12);
+                qualityAttempts += 1;
+                encode();
+                return;
+              }
+
+              const nextWidth = Math.round(width * 0.85);
+              const nextHeight = Math.round(height * 0.85);
+              if (Math.max(nextWidth, nextHeight) >= 480 && (nextWidth < width || nextHeight < height)) {
+                width = nextWidth;
+                height = nextHeight;
+                currentQuality = quality;
+                qualityAttempts = 0;
+                encode();
+                return;
+              }
+
+              fail("Foto masih terlalu besar setelah dioptimalkan. Pilih foto yang lebih kecil.");
+              return;
+            }
+
+            // Simpan sumber jika memang sudah lebih kecil dari hasil encode.
+            if (blob.size >= file.size && (!maxSizeBytes || file.size <= maxSizeBytes)) {
               resolve(file);
               return;
             }
 
-            // Ganti ekstensi file menjadi .jpg atau .webp
             const baseName = file.name.replace(/\.[^.]+$/, "");
             const ext = targetMime === "image/webp" ? ".webp" : ".jpg";
-            const newName = `${baseName}${ext}`;
-
-            const compressedFile = new File([blob], newName, {
+            resolve(new File([blob], `${baseName}${ext}`, {
               type: targetMime,
               lastModified: Date.now(),
-            });
+            }));
+          }, targetMime, currentQuality);
+        };
 
-            // Jika hasil kompresi ternyata lebih besar dari aslinya, gunakan aslinya
-            if (compressedFile.size >= file.size && file.type === targetMime) {
-              resolve(file);
-            } else {
-              resolve(compressedFile);
-            }
-          },
-          targetMime,
-          quality,
-        );
+        encode();
       };
 
-      img.onerror = () => resolve(file);
+      img.onerror = () => fail("Foto tidak dapat dibaca untuk proses kompresi. Coba simpan ulang atau pilih foto lain.");
       img.src = String(event.target?.result);
     };
 
-    reader.onerror = () => resolve(file);
+    reader.onerror = () => fail("Foto gagal dibaca untuk proses kompresi.");
     reader.readAsDataURL(file);
   });
 }

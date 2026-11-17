@@ -50,7 +50,7 @@ export default function MarketplaceFormPage() {
           continue;
         }
         setUploadProgress(`Mengoptimalkan foto ${i + 1} dari ${selected.length}…`);
-        const file = await compressImage(original, { maxWidth: 1440, maxHeight: 1440, quality: 0.78, mimeType: "image/jpeg" });
+        const file = await compressImage(original, { maxWidth: 1440, maxHeight: 1440, quality: 0.78, mimeType: "image/jpeg", maxSizeBytes: 5 * 1024 * 1024, failOnError: true });
         if (file.size > 5 * 1024 * 1024) {
           setError(`Foto ${original.name} masih terlalu besar setelah kompresi (${formatFileSize(file.size)}). Pilih foto lain.`);
           continue;
@@ -239,7 +239,7 @@ export default function MarketplaceFormPage() {
               <div className="space-y-2">
                 <Label>Foto Produk (Maksimal 5)</Label>
                 <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.035] p-3 text-xs text-muted-foreground">
-                  Foto otomatis diperkecil dan dioptimalkan sebelum diunggah agar lebih hemat ruang dan cepat dimuat.
+                  Foto otomatis diperkecil dan dioptimalkan sebelum diunggah. Jika kompresi gagal, foto tidak akan diunggah dalam ukuran aslinya.
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {photos.map((photo, index) => (
