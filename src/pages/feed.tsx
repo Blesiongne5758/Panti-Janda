@@ -21,6 +21,8 @@ export function FeedPage() {
   const { navigate } = useRoute();
   const [posts, setPosts] = useState<MediaPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -73,8 +75,9 @@ export function FeedPage() {
 
   async function loadFeed() {
     try {
-      const data = await api<{ items: MediaPost[] }>("media.feed", {});
+      const data = await api<{ items: MediaPost[]; hasMore?: boolean }>("media.feed", { limit: 20 });
       setPosts(data.items);
+      setHasMore(Boolean(data.hasMore));
     } catch (error) {
       console.error("Failed to load feed:", error);
     } finally {
@@ -82,6 +85,24 @@ export function FeedPage() {
     }
   }
 
+  async function loadMoreFeed() {
+    const lastPost = posts.at(-1);
+    const cursor = lastPost?.createdAt;
+    if (!lastPost || !cursor || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await api<{ items: MediaPost[]; hasMore?: boolean }>("media.feed", { limit: 20, before: cursor, beforeId: lastPost.id });
+      setPosts((current) => {
+        const existing = new Set(current.map((post) => post.id));
+        return [...current, ...data.items.filter((post) => !existing.has(post.id))];
+      });
+      setHasMore(Boolean(data.hasMore));
+    } catch (error) {
+      toast.error(errorText(error) || "Gagal memuat postingan berikutnya");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   async function handleLike(postId: string) {
     if (!auth.account) {
       toast.info("Silakan masuk untuk menyukai postingan");
@@ -489,7 +510,7 @@ export function FeedPage() {
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
                       {post.authorPhoto ? (
-                        <img src={post.authorPhoto} alt={post.authorName} className="h-full w-full object-cover" />
+                        <img src={post.authorPhoto} alt={post.authorName} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                       ) : (
                         <User className="h-5 w-5 text-primary" />
                       )}
@@ -522,6 +543,8 @@ export function FeedPage() {
                     <img
                       src={post.mediaUrl}
                       alt={post.caption || "Photo"}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full rounded-lg object-cover"
                       style={{ maxHeight: "500px" }}
                     />
@@ -529,6 +552,7 @@ export function FeedPage() {
                     <video
                       src={post.mediaUrl}
                       controls
+                      preload="none"
                       playsInline
                       className="w-full rounded-lg bg-black"
                       style={{ maxHeight: "500px" }}
@@ -619,6 +643,14 @@ export function FeedPage() {
             );
           })
         )}
+        {hasMore ? (
+          <div className="flex justify-center">
+            <Button variant="outline" onClick={() => void loadMoreFeed()} disabled={loadingMore}>
+              {loadingMore && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Muat postingan sebelumnya
+            </Button>
+          </div>
+        ) : null}
       </div>
       <CameraCaptureDialog
         open={cameraDialogOpen}

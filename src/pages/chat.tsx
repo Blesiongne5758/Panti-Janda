@@ -426,21 +426,22 @@ export default function ChatPage() {
 
   // Load Contacts & Groups
   const loadLists = useCallback(async () => {
+    let contactLoadFailed = false;
+    const groupsRequest = api<{ items: GroupItem[] }>("groups.list").catch(() => ({ items: [] as GroupItem[] }));
     try {
-      const [contactData, groupData] = await Promise.all([
-        api<{ items: ChatContact[]; incomingCount?: number }>("chat.contacts"),
-        api<{ items: GroupItem[] }>("groups.list").catch(() => ({ items: [] as GroupItem[] })),
-      ]);
+      const contactData = await api<{ items: ChatContact[]; incomingCount?: number }>("chat.contacts");
       setContacts(contactData.items);
-      setGroups(groupData.items.filter((group) => group.joined));
       setListError(null);
     } catch (error) {
+      contactLoadFailed = true;
       setListError(errorText(error));
     } finally {
       setLoadingLists(false);
     }
+    const groupData = await groupsRequest;
+    setGroups(groupData.items.filter((group) => group.joined));
+    if (!contactLoadFailed) setListError(null);
   }, [rank]);
-
   // Load Friend Requests
   const loadRequests = useCallback(async () => {
     setLoadingRequests(true);
@@ -542,8 +543,15 @@ export default function ChatPage() {
       return;
     }
     void loadThread();
-    const timer = window.setInterval(() => void loadThread(true), 4000);
-    return () => window.clearInterval(timer);
+    const refreshWhileVisible = () => {
+      if (!document.hidden) void loadThread(true);
+    };
+    const timer = window.setInterval(refreshWhileVisible, 4000);
+    document.addEventListener("visibilitychange", refreshWhileVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhileVisible);
+    };
   }, [loadThread, thread]);
 
   useEffect(() => {

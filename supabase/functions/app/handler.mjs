@@ -14328,6 +14328,18 @@ const LISTING_CATEGORIES = [
   "Lainnya",
 ];
 
+function validateListingPhotos(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 5) return null;
+  const photos = [];
+  for (const photo of value) {
+    if (typeof photo !== "string") return null;
+    const normalized = photo.trim();
+    if (!normalized || normalized.length > 2048) return null;
+    photos.push(normalized);
+  }
+  return photos;
+}
 function publicListing(row, profile) {
   return {
     id: row.id,
@@ -14341,6 +14353,7 @@ function publicListing(row, profile) {
     price: row.price ?? null,
     stock: Number.isFinite(Number(row.stock)) ? Math.max(0, Number(row.stock)) : 1,
     category: row.category,
+    photos: Array.isArray(row.photos) ? row.photos : [],
     status: row.status ?? "active",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -14403,6 +14416,8 @@ async function marketplaceCreate(ctx) {
   if (price !== null && (isNaN(price) || price < 0)) return fail(400, "invalid_price");
   const stock = ctx.body.stock === undefined ? 1 : Math.floor(Number(ctx.body.stock));
   if (!Number.isFinite(stock) || stock < 0 || stock > 1000000000) return fail(400, "invalid_stock");
+  const photos = validateListingPhotos(ctx.body.photos);
+  if (!photos) return fail(400, "invalid_photos");
   const { data: row, error } = await ctx.supabase.from("marketplace_listings").insert({
     id: crypto.randomUUID(),
     seller_profile_id: profile.id,
@@ -14412,6 +14427,7 @@ async function marketplaceCreate(ctx) {
     price,
     stock,
     category,
+    photos,
     status: "active",
     created_at: now(),
     updated_at: now(),
@@ -14449,6 +14465,11 @@ async function marketplaceUpdate(ctx) {
     .maybeSingle();
   if (!existing || existing.seller_profile_id !== profile.id) return fail(404, "not_found");
   const updates = { updated_at: now() };
+  if (ctx.body.photos !== undefined) {
+    const photos = validateListingPhotos(ctx.body.photos);
+    if (!photos) return fail(400, "invalid_photos");
+    updates.photos = photos;
+  }
   if (ctx.body.title !== undefined) {
     const title = text(ctx.body.title, 120);
     if (title.length < 3) return fail(400, "invalid_title");
@@ -14887,12 +14908,22 @@ async function paymentQrisSettings(ctx) {
 
 async function mediaRead(ctx, accountId = null) {
   const auth = await actor(ctx, 0);
-  let query = ctx.supabase.from("media_posts").select("*").order("created_at", { ascending: false }).limit(200);
+  const requestedLimit = Number(ctx.body.limit);
+  const pageLimit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(30, Math.floor(requestedLimit))) : 200;
+  const before = typeof ctx.body.before === "string" ? ctx.body.before : "";
+  const beforeId = typeof ctx.body.beforeId === "string" && /^[0-9a-f-]{36}$/i.test(ctx.body.beforeId) ? ctx.body.beforeId : "";
+  let query = ctx.supabase.from("media_posts").select("*")
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(pageLimit + 1);
   if (accountId) query = query.eq("account_id", accountId);
+  if (before && beforeId) query = query.or(`created_at.lt.${before},and(created_at.eq.${before},id.lt.${beforeId})`);
+  else if (before) query = query.lt("created_at", before);
   const { data: rows, error } = await query;
   if (error) return fail(500, "server_error");
-  const posts = rows ?? [];
-  if (!posts.length) return ok({ items: [] });
+  const hasMore = (rows ?? []).length > pageLimit;
+  const posts = (rows ?? []).slice(0, pageLimit);
+  if (!posts.length) return ok({ items: [], hasMore: false });
   const ids = posts.map((post) => post.id);
   const { data: likes } = await ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids);
   const { data: comments } = await ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true });
@@ -14933,7 +14964,7 @@ async function mediaRead(ctx, accountId = null) {
       duration: post.duration,
       createdAt: post.created_at,
     };
-  }) });
+  }), hasMore });
 }
 
 async function mediaFeed(ctx) {

@@ -4,7 +4,6 @@ import {
   Activity,
   BadgeCheck,
   BookOpen,
-  Bot,
   Coins,
   Crown,
   FileUp,
@@ -58,6 +57,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, MemberAvatar, StatusPill, TierBadge } from "@/components/common";
 import { DashboardCalendar } from "@/components/dashboard-calendar";
+import { MarketplaceManagement } from "@/components/marketplace-management";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import { toast } from "sonner";
 
@@ -904,6 +904,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {rank >= 2 ? <MarketplaceManagement /> : null}
       {rank >= 2 ? <DashboardCalendar /> : null}
 
       {account && follows ? (
@@ -1048,23 +1049,6 @@ export default function DashboardPage() {
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link to="/live-trading?mode=demo">Mode Demo</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
-            <Bot className="size-4 text-violet-600" aria-hidden />
-            {t("ai.title")}
-          </CardTitle>
-          <CardDescription>
-            {t("ai.description")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link to="/ai-agent">{t("ai.openCommand")}</Link>
           </Button>
         </CardContent>
       </Card>
