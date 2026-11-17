@@ -115,6 +115,7 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "ai-mentor", params: {} };
     case "marketplace":
       if (second === "baru") return { name: "marketplace-form", params: {} };
+      if (second && segments[2] === "edit") return { name: "marketplace-form", params: { id: second } };
       if (second) return { name: "marketplace-detail", params: { id: second } };
       return { name: "marketplace", params: {} };
     case "koin":

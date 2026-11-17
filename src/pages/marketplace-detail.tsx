@@ -1,16 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { MapPin, MessageCircle, ArrowLeft, Coins } from "lucide-react";
-import { api, errorText } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { MapPin, MessageCircle, ArrowLeft, Pencil, Trash2, Package, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link, useRoute } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MemberAvatar, PageBanner } from "@/components/common";
-import { MarketplacePhotoFallback } from "@/components/marketplace-photo-fallback";
 import { LISTING_KIND_LABEL, LISTING_STATUS_LABEL } from "@/lib/constants";
 import type { MarketplaceListing } from "@/lib/types";
 import { PaymentQris } from "@/components/payment-qris";
-import { toast } from "sonner";
 
 function formatRupiah(amount: number | null) {
   if (amount === null) return "Hubungi penjual";
@@ -19,18 +17,14 @@ function formatRupiah(amount: number | null) {
 
 export default function MarketplaceDetailPage() {
   const { navigate } = useRoute();
-  const { account, refresh } = useAuth();
+  const { account } = useAuth();
   const pathParts = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "").split("/").filter(Boolean) : [];
   const id = pathParts[1] ?? "";
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [sellerWhatsapp, setSellerWhatsapp] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
-  const purchaseRequestId = useRef(crypto.randomUUID());
-
-  useEffect(() => {
-    purchaseRequestId.current = crypto.randomUUID();
-  }, [id]);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +44,32 @@ export default function MarketplaceDetailPage() {
     void load();
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!account) return;
+    let active = true;
+    const loadMine = async () => {
+      try {
+        const res = await api<{ items: MarketplaceListing[] }>("marketplace.mine");
+        if (active) setIsOwner(Boolean(res?.items?.some((item) => item.id === id)));
+      } catch {
+        if (active) setIsOwner(false);
+      }
+    };
+    void loadMine();
+    return () => { active = false; };
+  }, [account, id]);
+
+  const handleDelete = async () => {
+    if (!window.confirm("Hapus produk ini? Produk akan dihapus dari Marketplace dan tidak dapat dikembalikan.")) return;
+    setDeleting(true);
+    try {
+      await api("marketplace.delete", { id });
+      navigate("/marketplace");
+    } catch {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -78,26 +98,6 @@ export default function MarketplaceDetailPage() {
     ? `https://wa.me/${sellerWhatsapp.replace(/\D/g, "")}?text=Halo, saya tertarik dengan "${listing.title}" di Marketplace Panti Janda.`
     : null;
 
-  const handleCoinPurchase = async () => {
-    if (!listing.coinPrice) return;
-    setPurchasing(true);
-    try {
-      const result = await api<{ purchased: boolean; coinAmount: number; newBalance: number; replayed?: boolean }>("marketplace.purchase", {
-        listingId: listing.id,
-        requestId: purchaseRequestId.current,
-      });
-      toast.success(result.replayed
-        ? "Pembelian sebelumnya sudah berhasil; tidak ada debit atau XP tambahan."
-        : `Pembelian berhasil. ${result.coinAmount.toLocaleString("id-ID")} koin dikirim ke penjual; +20 XP.`);
-      if (!result.replayed) void refresh();
-      setListing((current) => current ? { ...current, status: "sold" } : current);
-    } catch (error) {
-      toast.error(errorText(error));
-    } finally {
-      setPurchasing(false);
-    }
-  };
-
   return (
     <>
       <PageBanner art="/images/banner-event.svg">
@@ -117,6 +117,10 @@ export default function MarketplaceDetailPage() {
           <span className="text-sm text-muted-foreground">
             {LISTING_STATUS_LABEL[listing.status] ?? listing.status}
           </span>
+          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Package className="size-3.5" aria-hidden />
+            Stok: {listing.stock}
+          </span>
         </div>
       </PageBanner>
 
@@ -124,22 +128,34 @@ export default function MarketplaceDetailPage() {
         {listing.price !== null && <div className="mb-4"><PaymentQris amount={listing.price} compact /></div>}
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-2xl">
-              {formatRupiah(listing.price)}
-            </CardTitle>
-            {listing.coinPrice ? <p className="flex items-center gap-1.5 font-semibold text-amber-700"><Coins className="size-4" aria-hidden />{listing.coinPrice.toLocaleString("id-ID")} koin</p> : null}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <CardTitle className="font-display text-2xl">{formatRupiah(listing.price)}</CardTitle>
+              {isOwner && (
+                <div className="flex gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link to={`/marketplace/${listing.id}/edit`}><Pencil className="mr-1.5 size-3.5" />Edit</Link>
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleting}>
+                    {deleting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Trash2 className="mr-1.5 size-3.5" />}
+                    Hapus
+                  </Button>
+                </div>
+              )}
+            </div>
+            <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <Package className="size-4" aria-hidden />
+              Stok tersedia: <span className="font-semibold text-foreground">{listing.stock}</span>
+            </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {listing.photos && listing.photos.length > 0 ? (
+            {listing.photos && listing.photos.length > 0 && (
               <div className="space-y-3">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border sm:aspect-[16/9]">
+                <div className="overflow-hidden rounded-xl border border-border">
                   <img
                     src={listing.photos[0]}
                     alt={listing.title}
-                    className="size-full object-cover"
-                    onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.nextElementSibling?.classList.remove("hidden"); }}
+                    className="aspect-[16/9] w-full object-cover"
                   />
-                  <MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[listing.kind] ?? listing.kind} category={listing.category} className="absolute inset-0 hidden" />
                 </div>
                 {listing.photos.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto">
@@ -159,8 +175,6 @@ export default function MarketplaceDetailPage() {
                   </div>
                 )}
               </div>
-            ) : (
-              <MarketplacePhotoFallback kindLabel={LISTING_KIND_LABEL[listing.kind] ?? listing.kind} category={listing.category} className="aspect-[4/3] rounded-xl border border-border/70 sm:aspect-[16/9]" />
             )}
 
             {listing.description && (
@@ -169,16 +183,6 @@ export default function MarketplaceDetailPage() {
                 <p className="whitespace-pre-wrap text-sm text-muted-foreground">{listing.description}</p>
               </div>
             )}
-
-            {listing.coinPrice && listing.status === "active" && account && account.id !== listing.sellerAccountId ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm text-amber-950">Pembelian koin mendebit saldo Anda dan mengirimkan seluruh jumlah kepada penjual. Anda memperoleh +20 XP setelah berhasil.</p>
-                <Button onClick={() => void handleCoinPurchase()} disabled={purchasing} className="mt-3 w-full">
-                  <Coins className="size-4" aria-hidden />
-                  {purchasing ? "Memproses pembelian…" : `Beli dengan ${listing.coinPrice.toLocaleString("id-ID")} koin`}
-                </Button>
-              </div>
-            ) : null}
 
             <div className="rounded-xl border border-border bg-secondary/40 p-4">
               <h3 className="mb-3 font-medium">Penjual</h3>
@@ -203,16 +207,8 @@ export default function MarketplaceDetailPage() {
                   )}
                 </div>
               </div>
-              {account && listing.sellerAccountId && account.id !== listing.sellerAccountId && (
+              {whatsappLink && account && (
                 <Button asChild className="mt-4 w-full sm:w-auto">
-                  <Link to={`/pesan?with=${encodeURIComponent(listing.sellerAccountId)}`}>
-                    <MessageCircle className="mr-2 size-4" />
-                    Tanya lewat PJchat
-                  </Link>
-                </Button>
-              )}
-              {whatsappLink && account && account.id !== listing.sellerAccountId && (
-                <Button asChild variant="outline" className="mt-3 w-full sm:ml-2 sm:mt-4 sm:w-auto">
                   <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
                     <MessageCircle className="mr-2 size-4" />
                     Hubungi via WhatsApp

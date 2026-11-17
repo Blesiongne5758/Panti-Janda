@@ -37,7 +37,7 @@ export interface Profile {
   id: string;
   accountId: string;
   nickname: string;
-  tier: WidowRole | null;
+  tier: WidowRole;
   city: string | null;
   age: number | null;
   dependents: number | null;
@@ -709,7 +709,6 @@ export type ListingStatus = "draft" | "active" | "sold" | "archived";
 export interface MarketplaceListing {
   id: string;
   sellerProfileId: string;
-  sellerAccountId: string | null;
   sellerName: string;
   sellerPhoto: string | null;
   sellerCity: string | null;
@@ -717,7 +716,7 @@ export interface MarketplaceListing {
   title: string;
   description: string | null;
   price: number | null;
-  coinPrice: number | null;
+  stock: number;
   category: string;
   photos: string[];
   status: ListingStatus;
@@ -734,7 +733,7 @@ export interface CoinPackage {
   popular: boolean;
 }
 
-export type CoinTransactionType = "purchase" | "spend" | "refund" | "bonus" | "withdraw" | "gift_sent" | "gift_received" | "campaign_donation" | "marketplace_purchase" | "marketplace_sale";
+export type CoinTransactionType = "purchase" | "spend" | "refund" | "bonus" | "withdraw";
 
 export interface CoinTransaction {
   id: string;

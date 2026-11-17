@@ -20,11 +20,6 @@ const readEnv = (name) => {
 const ROLE_RANK = { public: 1, kades: 2, wonder_woman: 2, walikota: 3, sosialita: 3, gubernur: 4, high_society: 4, panglima: 5, the_ceo: 5, presiden: 6, sultan: 6, ceo: 7, admin: 8 };
 const WIDOW_ROLES = ["wonder_woman", "sosialita", "high_society", "the_ceo"];
 const PUBLIC_ROLES = ["kades", "walikota", "gubernur", "panglima", "presiden", "ceo", "sultan"];
-function accountRank(account) {
-  const roleRank = ROLE_RANK[account?.role] ?? 0;
-  const kind = account?.account_kind ?? account?.accountKind;
-  return Math.max(roleRank, kind === "janda" || kind === "non_janda" ? 2 : 0);
-}
 const EVENT_ASSIGNABLE_ROLES = ["sekretaris", "bendahara", "koordinator_acara", "absen_tiket", "absen_undangan", "publikasi", "logistik", "panitia"];
 const INVITE_QR_PREFIX = "PJ-INVITE:";
 const EVENT_CATEGORIES = ["workshop", "webinar", "meetup", "concert", "charity", "conference", "garage_sale", "lelang", "bazar", "nobar", "other"];
@@ -56,9 +51,6 @@ const KPI_POINTS = {
   business_submit: 30,
   listing_create: 15,
   listing_sale: 25,
-  gift_send: 20,
-  campaign_coin_donate: 20,
-  marketplace_purchase: 20,
   mentor_chat: 5,
   esport_tournament_create: 60,
 };
@@ -199,15 +191,6 @@ const intOrNull = (value, min, max) => {
   const n = Math.round(Number(value));
   return Number.isFinite(n) && n >= min && n <= max ? n : null;
 };
-const strictIntOrNull = (value, min, max) => {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
-};
-const uuidOrNull = (value) => {
-  const v = text(value, 36);
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v) ? v : null;
-};
 const dateOrNull = (value) => {
   const v = text(value, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null;
@@ -280,7 +263,7 @@ async function authenticate(supabase, request) {
   if (!session || new Date(session.expires_at).getTime() < Date.now()) return null;
   const { data: account } = await supabase
     .from("accounts")
-    .select("id,email,role,account_kind,status,display_name,level,xp")
+    .select("id,email,role,status,display_name,level,xp")
     .eq("id", session.account_id)
     .maybeSingle();
   if (!account || account.status !== "active") return null;
@@ -291,23 +274,14 @@ async function actor(ctx, minRole = 1) {
   if (ctx._actor === undefined) ctx._actor = await authenticate(ctx.supabase, ctx.request);
   if (!ctx._actor) return { error: fail(401, "not_authenticated") };
   const { account } = ctx._actor;
-  const rank = accountRank(account);
-  if (rank < minRole) return { error: fail(403, "forbidden") };
-  return { account, rank, sessionId: ctx._actor.sessionId };
-}
-
-async function adminActor(ctx) {
-  const auth = await actor(ctx, 0);
-  if (auth.error) return auth;
-  if (auth.account.role !== "admin") return { error: fail(403, "forbidden") };
-  return auth;
+  if ((ROLE_RANK[account.role] ?? 0) < minRole) return { error: fail(403, "forbidden") };
+  return { account, rank: ROLE_RANK[account.role] ?? 0, sessionId: ctx._actor.sessionId };
 }
 
 const publicAccount = (row) => ({
   id: row.id,
   email: row.email,
   role: row.role,
-  accountKind: row.account_kind ?? (WIDOW_ROLES.includes(row.role) ? "janda" : row.role === "admin" ? "admin" : "non_janda"),
   status: row.status,
   displayName: row.display_name ?? null,
   level: row.level ?? 1,
@@ -396,7 +370,7 @@ async function ownProfile(supabase, accountId) {
 function profileVisible(row, account) {
   if (account?.role === "admin") return true;
   if (row.account_id === account?.id) return true;
-  if (account && (account.account_kind === "janda" || account.account_kind === "non_janda" || (ROLE_RANK[account.role] ?? 0) >= 2)) return true;
+  if (account && WIDOW_ROLES.includes(account.role)) return true;
   return row.status === "verified" && (row.tier === "wonder_woman" || row.tier == null);
 }
 
@@ -451,7 +425,7 @@ async function awardKpi(supabase, accountId, sourceType, sourceId) {
   const totalPoints = (logs ?? []).reduce((sum, l) => sum + l.points, 0);
   const { data: account } = await supabase
     .from("accounts")
-    .select("id,role,account_kind,level,xp")
+    .select("id,role,level,xp")
     .eq("id", accountId)
     .maybeSingle();
   // Progresi level/poin hanya naik — hadiah KPI tidak boleh menurunkan capaian akun.
@@ -469,9 +443,12 @@ async function awardKpi(supabase, accountId, sourceType, sourceId) {
     });
   }
   if (account) {
-    // Account category is explicit; a generic profile row must not turn a
-    // non-janda account into a widow account for level progression.
-    const isJanda = account.account_kind === "janda" || WIDOW_ROLES.includes(account.role);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("account_id", accountId)
+      .maybeSingle();
+    const isJanda = Boolean(profile);
     const suggestedRole = roleFromLevel(nextLevel, isJanda);
     const patch = { level: nextLevel, xp: nextXp };
     if ((ROLE_RANK[suggestedRole] ?? 0) > (ROLE_RANK[account.role] ?? 0)) {
@@ -2670,7 +2647,7 @@ async function esportTournamentUpdate(ctx) {
 }
 
 async function esportTournamentApprove(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const decision = text(ctx.body.decision, 20);
@@ -3220,10 +3197,10 @@ async function esportTeamMemberCandidates(ctx) {
   if (q.length < 2) return ok({ items: [] });
   const { data: accounts } = await ctx.supabase
     .from("accounts")
-    .select("id,display_name,role,account_kind,status")
+    .select("id,display_name,role,status")
     .eq("status", "active")
     .limit(300);
-  const eligible = (accounts ?? []).filter((a) => accountRank(a) >= 2);
+  const eligible = (accounts ?? []).filter((a) => (ROLE_RANK[a.role] ?? 0) >= 2);
   const { data: existing } = await ctx.supabase.from("esport_team_members").select("account_id").eq("team_id", teamId);
   const taken = new Set((existing ?? []).map((r) => r.account_id));
   const names = await namesFor(ctx.supabase, eligible.map((a) => a.id));
@@ -3254,8 +3231,8 @@ async function esportTeamMemberAdd(ctx) {
   const { data: team } = await ctx.supabase.from("esport_teams").select("*").eq("id", teamId).maybeSingle();
   if (!team) return fail(404, "not_found");
   if (team.captain_id !== auth.account.id && auth.rank < 6) return fail(403, "not_team_captain");
-  const { data: targetAccount } = await ctx.supabase.from("accounts").select("id,role,account_kind,status").eq("id", accountId).maybeSingle();
-  if (!targetAccount || targetAccount.status !== "active" || accountRank(targetAccount) < 2) {
+  const { data: targetAccount } = await ctx.supabase.from("accounts").select("id,role,status").eq("id", accountId).maybeSingle();
+  if (!targetAccount || targetAccount.status !== "active" || (ROLE_RANK[targetAccount.role] ?? 0) < 2) {
     return fail(400, "committee_members_only");
   }
   const { data: memberRows } = await ctx.supabase.from("esport_team_members").select("id,account_id").eq("team_id", teamId);
@@ -5160,7 +5137,7 @@ async function esportLeaderboard(ctx) {
 }
 
 async function esportGamesAdminSave(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const gameId = text(ctx.body.id, 60);
   const defaultFormat = esportEnumOrDefault(ctx.body.defaultFormat, ESPORT_FORMATS, null);
@@ -6190,7 +6167,7 @@ const ROUTES = {
   "marketplace.create": marketplaceCreate,
   "marketplace.mine": marketplaceMine,
   "marketplace.update": marketplaceUpdate,
-  "marketplace.purchase": marketplacePurchase,
+  "marketplace.delete": marketplaceDelete,
 
   "subscriptions.create": subscriptionsCreate,
   "subscriptions.mine": subscriptionsMine,
@@ -6235,7 +6212,6 @@ const ROUTES = {
   "level.info": levelInfo,
 
   "coins.balance": coinsBalance,
-  "coins.gift": coinsGift,
   "coins.packages": coinsPackages,
   "coins.purchase": coinsPurchase,
   "coins.transactions": coinsTransactions,
@@ -6288,7 +6264,7 @@ const ROUTES = {
 
 async function register(ctx) {
   const { body, supabase } = ctx;
-  const kind = body.kind === "member" ? "member" : "non_janda";
+  const kind = body.kind === "member" ? "member" : "public";
   const mail = email(body.email);
   const password = typeof body.password === "string" ? body.password : "";
   if (!mail) return fail(400, "invalid_email");
@@ -6333,7 +6309,6 @@ async function register(ctx) {
   const { data: anyAccount } = await supabase.from("accounts").select("id").limit(1);
   const isBootstrap = (anyAccount ?? []).length === 0;
   const role = isBootstrap ? "admin" : kind === "member" ? "wonder_woman" : "kades";
-  const accountKind = isBootstrap ? "admin" : kind === "member" ? "janda" : "non_janda";
   const displayName =
     kind === "member" ? profile.nickname : text(body.displayName, 60);
 
@@ -6342,7 +6317,6 @@ async function register(ctx) {
     email: mail,
     password_hash: await hashPassword(password),
     role,
-    account_kind: accountKind,
     status: "active",
     display_name: displayName,
     level: 1,
@@ -6381,27 +6355,7 @@ async function register(ctx) {
       updated_at: now(),
     };
     const { error: pError } = await supabase.from("profiles").insert(createdProfile);
-    if (pError) {
-      await supabase.from("accounts").delete().eq("id", account.id);
-      return fail(500, "server_error");
-    }
-  } else if (kind === "non_janda") {
-    createdProfile = {
-      id: crypto.randomUUID(),
-      account_id: account.id,
-      nickname: displayName,
-      tier: null,
-      full_name: null,
-      status: "verified",
-      verified_at: null,
-      created_at: now(),
-      updated_at: now(),
-    };
-    const { error: pError } = await supabase.from("profiles").insert(createdProfile);
-    if (pError) {
-      await supabase.from("accounts").delete().eq("id", account.id);
-      return fail(500, "server_error");
-    }
+    if (pError) return fail(500, "server_error");
   }
 
   const session = await createSession(supabase, account.id);
@@ -6427,7 +6381,7 @@ async function login(ctx) {
   if (!(await verifyPassword(password, account.password_hash))) return fail(401, "invalid_credentials");
   if (account.status !== "active") return fail(403, "account_suspended");
   const session = await createSession(supabase, account.id);
-  const profile = await ownProfile(supabase, account.id);
+  const profile = WIDOW_ROLES.includes(account.role) ? await ownProfile(supabase, account.id) : null;
   return ok({
     token: session.token,
     account: publicAccount(account),
@@ -6533,19 +6487,19 @@ async function profilesList(ctx) {
   const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
   const isAdmin = account?.role === "admin";
-  const isMember = Boolean(account && (account.account_kind === "janda" || account.account_kind === "non_janda" || (ROLE_RANK[account.role] ?? 0) >= 2));
+  const isWidowMember = Boolean(account && WIDOW_ROLES.includes(account.role));
   const pageNo = Math.max(1, intOrNull(body.page, 1, 500) ?? 1);
   const perPage = Math.min(24, Math.max(4, intOrNull(body.perPage, 4, 24) ?? 12));
 
   let query = supabase.from("profiles").select("*");
   if (isAdmin && (body.status === "pending" || body.status === "rejected" || body.status === "verified")) {
     query = query.eq("status", body.status);
-  } else if (!isMember && !isAdmin) {
+  } else {
     query = query.eq("status", "verified");
-    query = query.eq("tier", "wonder_woman");
+    if (!isWidowMember && !isAdmin) query = query.eq("tier", "wonder_woman");
   }
   const tier = body.tier;
-  if (isMember && WIDOW_ROLES.includes(tier)) query = query.eq("tier", tier);
+  if (isWidowMember && WIDOW_ROLES.includes(tier)) query = query.eq("tier", tier);
   const city = text(body.city, 80);
   if (city) query = query.eq("city", city);
   const { data, error } = await query
@@ -6579,9 +6533,8 @@ async function profilesGet(ctx) {
     row = byAccount;
   }
   if (!row) {
-    const { data: acc } = await supabase.from("accounts").select("id,display_name,role,account_kind,status,created_at").eq("id", id).maybeSingle();
+    const { data: acc } = await supabase.from("accounts").select("id,display_name,role,status,created_at").eq("id", id).maybeSingle();
     if (acc && acc.status === "active") {
-      if (acc.account_kind === "janda" || WIDOW_ROLES.includes(acc.role)) return fail(404, "not_found");
       const defaultName = acc.display_name || "Pengguna";
       const newProf = {
         id: crypto.randomUUID(),
@@ -6598,7 +6551,7 @@ async function profilesGet(ctx) {
     }
   }
   if (!row || !profileVisible(row, account)) return fail(404, "not_found");
-  const { data: owner } = await supabase.from("accounts").select("role,account_kind").eq("id", row.account_id).maybeSingle();
+  const { data: owner } = await supabase.from("accounts").select("role").eq("id", row.account_id).maybeSingle();
 
   const { data: donationRows } = await supabase
     .from("donations")
@@ -6624,7 +6577,6 @@ async function profilesGet(ctx) {
   return ok({
     profile: publicProfile(row),
     accountRole: owner?.role ?? "public",
-    accountKind: owner?.account_kind ?? (WIDOW_ROLES.includes(owner?.role) ? "janda" : owner?.role === "admin" ? "admin" : "non_janda"),
     support: { donationTotal, pledgeCount, updateCount },
     follow: { followerCount: followers.length, followingCount, viewerFollows },
     paymentEnabled: Boolean(ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey),
@@ -6642,8 +6594,8 @@ async function profilesUpdate(ctx) {
       account_id: auth.account.id,
       nickname: defaultName,
       tier: null,
-      full_name: auth.account.account_kind === "janda" ? defaultName : null,
-      status: auth.account.account_kind === "janda" ? "pending" : "verified",
+      full_name: defaultName,
+      status: "verified",
       created_at: now(),
       updated_at: now(),
     };
@@ -7137,7 +7089,7 @@ async function donationsMine(ctx) {
 }
 
 async function donationsList(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("donations")
@@ -7180,7 +7132,7 @@ const eventPublic = (row) => ({
 });
 
 async function visibleEvents(supabase, account) {
-  const rank = accountRank(account);
+  const rank = ROLE_RANK[account?.role] ?? 0;
   const { data } = await supabase
     .from("events")
     .select("*")
@@ -7264,7 +7216,7 @@ async function eventsGet(ctx) {
   const id = text(body.id, 60);
   const { data: row } = await supabase.from("events").select("*").eq("id", id).maybeSingle();
   if (!row) return fail(404, "not_found");
-  const rank = accountRank(account);
+  const rank = ROLE_RANK[account?.role] ?? 0;
   const isOwner = row.created_by === account?.id || rank >= 6;
   let isOnTeam = false;
   if (!isOwner && account) {
@@ -7555,11 +7507,11 @@ async function eventsInvite(ctx) {
   if (row.created_by !== auth.account.id && auth.rank < 4) return fail(403, "forbidden");
   const { data: account } = await ctx.supabase
     .from("accounts")
-    .select("id,role,account_kind,status")
+    .select("id,role,status")
     .eq("email", mail)
     .maybeSingle();
   if (!account || account.status !== "active") return fail(404, "account_not_found");
-  if (accountRank(account) < 2) return fail(400, "invite_members_only");
+  if ((ROLE_RANK[account.role] ?? 0) < 2) return fail(400, "invite_members_only");
   const existing = await isEnrolled(ctx.supabase, "event_invites", "event_id", id, account.id);
   if (!existing) {
     const { error } = await ctx.supabase.from("event_invites").insert({
@@ -7626,15 +7578,15 @@ async function eventCommitteeAdd(ctx) {
   if (event.created_by !== auth.account.id && auth.rank < 6) return fail(403, "forbidden");
   let candidate = null;
   if (accountId) {
-    const { data } = await ctx.supabase.from("accounts").select("id,role,account_kind,status").eq("id", accountId).maybeSingle();
+    const { data } = await ctx.supabase.from("accounts").select("id,role,status").eq("id", accountId).maybeSingle();
     candidate = data;
   } else {
-    const { data } = await ctx.supabase.from("accounts").select("id,role,account_kind,status").eq("email", email.toLowerCase()).maybeSingle();
+    const { data } = await ctx.supabase.from("accounts").select("id,role,status").eq("email", email.toLowerCase()).maybeSingle();
     candidate = data;
     accountId = candidate?.id ?? "";
   }
   if (!candidate) return fail(404, "account_not_found");
-  if (candidate.status !== "active" || accountRank(candidate) < 2) return fail(400, "committee_members_only");
+  if (candidate.status !== "active" || (ROLE_RANK[candidate.role] ?? 0) < 2) return fail(400, "committee_members_only");
   if (accountId === event.created_by) return fail(409, "already_committee");
   const existing = await isEnrolled(ctx.supabase, "event_committees", "event_id", eventId, accountId);
   if (existing) return fail(409, "already_committee");
@@ -7728,11 +7680,11 @@ async function eventCommitteeCandidates(ctx) {
   if (q.length < 2) return ok({ items: [] });
   const { data: accounts } = await ctx.supabase
     .from("accounts")
-    .select("id,display_name,role,account_kind,status")
+    .select("id,display_name,role,status")
     .eq("status", "active")
     .limit(300);
   const eligible = (accounts ?? []).filter(
-    (a) => accountRank(a) >= 2 && a.id !== event.created_by,
+    (a) => (ROLE_RANK[a.role] ?? 0) >= 2 && a.id !== event.created_by,
   );
   const names = await namesFor(ctx.supabase, eligible.map((a) => a.id));
   const { data: existing } = await ctx.supabase
@@ -9228,7 +9180,7 @@ async function eventLiveEnd(ctx) {
 }
 
 async function adminEventApprovals(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const { data: approvals } = await ctx.supabase
     .from("event_approvals")
@@ -9277,7 +9229,7 @@ async function adminEventApprovals(ctx) {
 }
 
 async function adminEventDecide(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const approvalId = text(ctx.body.approvalId, 60);
   const decision = ["approve", "reject", "revision"].includes(ctx.body.decision) ? ctx.body.decision : null;
@@ -9339,7 +9291,7 @@ async function kpiMine(ctx) {
     .select("id")
     .eq("account_id", auth.account.id)
     .maybeSingle();
-  const isJanda = auth.account.account_kind === "janda" || WIDOW_ROLES.includes(auth.account.role);
+  const isJanda = Boolean(profile);
   const totalPoints = summary?.total_points ?? 0;
   const level = summary?.level ?? 1;
   const currentLevelXp = totalXpForLevel(level);
@@ -9494,37 +9446,6 @@ async function coinsTransactions(ctx) {
       referenceId: t.reference_id,
       createdAt: t.created_at,
     })),
-  });
-}
-
-async function coinsGift(ctx) {
-  const auth = await actor(ctx, 2);
-  if (auth.error) return auth.error;
-  const recipientAccountId = uuidOrNull(ctx.body.recipientAccountId);
-  const amount = strictIntOrNull(ctx.body.amount, 1, 100000000);
-  const idempotencyKey = uuidOrNull(ctx.body.requestId);
-  if (!recipientAccountId || !amount || !idempotencyKey) return fail(400, "invalid_input");
-
-  const { data, error } = await ctx.supabase.rpc("gift_coins", {
-    p_sender_account_id: auth.account.id,
-    p_recipient_account_id: recipientAccountId,
-    p_amount: amount,
-    p_idempotency_key: idempotencyKey,
-  });
-  if (error) {
-    if (error.message?.includes("insufficient_coins")) return fail(400, "insufficient_coins");
-    if (error.message?.includes("cannot_gift_self")) return fail(400, "cannot_gift_self");
-    if (error.message?.includes("recipient_not_found")) return fail(404, "not_found");
-    if (error.message?.includes("idempotency_conflict")) return fail(409, "idempotency_conflict");
-    return fail(500, "server_error");
-  }
-  return ok({
-    success: true,
-    giftId: data?.gift_id ?? null,
-    amount: data?.amount ?? amount,
-    newBalance: data?.new_balance ?? null,
-    xpAwarded: data?.replayed === true ? 0 : 20,
-    replayed: data?.replayed === true,
   });
 }
 
@@ -10145,7 +10066,7 @@ async function esportTransferWindowsList(ctx) {
 }
 
 async function esportTransferWindowSave(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const windowId = text(ctx.body.id, 60);
   const gameId = text(ctx.body.gameId, 60);
@@ -10175,7 +10096,7 @@ async function esportTransferWindowSave(ctx) {
 }
 
 async function esportTransferWindowDelete(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const windowId = text(ctx.body.id, 60);
   const { data: existing } = await ctx.supabase.from("esport_transfer_windows").select("id").eq("id", windowId).maybeSingle();
@@ -11444,7 +11365,7 @@ async function esportTransferDisputesCreate(ctx) {
 }
 
 async function esportTransferDisputesResolve(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const disputeId = strOr(ctx.body?.id);
   if (!disputeId) return badRequest("id diperlukan");
@@ -12273,7 +12194,6 @@ async function chatThread(ctx) {
     .eq("id", withId)
     .maybeSingle();
   if (!target || target.status !== "active" || target.id === auth.account.id) return fail(404, "not_found");
-  const friendshipStatus = await getFriendshipStatus(ctx.supabase, auth.account.id, withId);
   const { data: profileRow } = await ctx.supabase
     .from("profiles")
     .select("id,nickname,tier,photo_data")
@@ -12308,7 +12228,6 @@ async function chatThread(ctx) {
       photoData: profileRow?.photo_data ?? null,
     },
     items: merged.map((m) => messagePublic(m, names)),
-    friendshipStatus,
   });
 }
 
@@ -12711,7 +12630,7 @@ async function programsUnenroll(ctx) {
 // ---------- admin ----------
 
 async function adminStats(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data: accounts } = await ctx.supabase.from("accounts").select("id,role,status");
   const byRole = {};
@@ -12732,7 +12651,7 @@ async function adminStats(ctx) {
 }
 
 async function adminEventsList(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data: rows } = await ctx.supabase
     .from("events")
@@ -12783,7 +12702,7 @@ async function adminEventsList(ctx) {
 }
 
 async function adminAccountsList(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("accounts")
@@ -12803,7 +12722,7 @@ async function adminAccountsList(ctx) {
 }
 
 async function adminSetRole(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const role = text(ctx.body.role, 20);
@@ -12819,7 +12738,7 @@ async function adminSetRole(ctx) {
 }
 
 async function adminSetStatus(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const status = ctx.body.status === "suspended" ? "suspended" : ctx.body.status === "active" ? "active" : null;
@@ -12834,7 +12753,7 @@ async function adminSetStatus(ctx) {
 }
 
 async function adminProfilesPending(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("profiles")
@@ -12846,7 +12765,7 @@ async function adminProfilesPending(ctx) {
 }
 
 async function adminReviewProfile(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const approve = ctx.body.approve === true;
@@ -12861,7 +12780,7 @@ async function adminReviewProfile(ctx) {
 }
 
 async function adminReportsList(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("reports")
@@ -12883,7 +12802,7 @@ async function adminReportsList(ctx) {
 }
 
 async function adminResolveReport(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
   const resolution = ctx.body.resolution === "hide" ? "hide" : "dismiss";
@@ -13407,13 +13326,13 @@ async function loadPersistedSettings(supabase) {
 }
 
 async function adminSettingsGet(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   return ok({ settings: APP_SETTINGS });
 }
 
 async function adminSettingsUpdate(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement, storage, themeSettings } = ctx.body ?? {};
   if (payment) {
@@ -13777,7 +13696,7 @@ function trialEmail(tier, index) {
 }
 
 async function adminTrialStatus(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("accounts")
@@ -13793,7 +13712,7 @@ async function adminTrialStatus(ctx) {
 }
 
 async function adminTrialCreate(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const count = APP_SETTINGS.trialAccounts.accountsPerTier;
   const password = APP_SETTINGS.trialAccounts.password;
@@ -13815,39 +13734,40 @@ async function adminTrialCreate(ctx) {
         email: mail,
         password_hash: hash,
         role: tier.role,
-        account_kind: tier.isMember ? "janda" : "non_janda",
         status: "active",
         display_name: displayName,
         level: 1,
         xp: 0,
         created_at: now(),
       });
-      await ctx.supabase.from("profiles").insert({
-        id: crypto.randomUUID(),
-        account_id: accountId,
-        nickname: displayName,
-        tier: tier.isMember ? tier.role : null,
-        full_name: tier.isMember ? displayName : null,
-        verification_doc_type: tier.isMember ? "ktp" : null,
-        verification_doc_name: tier.isMember ? "trial" : null,
-        verification_doc_data: tier.isMember ? "" : null,
-        city: null,
-        age: null,
-        dependents: null,
-        employment_status: null,
-        skills: [],
-        trainings: [],
-        needs_target: null,
-        main_target: null,
-        interests: [],
-        bio: null,
-        funding_info: null,
-        status: "verified",
-        reject_reason: null,
-        verified_at: now(),
-        created_at: now(),
-        updated_at: now(),
-      });
+      if (tier.isMember) {
+        await ctx.supabase.from("profiles").insert({
+          id: crypto.randomUUID(),
+          account_id: accountId,
+          nickname: displayName,
+          tier: tier.role,
+          full_name: displayName,
+          verification_doc_type: "ktp",
+          verification_doc_name: "trial",
+          verification_doc_data: "",
+          city: null,
+          age: null,
+          dependents: null,
+          employment_status: null,
+          skills: [],
+          trainings: [],
+          needs_target: null,
+          main_target: null,
+          interests: [],
+          bio: null,
+          funding_info: null,
+          status: "verified",
+          reject_reason: null,
+          verified_at: now(),
+          created_at: now(),
+          updated_at: now(),
+        });
+      }
       created.push({ email: mail, role: tier.role, skipped: false });
     }
   }
@@ -13856,7 +13776,7 @@ async function adminTrialCreate(ctx) {
 }
 
 async function adminTrialDelete(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
   const { data } = await ctx.supabase
     .from("accounts")
@@ -14029,37 +13949,32 @@ async function campaignsCreate(ctx) {
 }
 
 async function campaignsDonate(ctx) {
-  const method = ctx.body.paymentMethod === "coins" ? "coins" : "qris";
-  const auth = await actor(ctx, method === "coins" ? 2 : 0);
-  if (method === "coins" && auth.error) return auth.error;
+  const auth = await actor(ctx, 0);
   const account = auth.error ? null : auth.account;
-  const campaignId = method === "coins" ? uuidOrNull(ctx.body.campaignId) : text(ctx.body.campaignId, 60);
-  const coinAmount = method === "coins" ? strictIntOrNull(ctx.body.coinAmount, 1, 100000000) : null;
-  const idempotencyKey = method === "coins" ? uuidOrNull(ctx.body.requestId) : null;
+  const campaignId = text(ctx.body.campaignId, 60);
+  const method = ctx.body.paymentMethod === "coins" ? "coins" : "qris";
+  const coinAmount = method === "coins" ? intOrNull(ctx.body.coinAmount, 1, 100000000) : null;
   const amount = method === "coins"
     ? coinAmount ? Math.floor((coinAmount * 1000) / APP_SETTINGS.coinSettings.conversionRate) : null
     : intOrNull(ctx.body.amount, 10000, 100000000000);
-  if (!campaignId || !amount || (method === "coins" && (!account || !idempotencyKey))) return fail(400, "invalid_input");
+  if (!campaignId || !amount || (method === "coins" && !account)) return fail(400, "invalid_input");
   const { data: campaign } = await ctx.supabase
     .from("campaigns")
     .select("id,title,status,profile_id")
     .eq("id", campaignId)
     .maybeSingle();
-  if (!campaign || (method !== "coins" && campaign.status !== "open")) return fail(404, "not_found");
-  const orderId = method === "coins"
-    ? `PJC-${idempotencyKey}`
-    : `PJC-${Date.now()}-${b64url(crypto.getRandomValues(new Uint8Array(4)))}`;
+  if (!campaign || campaign.status !== "open") return fail(404, "not_found");
+  const orderId = `PJC-${Date.now()}-${b64url(crypto.getRandomValues(new Uint8Array(4)))}`;
   const supporterName = text(ctx.body.supporterName, 80) || account?.display_name || "Sahabat Panti Janda";
   const supporterEmail = email(ctx.body.supporterEmail) ?? account?.email ?? null;
   const message = textOrNull(ctx.body.message, 200);
   if (method === "coins") {
-    const { data: donation, error: donationError } = await ctx.supabase.rpc("donate_campaign_with_coins", {
+    const { error: donationError } = await ctx.supabase.rpc("donate_campaign_with_coins", {
       p_account_id: account.id,
       p_campaign_id: campaignId,
       p_coin_amount: coinAmount,
       p_rupiah_amount: amount,
       p_order_id: orderId,
-      p_idempotency_key: idempotencyKey,
       p_supporter_name: supporterName,
       p_supporter_email: supporterEmail,
       p_message: message,
@@ -14067,10 +13982,9 @@ async function campaignsDonate(ctx) {
     if (donationError) {
       if (donationError.message?.includes("insufficient_coins")) return fail(400, "insufficient_coins");
       if (donationError.message?.includes("campaign_not_open")) return fail(404, "not_found");
-      if (donationError.message?.includes("idempotency_conflict")) return fail(409, "idempotency_conflict");
       return fail(500, "server_error");
     }
-    return ok({ donated: true, method, amount, coinAmount, orderId, newBalance: donation?.new_balance ?? null, xpAwarded: donation?.replayed === true ? 0 : 20, replayed: donation?.replayed === true });
+    return ok({ donated: true, method, amount, coinAmount, orderId });
   }
   const serverKey = ctx.env("MIDTRANS_SERVER_KEY") || APP_SETTINGS.payment.midtransServerKey;
   if (!serverKey) return fail(503, "service_not_configured");
@@ -14394,18 +14308,10 @@ const LISTING_CATEGORIES = [
   "Lainnya",
 ];
 
-function listingPhotos(value) {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 5).filter((photo) => {
-    if (typeof photo !== "string" || photo.length > 1500000) return false;
-    return /^https?:\/\//i.test(photo) || /^data:image\/(?:jpeg|png|webp);base64,/i.test(photo);
-  });
-}
 function publicListing(row, profile) {
   return {
     id: row.id,
     sellerProfileId: row.seller_profile_id,
-    sellerAccountId: profile?.account_id ?? null,
     sellerName: profile?.nickname ?? "Anggota",
     sellerPhoto: profile?.photo_data ?? null,
     sellerCity: profile?.city ?? null,
@@ -14413,9 +14319,8 @@ function publicListing(row, profile) {
     title: row.title,
     description: row.description ?? null,
     price: row.price ?? null,
-    coinPrice: row.coin_price ?? null,
+    stock: Number.isFinite(Number(row.stock)) ? Math.max(0, Number(row.stock)) : 1,
     category: row.category,
-    photos: listingPhotos(row.photos),
     status: row.status ?? "active",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -14437,7 +14342,7 @@ async function marketplaceList(ctx) {
   if (profileIds.length > 0) {
     const { data: profiles } = await ctx.supabase
       .from("profiles")
-      .select("id,account_id,nickname,photo_data,city")
+      .select("id,nickname,photo_data,city")
       .in("id", profileIds);
     for (const p of profiles ?? []) profilesMap[p.id] = p;
   }
@@ -14454,7 +14359,7 @@ async function marketplaceGet(ctx) {
   if (!row) return fail(404, "not_found");
   const { data: profile } = await ctx.supabase
     .from("profiles")
-    .select("id,account_id,nickname,photo_data,city,whatsapp")
+    .select("id,nickname,photo_data,city,whatsapp")
     .eq("id", row.seller_profile_id)
     .maybeSingle();
   return ok({ listing: publicListing(row, profile), sellerWhatsapp: profile?.whatsapp ?? null });
@@ -14476,9 +14381,8 @@ async function marketplaceCreate(ctx) {
     ? Math.round(Number(ctx.body.price))
     : null;
   if (price !== null && (isNaN(price) || price < 0)) return fail(400, "invalid_price");
-  const hasCoinPrice = ctx.body.coinPrice !== null && ctx.body.coinPrice !== undefined && ctx.body.coinPrice !== "";
-  const coinPrice = hasCoinPrice ? strictIntOrNull(ctx.body.coinPrice, 1, 100000000) : null;
-  if (hasCoinPrice && coinPrice === null) return fail(400, "invalid_coin_price");
+  const stock = ctx.body.stock === undefined ? 1 : Math.floor(Number(ctx.body.stock));
+  if (!Number.isFinite(stock) || stock < 0 || stock > 1000000000) return fail(400, "invalid_stock");
   const { data: row, error } = await ctx.supabase.from("marketplace_listings").insert({
     id: crypto.randomUUID(),
     seller_profile_id: profile.id,
@@ -14486,9 +14390,8 @@ async function marketplaceCreate(ctx) {
     title,
     description: textOrNull(ctx.body.description, 2000),
     price,
-    coin_price: coinPrice,
+    stock,
     category,
-    photos: listingPhotos(ctx.body.photos),
     status: "active",
     created_at: now(),
     updated_at: now(),
@@ -14520,16 +14423,25 @@ async function marketplaceUpdate(ctx) {
   if (!id) return fail(400, "invalid_input");
   const { data: existing } = await ctx.supabase
     .from("marketplace_listings")
-    .select("id,seller_profile_id,status")
+    .select("id,seller_profile_id")
     .eq("id", id)
     .maybeSingle();
   if (!existing || existing.seller_profile_id !== profile.id) return fail(404, "not_found");
-  if (existing.status === "sold") return fail(409, "listing_unavailable");
   const updates = { updated_at: now() };
   if (ctx.body.title !== undefined) {
     const title = text(ctx.body.title, 120);
     if (title.length < 3) return fail(400, "invalid_title");
     updates.title = title;
+  }
+  if (ctx.body.kind !== undefined) {
+    const kind = text(ctx.body.kind, 10);
+    if (!LISTING_KINDS.includes(kind)) return fail(400, "invalid_kind");
+    updates.kind = kind;
+  }
+  if (ctx.body.category !== undefined) {
+    const category = text(ctx.body.category, 60);
+    if (!LISTING_CATEGORIES.includes(category)) return fail(400, "invalid_category");
+    updates.category = category;
   }
   if (ctx.body.description !== undefined) updates.description = textOrNull(ctx.body.description, 2000);
   if (ctx.body.price !== undefined) {
@@ -14537,58 +14449,41 @@ async function marketplaceUpdate(ctx) {
     if (price !== null && (isNaN(price) || price < 0)) return fail(400, "invalid_price");
     updates.price = price;
   }
-  if (ctx.body.coinPrice !== undefined) {
-    const hasCoinPrice = ctx.body.coinPrice !== null && ctx.body.coinPrice !== "";
-    const coinPrice = hasCoinPrice ? strictIntOrNull(ctx.body.coinPrice, 1, 100000000) : null;
-    if (hasCoinPrice && coinPrice === null) return fail(400, "invalid_coin_price");
-    updates.coin_price = coinPrice;
+  if (ctx.body.stock !== undefined) {
+    const stock = Math.floor(Number(ctx.body.stock));
+    if (!Number.isFinite(stock) || stock < 0 || stock > 1000000000) return fail(400, "invalid_stock");
+    updates.stock = stock;
   }
   if (ctx.body.status !== undefined) {
     const status = text(ctx.body.status, 20);
     if (["active", "sold", "archived", "draft"].includes(status)) updates.status = status;
   }
-  const { data: row, error: updateError } = await ctx.supabase
-    .from("marketplace_listings")
-    .update(updates)
-    .eq("id", id)
-    .eq("seller_profile_id", profile.id)
-    .neq("status", "sold")
-    .select("*")
-    .maybeSingle();
-  if (updateError) return fail(500, "server_error");
-  if (!row) return fail(409, "listing_unavailable");
+  await ctx.supabase.from("marketplace_listings").update(updates).eq("id", id);
+  const { data: row } = await ctx.supabase.from("marketplace_listings").select("*").eq("id", id).maybeSingle();
   return ok({ listing: publicListing(row, profile) });
 }
 
-async function marketplacePurchase(ctx) {
+async function marketplaceDelete(ctx) {
   const auth = await actor(ctx, 2);
   if (auth.error) return auth.error;
-  const listingId = uuidOrNull(ctx.body.listingId);
-  const idempotencyKey = uuidOrNull(ctx.body.requestId);
-  if (!listingId || !idempotencyKey) return fail(400, "invalid_input");
-  const { data, error } = await ctx.supabase.rpc("buy_marketplace_listing_with_coins", {
-    p_buyer_account_id: auth.account.id,
-    p_listing_id: listingId,
-    p_idempotency_key: idempotencyKey,
-  });
-  if (error) {
-    if (error.message?.includes("insufficient_coins")) return fail(400, "insufficient_coins");
-    if (error.message?.includes("cannot_buy_own_listing")) return fail(400, "cannot_buy_own_listing");
-    if (error.message?.includes("coin_price_unavailable")) return fail(400, "coin_price_unavailable");
-    if (error.message?.includes("listing_unavailable")) return fail(409, "listing_unavailable");
-    if (error.message?.includes("idempotency_conflict")) return fail(409, "idempotency_conflict");
-    return fail(500, "server_error");
-  }
-  return ok({
-    purchased: true,
-    orderId: data?.order_id ?? null,
-    coinAmount: data?.coin_amount ?? null,
-    newBalance: data?.new_balance ?? null,
-    xpAwarded: data?.replayed === true ? 0 : 20,
-    replayed: data?.replayed === true,
-  });
+  const profile = await ownProfile(ctx.supabase, auth.account.id);
+  if (!profile) return fail(404, "profile_not_found");
+  const id = text(ctx.body.id, 60);
+  if (!id) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase
+    .from("marketplace_listings")
+    .select("id,seller_profile_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!existing || existing.seller_profile_id !== profile.id) return fail(404, "not_found");
+  const { error } = await ctx.supabase
+    .from("marketplace_listings")
+    .delete()
+    .eq("id", id)
+    .eq("seller_profile_id", profile.id);
+  if (error) return fail(500, "server_error");
+  return ok({ deleted: true, id });
 }
-
 // ---------- subscriptions ----------
 
 const SUBSCRIPTION_TIERS = ["sosialita", "high_society", "the_ceo"];
@@ -14615,7 +14510,7 @@ function publicSubscription(row) {
 // ---------- finance ----------
 
 async function financeSummary(ctx) {
-  const auth = await adminActor(ctx);
+  const auth = await actor(ctx, 6);
   if (auth.error) return auth.error;
   const { supabase } = ctx;
   const period = text(ctx.body.period, 20) || "month";
@@ -14850,20 +14745,14 @@ async function metaTrader5Settings(ctx) {
 }
 
 async function aiTradingAgentSettings(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   return ok({ aiTradingAgent: APP_SETTINGS.aiTradingAgent });
 }
 
 async function aiSubAgentsList(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   return ok({ subAgents: APP_SETTINGS.aiTradingAgent.subAgents || [] });
 }
 
 async function aiSubAgentsUpdate(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const agent = (APP_SETTINGS.aiTradingAgent.subAgents || []).find((a) => a.id === id);
@@ -14880,14 +14769,10 @@ async function aiSubAgentsUpdate(ctx) {
 }
 
 async function aiTradingServersList(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   return ok({ tradingServers: APP_SETTINGS.aiTradingAgent.tradingServers || [] });
 }
 
 async function aiTradingServersUpdate(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const server = (APP_SETTINGS.aiTradingAgent.tradingServers || []).find((s) => s.id === id);
@@ -14908,14 +14793,10 @@ async function aiTradingServersUpdate(ctx) {
 }
 
 async function aiPromptsList(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   return ok({ prompts: APP_SETTINGS.aiTradingAgent.promptLibrary || [] });
 }
 
 async function aiPromptsGet(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
@@ -14924,8 +14805,6 @@ async function aiPromptsGet(ctx) {
 }
 
 async function aiPromptsCreate(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const now = new Date().toISOString();
   const prompt = {
@@ -14947,8 +14826,6 @@ async function aiPromptsCreate(ctx) {
 }
 
 async function aiPromptsUpdate(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
@@ -14966,8 +14843,6 @@ async function aiPromptsUpdate(ctx) {
 }
 
 async function aiPromptsDelete(ctx) {
-  const auth = await actor(ctx, 8);
-  if (auth.error) return auth.error;
   const { body } = ctx;
   const id = typeof body.id === "string" ? body.id : "";
   const idx = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).findIndex((p) => p.id === id);
