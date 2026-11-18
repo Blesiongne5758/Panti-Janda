@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Link, useRoute } from "@/lib/router";
+import { Link, useQueryParam, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { errorText } from "@/lib/api";
 import { TIER_META } from "@/lib/constants";
@@ -28,6 +28,7 @@ type Kind = "member" | "public";
 export default function RegisterPage() {
   const { account, register } = useAuth();
   const { navigate } = useRoute();
+  const referralParam = useQueryParam("ref");
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [referralCode, setReferralCode] = useState(referralParam ?? "");
 
   const [nickname, setNickname] = useState("");
   const [fullName, setFullName] = useState("");
@@ -144,6 +146,7 @@ export default function RegisterPage() {
               fundingInfo: fundingInfo.trim() || undefined,
             }
           : { kind, email: email.trim(), password, displayName: displayName.trim() };
+      payload.referralCode = referralCode.trim().toUpperCase() || undefined;
       const result = await register(payload);
       if (result.bootstrap) {
         setNotice(t("auth.adminNoticeFull"));
@@ -217,7 +220,11 @@ export default function RegisterPage() {
                   </Button>
                 </div>
 
-                {/* Indikator Kekuatan Password Real-time */}
+                <div className="flex flex-col gap-2">
+                <Label htmlFor="referral-code">Kode referral (opsional)</Label>
+                <Input id="referral-code" value={referralCode} onChange={(event) => setReferralCode(event.target.value.toUpperCase())} maxLength={16} autoCapitalize="characters" />
+              </div>
+              {/* Indikator Kekuatan Password Real-time */}
                 <PasswordStrengthMeter password={password} />
 
                 {/* Pengaturan Pembuat Password Kuat */}

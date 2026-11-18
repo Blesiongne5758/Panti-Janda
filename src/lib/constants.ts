@@ -1014,6 +1014,7 @@ export const CALENDAR_KIND_META: Record<string, { emoji: string; tone: string; d
   esport: { emoji: "🎮", tone: "bg-orange-100 text-orange-800 border-orange-200", dot: "bg-orange-500" },
   tugas: { emoji: "✅", tone: "bg-amber-100 text-amber-800 border-amber-200", dot: "bg-amber-500" },
   konseling: { emoji: "💬", tone: "bg-violet-100 text-violet-800 border-violet-200", dot: "bg-violet-500" },
+  wawancara: { emoji: "🎙️", tone: "bg-cyan-100 text-cyan-800 border-cyan-200", dot: "bg-cyan-500" },
   langganan: { emoji: "💎", tone: "bg-emerald-100 text-emerald-800 border-emerald-200", dot: "bg-emerald-500" },
   pribadi: { emoji: "📌", tone: "bg-rose-100 text-rose-800 border-rose-200", dot: "bg-rose-500" },
 };

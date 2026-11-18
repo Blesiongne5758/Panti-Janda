@@ -176,11 +176,10 @@ export default function MarketplacePage() {
               ))}
             </select>
           </div>
-          {canCreate && (
-            <Button asChild size="sm">
-              <Link to="/marketplace/baru">Jual Produk/Jasa</Link>
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {account ? <Button asChild size="sm" variant="outline"><Link to="/marketplace/orders">Pesanan saya</Link></Button> : null}
+            {canCreate ? <Button asChild size="sm"><Link to="/marketplace/baru">Jual Produk/Jasa</Link></Button> : null}
+          </div>
         </div>
 
         {loading ? (

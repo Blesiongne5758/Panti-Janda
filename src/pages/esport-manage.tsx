@@ -3145,6 +3145,10 @@ function SettingsTab({
     description: t.description ?? "",
     rules: t.rules ?? "",
     streamUrl: t.streamUrl ?? "",
+    competitionMode: t.competitionMode ?? "online",
+    venueName: t.venueName ?? "",
+    venueAddress: t.venueAddress ?? "",
+    venueMapsUrl: t.venueMapsUrl ?? "",
     maxTeams: String(t.maxTeams),
     rosterMin: String(t.rosterMin),
     rosterMax: String(t.rosterMax),
@@ -3217,9 +3221,17 @@ function SettingsTab({
       toast.error("Jendela check-in harus 0-180 menit.");
       return;
     }
+    if (form.competitionMode === "onsite" && (!form.venueName.trim() || !form.venueAddress.trim())) {
+      toast.error("Kompetisi onsite wajib memiliki nama venue dan alamat lengkap.");
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       id,
+      competitionMode: form.competitionMode,
+      venueName: form.competitionMode === "onsite" ? form.venueName.trim() : null,
+      venueAddress: form.competitionMode === "onsite" ? form.venueAddress.trim() : null,
+      venueMapsUrl: form.competitionMode === "onsite" ? form.venueMapsUrl.trim() || null : null,
       title,
       description: form.description.trim(),
       rules: form.rules.trim(),
@@ -3282,6 +3294,19 @@ function SettingsTab({
               value={form.description}
               onChange={(e) => update({ description: e.target.value })}
             />
+          </div>
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="set-competition-mode">Mode kompetisi</Label>
+              <select id="set-competition-mode" value={form.competitionMode} onChange={(e) => update({ competitionMode: e.target.value as "online" | "onsite" })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <option value="online">Online</option><option value="onsite">Onsite</option>
+              </select>
+            </div>
+            {form.competitionMode === "onsite" ? <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label htmlFor="set-venue-name">Nama venue *</Label><Input id="set-venue-name" maxLength={160} value={form.venueName} onChange={(e) => update({ venueName: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="set-venue-address">Alamat lengkap *</Label><Input id="set-venue-address" maxLength={500} value={form.venueAddress} onChange={(e) => update({ venueAddress: e.target.value })} /></div>
+              <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="set-venue-map">Tautan peta (opsional)</Label><Input id="set-venue-map" type="url" maxLength={1000} value={form.venueMapsUrl} onChange={(e) => update({ venueMapsUrl: e.target.value })} /></div>
+            </div> : null}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="set-rules">Peraturan & Ketentuan</Label>
@@ -3958,6 +3983,104 @@ function BudgetTab({ id, data, exec, busy }: { id: string; data: EsportTournamen
   );
 }
 
+type SponsorDraft = { name: string; logoUrl: string; websiteUrl: string; isPrimary: boolean };
+type StaffRow = { accountId: string; name: string; role: string };
+const ESPORT_STAFF_ROLES = ["Ketua panitia", "Koordinator", "Wasit", "Admin pertandingan", "Operator streaming"];
+
+function SponsorsCommitteeTab({ id, busy }: { id: string; busy: string | null }) {
+  const [sponsors, setSponsors] = useState<SponsorDraft[]>([]);
+  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [canManageStaff, setCanManageStaff] = useState(false);
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState<{ accountId: string; nickname: string; photoData: string | null }[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState("");
+  const [selectedRole, setSelectedRole] = useState(ESPORT_STAFF_ROLES[1]);
+  const [saving, setSaving] = useState(false);
+
+  const reload = useCallback(async () => {
+    const [sponsorResult, staffResult] = await Promise.all([
+      api<{ items: { name: string; logoUrl: string | null; websiteUrl: string | null; isPrimary: boolean }[] }>("esport.sponsors.list", { id }),
+      api<{ items: StaffRow[]; groupId: string | null; canManage: boolean }>("esport.committee.list", { id }),
+    ]);
+    setSponsors((sponsorResult.items ?? []).map((item) => ({ name: item.name, logoUrl: item.logoUrl ?? "", websiteUrl: item.websiteUrl ?? "", isPrimary: item.isPrimary })));
+    setStaff(staffResult.items ?? []);
+    setGroupId(staffResult.groupId);
+    setCanManageStaff(Boolean(staffResult.canManage));
+  }, [id]);
+
+  useEffect(() => { void reload().catch((error) => toast.error(errorText(error))); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void api<{ items: { accountId: string; nickname: string; photoData: string | null }[] }>("friends.search", { query })
+        .then((result) => { if (active) setCandidates((result.items ?? []).slice(0, 12)); })
+        .catch(() => { if (active) setCandidates([]); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query]);
+
+  const saveSponsors = async () => {
+    if (sponsors.filter((row) => row.isPrimary).length > 1) { toast.error("Pilih maksimal satu sponsor utama."); return; }
+    setSaving(true);
+    try {
+      const result = await api<{ sponsors: { name: string; logoUrl: string | null; websiteUrl: string | null; isPrimary: boolean }[] }>("esport.sponsors.save", {
+        id,
+        sponsors: sponsors.filter((row) => row.name.trim()).map((row) => ({ ...row, name: row.name.trim(), logoUrl: row.logoUrl.trim() || null, websiteUrl: row.websiteUrl.trim() || null })),
+      });
+      setSponsors((result.sponsors ?? []).map((row) => ({ name: row.name, logoUrl: row.logoUrl ?? "", websiteUrl: row.websiteUrl ?? "", isPrimary: row.isPrimary })));
+      toast.success("Sponsor turnamen tersimpan.");
+    } catch (error) { toast.error(errorText(error)); }
+    finally { setSaving(false); }
+  };
+
+  const assign = async () => {
+    if (!selectedAccount) { toast.error("Pilih akun panitia terlebih dahulu."); return; }
+    try {
+      await api("esport.committee.assign", { id, accountId: selectedAccount, role: selectedRole });
+      toast.success("Panitia berhasil ditugaskan.");
+      setSelectedAccount("");
+      await reload();
+    } catch (error) { toast.error(errorText(error)); }
+  };
+
+  const remove = async (accountId: string) => {
+    try { await api("esport.committee.remove", { id, accountId }); await reload(); }
+    catch (error) { toast.error(errorText(error)); }
+  };
+
+  return <div className="grid gap-4 lg:grid-cols-2">
+    <Card>
+      <CardHeader><CardTitle>Sponsor turnamen</CardTitle><CardDescription>Tambahkan nama, logo/banner, tautan, dan tandai satu sponsor utama untuk area siaran publik.</CardDescription></CardHeader>
+      <CardContent className="space-y-3">
+        {sponsors.map((row, index) => <div key={index} className="space-y-2 rounded-xl border p-3">
+          <Input aria-label="Nama sponsor" placeholder="Nama sponsor" maxLength={120} value={row.name} onChange={(e) => setSponsors((items) => items.map((item, i) => i === index ? { ...item, name: e.target.value } : item))} />
+          <Input aria-label="URL logo/banner sponsor" placeholder="URL logo/banner https://... atau data:image" value={row.logoUrl} onChange={(e) => setSponsors((items) => items.map((item, i) => i === index ? { ...item, logoUrl: e.target.value } : item))} />
+          <Input aria-label="URL situs sponsor" placeholder="Situs web sponsor (opsional)" value={row.websiteUrl} onChange={(e) => setSponsors((items) => items.map((item, i) => i === index ? { ...item, websiteUrl: e.target.value } : item))} />
+          <label className="flex items-center gap-2 text-sm"><input type="radio" name="primary-sponsor" checked={row.isPrimary} onChange={() => setSponsors((items) => items.map((item, i) => ({ ...item, isPrimary: i === index })))} /> Sponsor utama</label>
+          <Button size="sm" variant="ghost" onClick={() => setSponsors((items) => items.filter((_, i) => i !== index))}>Hapus sponsor</Button>
+        </div>)}
+        {sponsors.length < 30 ? <Button variant="outline" size="sm" onClick={() => setSponsors((items) => [...items, { name: "", logoUrl: "", websiteUrl: "", isPrimary: items.length === 0 }])}>Tambah sponsor</Button> : null}
+        <Button disabled={saving || busy !== null} onClick={() => void saveSponsors()}>{saving ? "Menyimpan…" : "Simpan sponsor"}</Button>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader><CardTitle>Panitia & grup privat</CardTitle><CardDescription>Anggota panitia saja yang dapat membaca dan mengirim pesan pada grup koordinasi.</CardDescription></CardHeader>
+      <CardContent className="space-y-3">
+        {canManageStaff ? <>
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari akun berdasarkan nama" aria-label="Cari akun panitia" />
+          <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" aria-label="Pilih akun panitia">
+            <option value="">Pilih akun</option>{candidates.filter((person) => !staff.some((member) => member.accountId === person.accountId)).map((person) => <option key={person.accountId} value={person.accountId}>{person.nickname}</option>)}
+          </select>
+          <div className="flex flex-wrap gap-2"><select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="min-w-48 rounded-md border border-input bg-background px-3 py-2 text-sm" aria-label="Peran panitia">{ESPORT_STAFF_ROLES.map((role) => <option key={role}>{role}</option>)}</select><Button disabled={!selectedAccount || busy !== null} onClick={() => void assign()}>Tugaskan</Button></div>
+        </> : <p className="text-sm text-muted-foreground">Hanya penyelenggara turnamen yang dapat mengubah daftar panitia.</p>}
+        {staff.length ? <div className="space-y-2">{staff.map((person) => <div key={person.accountId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"><div><p className="text-sm font-medium">{person.name}</p><p className="text-xs text-muted-foreground">{person.role}</p></div>{canManageStaff ? <Button size="sm" variant="outline" onClick={() => void remove(person.accountId)}>Hapus</Button> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">Belum ada panitia yang ditugaskan.</p>}
+        {groupId ? <Button asChild variant="outline"><Link to={`/pesan?grup=${encodeURIComponent(groupId)}`}>Buka grup chat panitia</Link></Button> : <p className="text-xs text-muted-foreground">Grup privat akan dibuat saat anggota panitia pertama ditugaskan.</p>}
+      </CardContent>
+    </Card>
+  </div>;
+}
+
 export default function EsportManagePage({ id }: { id: string }) {
   const { account } = useAuth();
   const [data, setData] = useState<EsportTournamentDetail | null>(null);
@@ -4139,6 +4262,9 @@ export default function EsportManagePage({ id }: { id: string }) {
           <TabsTrigger value="anggaran" className="gap-1.5">
             <Wallet className="size-4" aria-hidden /> Anggaran
           </TabsTrigger>
+          <TabsTrigger value="panitia" className="gap-1.5">
+            <Users className="size-4" aria-hidden /> Sponsor & Panitia
+          </TabsTrigger>
           <TabsTrigger value="pengaturan" className="gap-1.5">
             <ShieldCheck className="size-4" aria-hidden /> Pengaturan
           </TabsTrigger>
@@ -4167,6 +4293,9 @@ export default function EsportManagePage({ id }: { id: string }) {
         </TabsContent>
         <TabsContent value="anggaran" className="mt-4">
           <BudgetTab id={id} data={data} exec={exec} busy={busy} />
+        </TabsContent>
+        <TabsContent value="panitia" className="mt-4">
+          <SponsorsCommitteeTab id={id} busy={busy} />
         </TabsContent>
         <TabsContent value="pengaturan" className="mt-4">
           <SettingsTab id={id} data={data} exec={exec} busy={busy} canResetPrize={canResetPrize} />

@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { api, chatStorageApi } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 
 const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   pdf: "application/pdf",
@@ -123,6 +122,7 @@ export function usePresignedUpload() {
             magicBytes,
           });
           onProgress?.(35);
+          const { supabase } = await import("@/lib/supabase");
           const { error: uploadError } = await supabase.storage
             .from(signed.bucket)
             .uploadToSignedUrl(signed.key, signed.uploadToken, file, {

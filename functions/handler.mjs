@@ -1234,7 +1234,7 @@ async function learningJobsList(ctx) {
 }
 
 async function learningJobsApply(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const jobId = text(ctx.body.jobId, 60);
   const coverLetter = text(ctx.body.coverLetter, 3000);
@@ -1245,7 +1245,7 @@ async function learningJobsApply(ctx) {
     .eq("id", jobId)
     .eq("status", "active")
     .maybeSingle();
-  if (!job) return fail(404, "job_not_found");
+  if (!job || job.created_by === auth.account.id) return fail(404, "job_not_found");
   const { data: existing } = await ctx.supabase
     .from("job_applications")
     .select("*")
@@ -1253,7 +1253,7 @@ async function learningJobsApply(ctx) {
     .eq("account_id", auth.account.id)
     .maybeSingle();
   if (existing) return fail(409, "already_applied");
-  await ctx.supabase.from("job_applications").insert({
+  const { data: application, error } = await ctx.supabase.from("job_applications").insert({
     id: crypto.randomUUID(),
     job_id: jobId,
     account_id: auth.account.id,
@@ -1261,7 +1261,9 @@ async function learningJobsApply(ctx) {
     resume_url: textOrNull(ctx.body.resumeUrl, 500),
     status: "pending",
     created_at: now(),
-  });
+  }).select("id").single();
+  if (error || !application) return fail(error?.code === "23505" ? 409 : 500, error?.code === "23505" ? "already_applied" : "server_error");
+  if (job.created_by) await notify(ctx.supabase, job.created_by, "job_application", auth.account.id, `Lamaran baru untuk “${job.title}”`, "#/lowongan/lamaran");
   return ok({ applied: true });
 }
 
@@ -2367,6 +2369,11 @@ async function esportTournamentCreate(ctx) {
   if (title.length < 4) return fail(400, "invalid_input");
   const format = text(ctx.body.format, 20);
   if (!ESPORT_FORMATS.includes(format)) return fail(400, "invalid_input");
+  const competitionMode = ctx.body.competitionMode === undefined ? "online" : text(ctx.body.competitionMode, 20);
+  const venueName = textOrNull(ctx.body.venueName, 160);
+  const venueAddress = textOrNull(ctx.body.venueAddress, 500);
+  const venueMapsUrl = textOrNull(ctx.body.venueMapsUrl, 1000);
+  if (!['online', 'onsite'].includes(competitionMode) || (competitionMode === "onsite" && (!venueName || !venueAddress))) return fail(400, "invalid_input");
   const initialStatus = text(ctx.body.status, 20) || "registration";
   if (!["draft", "registration"].includes(initialStatus)) return fail(400, "invalid_input");
   const maxTeams = intOrNull(ctx.body.maxTeams, 2, 128) ?? 8;
@@ -2403,6 +2410,10 @@ async function esportTournamentCreate(ctx) {
     title,
     description: textOrNull(ctx.body.description, 2000),
     format,
+    competition_mode: competitionMode,
+    venue_name: competitionMode === "onsite" ? venueName : null,
+    venue_address: competitionMode === "onsite" ? venueAddress : null,
+    venue_maps_url: competitionMode === "onsite" ? venueMapsUrl : null,
     status: initialStatus,
     max_teams: maxTeams,
     roster_min: rosterMin,
@@ -2463,6 +2474,18 @@ async function esportTournamentUpdate(ctx) {
   if (access.error) return access.error;
   const { tournament } = access;
   const patch = { updated_at: now() };
+  if (ctx.body.competitionMode !== undefined) {
+    const v = text(ctx.body.competitionMode, 20);
+    if (!['online', 'onsite'].includes(v)) return fail(400, "invalid_input");
+    patch.competition_mode = v;
+  }
+  if (ctx.body.venueName !== undefined) patch.venue_name = textOrNull(ctx.body.venueName, 160);
+  if (ctx.body.venueAddress !== undefined) patch.venue_address = textOrNull(ctx.body.venueAddress, 500);
+  if (ctx.body.venueMapsUrl !== undefined) patch.venue_maps_url = textOrNull(ctx.body.venueMapsUrl, 1000);
+  const nextCompetitionMode = patch.competition_mode ?? tournament.competition_mode ?? "online";
+  const nextVenueName = patch.venue_name ?? tournament.venue_name;
+  const nextVenueAddress = patch.venue_address ?? tournament.venue_address;
+  if (nextCompetitionMode === "onsite" && (!nextVenueName || !nextVenueAddress)) return fail(400, "invalid_input");
   if (ctx.body.title !== undefined) {
     const v = text(ctx.body.title, 120);
     if (v.length < 4) return fail(400, "invalid_input");
@@ -2709,6 +2732,8 @@ async function esportTournamentGet(ctx) {
     .select("*")
     .eq("tournament_id", id)
     .order("created_at", { ascending: true });
+  const { data: sponsorRows } = await ctx.supabase.from("esport_sponsors").select("*")
+    .eq("tournament_id", id).order("is_primary", { ascending: false }).order("created_at", { ascending: true });
 
   let viewer = null;
   const authTry = await actor(ctx, 2);
@@ -2903,6 +2928,10 @@ async function esportTournamentGet(ctx) {
       approvalNote: canManage ? tournament.approval_note ?? null : null,
       approvalThreshold: ESPORT_PRIZE_APPROVAL_THRESHOLD,
       gameMode: tournament.game_mode ?? gameRow?.mode ?? null,
+      competitionMode: tournament.competition_mode ?? "online",
+      venueName: tournament.venue_name ?? null,
+      venueAddress: tournament.venue_address ?? null,
+      venueMapsUrl: tournament.venue_maps_url ?? null,
       minPlayers: tournament.min_players ?? 1,
       currency: tournament.currency ?? "IDR",
       prizeStatus: tournament.prize_status ?? "pending",
@@ -2987,6 +3016,7 @@ async function esportTournamentGet(ctx) {
       isActive: Boolean(s.is_active),
       createdAt: s.created_at,
     })),
+    sponsors: (sponsorRows ?? []).map((s) => ({ id: s.id, name: s.name, logoUrl: s.logo_url ?? null, websiteUrl: s.website_url ?? null, isPrimary: Boolean(s.is_primary) })),
     disputes,
     myRegistrations,
     permissions: {
@@ -5558,7 +5588,7 @@ const CALENDAR_TOURNAMENT_MILESTONES = [
 ];
 
 async function calendarAgenda(ctx) {
-  const auth = await actor(ctx, 2);
+  const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const accountId = auth.account.id;
   const nowMs = Date.now();
@@ -5814,6 +5844,24 @@ async function calendarAgenda(ctx) {
     });
   }
 
+  // ---- Wawancara online: jadwal terlihat oleh kedua pihak yang terlibat
+  const [candidateInterviews, employerInterviews] = await Promise.all([
+    ctx.supabase.from("job_interviews").select("*").eq("candidate_account_id", accountId).limit(200),
+    ctx.supabase.from("job_interviews").select("*").eq("employer_account_id", accountId).limit(200),
+  ]);
+  const interviewRows = new Map([...(candidateInterviews.data ?? []), ...(employerInterviews.data ?? [])].map((row) => [row.id, row]));
+  for (const row of interviewRows.values()) {
+    if (row.mode !== "online" || row.status !== "scheduled" || !row.scheduled_start) continue;
+    const { data: job } = await ctx.supabase.from("job_listings").select("title,company").eq("id", row.job_id).maybeSingle();
+    push({
+      id: `wawancara:${row.id}`, kind: "wawancara",
+      title: `Wawancara online — ${job?.title ?? "Lowongan"}`,
+      note: job?.company ?? null, noteKey: null, role: row.employer_account_id === accountId ? "pemberi kerja" : "kandidat",
+      location: null, startsAt: row.scheduled_start, endsAt: row.scheduled_end ?? null,
+      link: `/lowongan/wawancara/${row.id}`,
+    });
+  }
+
   const monthItems = items
     .filter((item) => {
       if (jakartaStamp(item.startsAt)?.month === month) return true;
@@ -5947,6 +5995,388 @@ async function calendarPersonalRemove(ctx) {
 }
 
 // ---------- routes ----------
+
+// ---------- workflows komunitas tambahan ----------
+const ESPORT_STAFF_ROLES = ["Ketua panitia", "Koordinator", "Wasit", "Admin pertandingan", "Operator streaming"];
+function referralCodeCandidate() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+}
+async function referralMine(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  let { data: row } = await ctx.supabase.from("referral_codes").select("code").eq("account_id", auth.account.id).maybeSingle();
+  if (!row) {
+    for (let attempt = 0; attempt < 3 && !row; attempt++) {
+      const code = referralCodeCandidate();
+      const { data: inserted, error } = await ctx.supabase.from("referral_codes")
+        .insert({ account_id: auth.account.id, code, created_at: now() }).select("code").maybeSingle();
+      if (!error) row = inserted;
+      else if (error.code === "23505") {
+        const existing = await ctx.supabase.from("referral_codes").select("code").eq("account_id", auth.account.id).maybeSingle();
+        row = existing.data ?? null;
+      }
+    }
+  }
+  if (!row?.code) return fail(500, "server_error");
+  const { data: attributed } = await ctx.supabase.from("referral_attributions")
+    .select("referred_account_id").eq("referrer_account_id", auth.account.id).limit(1000);
+  return ok({ code: row.code, shareUrl: `https://www.pantijanda.my.id/#/daftar?ref=${encodeURIComponent(row.code)}`, referralCount: (attributed ?? []).length });
+}
+function orderPublic(row, listing = null) {
+  return {
+    id: row.id, listingId: row.listing_id, listingTitle: listing?.title ?? "Produk",
+    buyerAccountId: row.buyer_account_id, sellerAccountId: row.seller_account_id,
+    quantity: row.quantity, buyerMessage: row.buyer_message ?? null, status: row.status,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  };
+}
+async function marketplaceOrdersCreate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const listingId = text(ctx.body.listingId, 60);
+  const quantity = ctx.body.quantity == null || ctx.body.quantity === "" ? 1 : intOrNull(ctx.body.quantity, 1, 99);
+  if (quantity == null) return fail(400, "invalid_input");
+  const buyerMessage = textOrNull(ctx.body.message, 1000);
+  if (!listingId) return fail(400, "invalid_input");
+  const { data: listing } = await ctx.supabase.from("marketplace_listings").select("*").eq("id", listingId).maybeSingle();
+  if (!listing || listing.status !== "active") return fail(404, "not_found");
+  const { data: sellerProfile } = await ctx.supabase.from("profiles").select("account_id").eq("id", listing.seller_profile_id).maybeSingle();
+  const sellerAccountId = sellerProfile?.account_id;
+  if (!sellerAccountId) return fail(404, "not_found");
+  if (sellerAccountId === auth.account.id) return fail(400, "cannot_order_own_product");
+  const row = {
+    id: crypto.randomUUID(), listing_id: listing.id, buyer_account_id: auth.account.id,
+    seller_account_id: sellerAccountId, quantity, buyer_message: buyerMessage,
+    status: "pending", created_at: now(), updated_at: now(),
+  };
+  const { data: created, error } = await ctx.supabase.from("marketplace_orders").insert(row).select("*").single();
+  if (error || !created) return fail(500, "server_error");
+  await notify(ctx.supabase, sellerAccountId, "marketplace_order", auth.account.id,
+    `Pesanan baru untuk “${listing.title}”`, `#/marketplace/orders?order=${created.id}`);
+  return ok({ order: orderPublic(created, listing), paymentRequired: false, stockChanged: false });
+}
+async function marketplaceOrdersList(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const [buyerRes, sellerRes] = await Promise.all([
+    ctx.supabase.from("marketplace_orders").select("*").eq("buyer_account_id", auth.account.id).order("created_at", { ascending: false }).limit(100),
+    ctx.supabase.from("marketplace_orders").select("*").eq("seller_account_id", auth.account.id).order("created_at", { ascending: false }).limit(100),
+  ]);
+  const map = new Map();
+  for (const row of [...(buyerRes.data ?? []), ...(sellerRes.data ?? [])]) map.set(row.id, row);
+  const rows = [...map.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const listingIds = [...new Set(rows.map((row) => row.listing_id))];
+  const { data: listings } = listingIds.length ? await ctx.supabase.from("marketplace_listings").select("id,title").in("id", listingIds) : { data: [] };
+  const listingById = new Map((listings ?? []).map((row) => [row.id, row]));
+  return ok({ items: rows.map((row) => ({ ...orderPublic(row, listingById.get(row.listing_id)), direction: row.buyer_account_id === auth.account.id ? "buyer" : "seller" })) });
+}
+async function marketplaceOrderUpdate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60);
+  const status = text(ctx.body.status, 20);
+  if (!id || !["confirmed", "fulfilled", "cancelled"].includes(status)) return fail(400, "invalid_input");
+  const { data: order } = await ctx.supabase.from("marketplace_orders").select("*").eq("id", id).maybeSingle();
+  if (!order || order.seller_account_id !== auth.account.id) return fail(404, "not_found");
+  const allowed = { pending: ["confirmed", "cancelled"], confirmed: ["fulfilled", "cancelled"], fulfilled: [], cancelled: [] };
+  if (!allowed[order.status]?.includes(status)) return fail(409, "invalid_transition");
+  const { data: updated, error } = await ctx.supabase.from("marketplace_orders").update({ status, updated_at: now() }).eq("id", id).select("*").single();
+  if (error || !updated) return fail(500, "server_error");
+  await notify(ctx.supabase, order.buyer_account_id, "marketplace_order_update", auth.account.id,
+    `Status pesanan berubah menjadi ${status}`, `#/marketplace/orders?order=${id}`);
+  return ok({ order: orderPublic(updated) });
+}
+function publicJob(row, extra = {}) {
+  return {
+    id: row.id, title: row.title, company: row.company, description: row.description ?? null,
+    jobType: row.job_type, salaryMin: row.salary_min ?? null, salaryMax: row.salary_max ?? null,
+    salaryCurrency: row.salary_currency ?? "IDR", remote: Boolean(row.remote), location: row.location ?? null,
+    requirements: row.requirements ?? null, skills: row.skills ?? [], status: row.status,
+    createdBy: row.created_by ?? null, createdAt: row.created_at, ...extra,
+  };
+}
+async function learningJobsCreate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const title = text(ctx.body.title, 160), company = text(ctx.body.company, 120);
+  const description = text(ctx.body.description, 5000);
+  if (title.length < 3 || company.length < 2 || description.length < 10) return fail(400, "invalid_input");
+  const salaryMin = ctx.body.salaryMin === "" || ctx.body.salaryMin == null ? null : intOrNull(ctx.body.salaryMin, 0, 2_000_000_000);
+  const salaryMax = ctx.body.salaryMax === "" || ctx.body.salaryMax == null ? null : intOrNull(ctx.body.salaryMax, 0, 2_000_000_000);
+  if ((ctx.body.salaryMin != null && ctx.body.salaryMin !== "" && salaryMin == null) || (ctx.body.salaryMax != null && ctx.body.salaryMax !== "" && salaryMax == null) || (salaryMin != null && salaryMax != null && salaryMax < salaryMin)) return fail(400, "invalid_input");
+  const jobType = JOB_TYPES.includes(ctx.body.jobType) ? ctx.body.jobType : "full_time";
+  const row = {
+    id: crypto.randomUUID(), title, company, description, job_type: jobType,
+    salary_min: salaryMin, salary_max: salaryMax, salary_currency: "IDR",
+    remote: ctx.body.remote === true, location: textOrNull(ctx.body.location, 200),
+    requirements: textOrNull(ctx.body.requirements, 3000), skills: words(ctx.body.skills, 30, 60),
+    contact_email: null, contact_url: null, status: "active", created_by: auth.account.id,
+    expires_at: null, created_at: now(), updated_at: now(),
+  };
+  const { error } = await ctx.supabase.from("job_listings").insert(row);
+  if (error) return fail(500, "server_error");
+  return ok({ job: publicJob(row) });
+}
+async function learningJobsMine(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const { data: rows } = await ctx.supabase.from("job_listings").select("*").eq("created_by", auth.account.id).order("created_at", { ascending: false }).limit(100);
+  return ok({ items: (rows ?? []).map((row) => publicJob(row)) });
+}
+async function learningJobsMyApplications(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const { data: rows, error } = await ctx.supabase.from("job_applications").select("id,job_id,status,cover_letter,created_at")
+    .eq("account_id", auth.account.id).order("created_at", { ascending: false }).limit(100);
+  if (error) return fail(500, "server_error");
+  const jobIds = [...new Set((rows ?? []).map((row) => row.job_id))];
+  const { data: jobs } = jobIds.length
+    ? await ctx.supabase.from("job_listings").select("id,title,company").in("id", jobIds)
+    : { data: [] };
+  const byId = new Map((jobs ?? []).map((job) => [job.id, job]));
+  return ok({ items: (rows ?? []).map((row) => ({
+    id: row.id, jobId: row.job_id, status: row.status, coverLetter: row.cover_letter ?? null,
+    createdAt: row.created_at, title: byId.get(row.job_id)?.title ?? "Lowongan",
+    company: byId.get(row.job_id)?.company ?? "Perusahaan",
+  })) });
+}
+async function learningJobsUpdate(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60);
+  const { data: existing } = await ctx.supabase.from("job_listings").select("*").eq("id", id).maybeSingle();
+  if (!existing || existing.created_by !== auth.account.id) return fail(404, "not_found");
+  const patch = { updated_at: now() };
+  if (ctx.body.title !== undefined) { const v = text(ctx.body.title, 160); if (v.length < 3) return fail(400, "invalid_input"); patch.title = v; }
+  if (ctx.body.company !== undefined) { const v = text(ctx.body.company, 120); if (v.length < 2) return fail(400, "invalid_input"); patch.company = v; }
+  if (ctx.body.description !== undefined) { const v = text(ctx.body.description, 5000); if (v.length < 10) return fail(400, "invalid_input"); patch.description = v; }
+  if (ctx.body.status !== undefined) { const v = text(ctx.body.status, 20); if (!["active", "closed"].includes(v)) return fail(400, "invalid_input"); patch.status = v; }
+  if (ctx.body.remote !== undefined) patch.remote = ctx.body.remote === true;
+  if (ctx.body.location !== undefined) patch.location = textOrNull(ctx.body.location, 200);
+  if (ctx.body.requirements !== undefined) patch.requirements = textOrNull(ctx.body.requirements, 3000);
+  if (ctx.body.jobType !== undefined && JOB_TYPES.includes(ctx.body.jobType)) patch.job_type = ctx.body.jobType;
+  const { data: updated, error } = await ctx.supabase.from("job_listings").update(patch).eq("id", id).select("*").single();
+  if (error || !updated) return fail(500, "server_error");
+  return ok({ job: publicJob(updated) });
+}
+async function learningJobsApplications(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const jobId = text(ctx.body.jobId, 60);
+  const { data: job } = await ctx.supabase.from("job_listings").select("id,title,created_by").eq("id", jobId).maybeSingle();
+  if (!job || job.created_by !== auth.account.id) return fail(404, "not_found");
+  const { data: rows } = await ctx.supabase.from("job_applications").select("*").eq("job_id", jobId).order("created_at", { ascending: false }).limit(200);
+  const names = await namesFor(ctx.supabase, (rows ?? []).map((row) => row.account_id));
+  return ok({ items: (rows ?? []).map((row) => ({ id: row.id, jobId: row.job_id, candidateAccountId: row.account_id,
+    candidateName: names.get(row.account_id)?.nickname ?? names.get(row.account_id)?.displayName ?? "Pelamar",
+    coverLetter: row.cover_letter ?? null, resumeUrl: row.resume_url ?? null, status: row.status, createdAt: row.created_at })) });
+}
+async function learningJobsApplicationStatus(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.applicationId, 60), status = text(ctx.body.status, 20);
+  if (!id || !["reviewing", "accepted", "rejected"].includes(status)) return fail(400, "invalid_input");
+  const { data: app } = await ctx.supabase.from("job_applications").select("*").eq("id", id).maybeSingle();
+  if (!app) return fail(404, "not_found");
+  const { data: job } = await ctx.supabase.from("job_listings").select("id,created_by,title").eq("id", app.job_id).maybeSingle();
+  if (!job || job.created_by !== auth.account.id) return fail(404, "not_found");
+  const { error } = await ctx.supabase.from("job_applications").update({ status, reviewed_at: now(), reviewed_by: auth.account.id }).eq("id", id);
+  if (error) return fail(500, "server_error");
+  await notify(ctx.supabase, app.account_id, "job_application_status", auth.account.id, `Lamaran untuk “${job.title}” diperbarui: ${status}`, "#/lowongan/lamaran");
+  return ok({ status });
+}
+function validTimeZone(zone) {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: zone }).format(0); return true; } catch { return false; }
+}
+async function jobInterviewSchedule(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const applicationId = text(ctx.body.applicationId, 60);
+  const { data: app } = await ctx.supabase.from("job_applications").select("*").eq("id", applicationId).maybeSingle();
+  if (!app) return fail(404, "not_found");
+  const { data: job } = await ctx.supabase.from("job_listings").select("id,title,created_by").eq("id", app.job_id).maybeSingle();
+  if (!job || !["pending", "reviewing", "accepted"].includes(app.status) || job.created_by !== auth.account.id || job.created_by === app.account_id) return fail(403, "forbidden");
+  const mode = ctx.body.mode === "onsite" ? "onsite" : ctx.body.mode === "online" ? "online" : null;
+  const start = text(ctx.body.scheduledStart, 40), end = text(ctx.body.scheduledEnd, 40);
+  const startMs = Date.parse(start), endMs = Date.parse(end);
+  const timezone = text(ctx.body.timezone, 80) || "Asia/Jakarta";
+  const location = textOrNull(ctx.body.location, 300);
+  if (!mode || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || startMs < Date.now() + 60_000 || !validTimeZone(timezone) || (mode === "onsite" && !location)) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase.from("job_interviews").select("id").eq("application_id", app.id).maybeSingle();
+  if (existing) return fail(409, "interview_already_scheduled");
+  const row = { id: crypto.randomUUID(), job_id: job.id, application_id: app.id, employer_account_id: auth.account.id,
+    candidate_account_id: app.account_id, mode, scheduled_start: new Date(startMs).toISOString(), scheduled_end: new Date(endMs).toISOString(),
+    timezone, location: mode === "onsite" ? location : null, note: textOrNull(ctx.body.note, 1000), status: "scheduled",
+    room_key: crypto.randomUUID(), created_at: now(), updated_at: now() };
+  const { error } = await ctx.supabase.from("job_interviews").insert(row);
+  if (error) return fail(500, "server_error");
+  await notify(ctx.supabase, app.account_id, "job_interview", auth.account.id, `Wawancara “${job.title}” dijadwalkan ${row.scheduled_start}`, `#/lowongan/wawancara/${row.id}`);
+  return ok({ interview: { id: row.id, jobId: job.id, applicationId: app.id, mode, scheduledStart: row.scheduled_start, scheduledEnd: row.scheduled_end, timezone, location: row.location, status: row.status } });
+}
+async function jobInterviewsList(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const [employer, candidate] = await Promise.all([
+    ctx.supabase.from("job_interviews").select("*").eq("employer_account_id", auth.account.id).order("scheduled_start", { ascending: true }).limit(100),
+    ctx.supabase.from("job_interviews").select("*").eq("candidate_account_id", auth.account.id).order("scheduled_start", { ascending: true }).limit(100),
+  ]);
+  const all = new Map(); for (const row of [...(employer.data ?? []), ...(candidate.data ?? [])]) all.set(row.id, row);
+  const rows = [...all.values()];
+  const [jobs, names] = await Promise.all([
+    rows.length ? ctx.supabase.from("job_listings").select("id,title,company").in("id", [...new Set(rows.map((r) => r.job_id))]) : { data: [] },
+    namesFor(ctx.supabase, rows.flatMap((r) => [r.employer_account_id, r.candidate_account_id])),
+  ]);
+  const jobById = new Map((jobs.data ?? []).map((r) => [r.id, r]));
+  return ok({ items: rows.sort((a, b) => String(a.scheduled_start).localeCompare(String(b.scheduled_start))).map((row) => ({
+    id: row.id, jobId: row.job_id, jobTitle: jobById.get(row.job_id)?.title ?? "Lowongan",
+    company: jobById.get(row.job_id)?.company ?? "", applicationId: row.application_id,
+    employerAccountId: row.employer_account_id, candidateAccountId: row.candidate_account_id,
+    otherParticipantName: names.get(row.employer_account_id === auth.account.id ? row.candidate_account_id : row.employer_account_id)?.nickname ?? "Peserta wawancara",
+    myRole: row.employer_account_id === auth.account.id ? "employer" : "candidate", mode: row.mode,
+    scheduledStart: row.scheduled_start, scheduledEnd: row.scheduled_end, timezone: row.timezone,
+    location: row.location ?? null, note: row.note ?? null, status: row.status,
+  })) });
+}
+async function jobInterviewGet(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60);
+  const { data: row } = await ctx.supabase.from("job_interviews").select("*").eq("id", id).maybeSingle();
+  if (!row || ![row.employer_account_id, row.candidate_account_id].includes(auth.account.id)) return fail(404, "not_found");
+  const { data: job } = await ctx.supabase.from("job_listings").select("id,title,company").eq("id", row.job_id).maybeSingle();
+  const other = row.employer_account_id === auth.account.id ? row.candidate_account_id : row.employer_account_id;
+  const name = (await namesFor(ctx.supabase, [other])).get(other);
+  return ok({ interview: { id: row.id, jobId: row.job_id, jobTitle: job?.title ?? "Lowongan", company: job?.company ?? "",
+    mode: row.mode, scheduledStart: row.scheduled_start, scheduledEnd: row.scheduled_end, timezone: row.timezone,
+    location: row.location ?? null, note: row.note ?? null, status: row.status, myRole: row.employer_account_id === auth.account.id ? "employer" : "candidate",
+    otherParticipantName: name?.nickname ?? name?.displayName ?? "Peserta wawancara", otherParticipantId: other,
+    canJoin: row.mode === "online" && row.status === "scheduled" && Date.now() <= Date.parse(row.scheduled_end) + 4 * 3600_000 && Date.now() >= Date.parse(row.scheduled_start) - 30 * 60_000,
+  } });
+}
+async function jobInterviewJoin(ctx) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60);
+  const { data: row } = await ctx.supabase.from("job_interviews").select("*").eq("id", id).maybeSingle();
+  if (!row || ![row.employer_account_id, row.candidate_account_id].includes(auth.account.id)) return fail(404, "not_found");
+  const canJoin = row.mode === "online" && row.status === "scheduled" && Date.now() <= Date.parse(row.scheduled_end) + 4 * 3600_000 && Date.now() >= Date.parse(row.scheduled_start) - 30 * 60_000;
+  if (!canJoin) return fail(403, "interview_room_closed");
+  return ok({ authorized: true, recipientAccountId: row.employer_account_id === auth.account.id ? row.candidate_account_id : row.employer_account_id, mode: "video" });
+}
+async function esportSponsorsList(ctx) {
+  const id = text(ctx.body.id, 60);
+  if (!id) return fail(400, "invalid_input");
+  const { data: rows } = await ctx.supabase.from("esport_sponsors").select("*").eq("tournament_id", id).order("is_primary", { ascending: false }).order("created_at", { ascending: true });
+  return ok({ items: (rows ?? []).map((row) => ({ id: row.id, name: row.name, logoUrl: row.logo_url ?? null, websiteUrl: row.website_url ?? null, isPrimary: Boolean(row.is_primary) })) });
+}
+async function esportSponsorsSave(ctx) {
+  const id = text(ctx.body.id, 60);
+  const access = await esportTournamentAccess(ctx, id);
+  if (access.error) return access.error;
+  const raw = Array.isArray(ctx.body.sponsors) ? ctx.body.sponsors : null;
+  if (!raw || raw.length > 30) return fail(400, "invalid_input");
+  const sponsors = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const name = text(item?.name, 120);
+    if (!name) continue;
+    if (name.length < 2 || seen.has(name.toLocaleLowerCase())) return fail(400, "invalid_input");
+    seen.add(name.toLocaleLowerCase());
+    const logoUrl = textOrNull(item.logoUrl, 1000), websiteUrl = textOrNull(item.websiteUrl, 1000);
+    if (logoUrl && !/^https:\/\//i.test(logoUrl) && !/^data:image\/(png|jpeg|webp);base64,/i.test(logoUrl)) return fail(400, "invalid_input");
+    if (websiteUrl && !/^https:\/\//i.test(websiteUrl)) return fail(400, "invalid_input");
+    sponsors.push({ id: crypto.randomUUID(), tournament_id: id, name, logo_url: logoUrl, website_url: websiteUrl, is_primary: item.isPrimary === true, created_by: access.tournament.creator_id, created_at: now(), updated_at: now() });
+  }
+  if (sponsors.filter((row) => row.is_primary).length > 1) return fail(400, "invalid_input");
+  const { data: previous } = await ctx.supabase.from("esport_sponsors").select("*").eq("tournament_id", id);
+  const byName = new Map((previous ?? []).map((row) => [row.name.toLocaleLowerCase(), row]));
+  const saved = [];
+  for (const row of sponsors) {
+    const existing = byName.get(row.name.toLocaleLowerCase());
+    const values = { name: row.name, logo_url: row.logo_url, website_url: row.website_url, is_primary: false, updated_at: now() };
+    if (existing) {
+      const { data: updated, error } = await ctx.supabase.from("esport_sponsors").update(values).eq("id", existing.id).eq("tournament_id", id).select("*").single();
+      if (error || !updated) return fail(500, "server_error");
+      saved.push(updated);
+    } else {
+      const { data: inserted, error } = await ctx.supabase.from("esport_sponsors").insert({ ...row, is_primary: false }).select("*").single();
+      if (error || !inserted) return fail(500, "server_error");
+      saved.push(inserted);
+    }
+  }
+  const previousPrimary = (previous ?? []).find((row) => row.is_primary);
+  const requestedPrimary = sponsors.find((row) => row.is_primary);
+  const { error: clearPrimaryError } = await ctx.supabase.from("esport_sponsors").update({ is_primary: false, updated_at: now() }).eq("tournament_id", id).eq("is_primary", true);
+  if (clearPrimaryError) return fail(500, "server_error");
+  if (requestedPrimary) {
+    const primary = saved.find((row) => row.name.toLocaleLowerCase() === requestedPrimary.name.toLocaleLowerCase());
+    const { error } = await ctx.supabase.from("esport_sponsors").update({ is_primary: true, updated_at: now() }).eq("id", primary.id).eq("tournament_id", id);
+    if (error) {
+      if (previousPrimary) await ctx.supabase.from("esport_sponsors").update({ is_primary: true }).eq("id", previousPrimary.id);
+      return fail(500, "server_error");
+    }
+  }
+  const keepIds = saved.map((row) => row.id);
+  const stale = (previous ?? []).filter((row) => !keepIds.includes(row.id));
+  for (const row of stale) {
+    const { error } = await ctx.supabase.from("esport_sponsors").delete().eq("id", row.id).eq("tournament_id", id);
+    if (error) return fail(500, "server_error");
+  }
+  const final = saved.map((row) => ({ ...row, is_primary: requestedPrimary ? row.name.toLocaleLowerCase() === requestedPrimary.name.toLocaleLowerCase() : false }));
+  return ok({ sponsors: final.map((row) => ({ id: row.id, name: row.name, logoUrl: row.logo_url, websiteUrl: row.website_url, isPrimary: row.is_primary })) });
+}
+async function esportCommitteeList(ctx) {
+  const id = text(ctx.body.id, 60);
+  const auth = await actor(ctx, 1);
+  if (auth.error) return auth.error;
+  const { data: tournament } = await ctx.supabase.from("esport_tournaments").select("id,creator_id").eq("id", id).maybeSingle();
+  if (!tournament) return fail(404, "not_found");
+  const { data: mine } = await ctx.supabase.from("esport_tournament_staff").select("account_id,role").eq("tournament_id", id);
+  const isManager = tournament.creator_id === auth.account.id || auth.rank >= 6;
+  if (!isManager && !(mine ?? []).some((row) => row.account_id === auth.account.id)) return fail(403, "forbidden");
+  const names = await namesFor(ctx.supabase, (mine ?? []).map((row) => row.account_id));
+  const { data: group } = await ctx.supabase.from("groups").select("id").eq("tournament_id", id).maybeSingle();
+  return ok({ items: (mine ?? []).map((row) => ({ accountId: row.account_id, name: names.get(row.account_id)?.nickname ?? names.get(row.account_id)?.displayName ?? "Panitia", role: row.role })), groupId: group?.id ?? null, canManage: isManager });
+}
+async function esportCommitteeAssign(ctx) {
+  const id = text(ctx.body.id, 60);
+  const access = await esportTournamentAccess(ctx, id);
+  if (access.error) return access.error;
+  const accountId = text(ctx.body.accountId, 60), role = text(ctx.body.role, 40);
+  if (!accountId || !ESPORT_STAFF_ROLES.includes(role)) return fail(400, "invalid_input");
+  const { data: target } = await ctx.supabase.from("accounts").select("id,status").eq("id", accountId).maybeSingle();
+  if (!target || target.status !== "active") return fail(404, "not_found");
+  const row = { id: crypto.randomUUID(), tournament_id: id, account_id: accountId, role, assigned_by: access.auth.account.id, created_at: now() };
+  const { error } = await ctx.supabase.from("esport_tournament_staff").upsert(row, { onConflict: "tournament_id,account_id" });
+  if (error) return fail(500, "server_error");
+  let { data: group } = await ctx.supabase.from("groups").select("*").eq("tournament_id", id).maybeSingle();
+  if (!group) {
+    group = { id: crypto.randomUUID(), name: `Panitia — ${access.tournament.title}`, description: "Grup privat panitia kompetisi E-Sport.", audience_min_role: "public", capacity: 0,
+      created_by: access.tournament.creator_id, is_private: true, system_key: "esport_committee", tournament_id: id, created_at: now() };
+    const { error: groupError } = await ctx.supabase.from("groups").insert(group);
+    if (groupError) return fail(500, "server_error");
+  }
+  const { data: member } = await ctx.supabase.from("group_members").select("id").eq("group_id", group.id).eq("account_id", accountId).maybeSingle();
+  for (const memberId of new Set([access.tournament.creator_id, accountId])) {
+    const { data: existingMember } = await ctx.supabase.from("group_members").select("id").eq("group_id", group.id).eq("account_id", memberId).maybeSingle();
+    if (!existingMember) {
+      const { error: memberError } = await ctx.supabase.from("group_members").insert({ id: crypto.randomUUID(), group_id: group.id, account_id: memberId, created_at: now() });
+      if (memberError) return fail(500, "server_error");
+    }
+  }
+  await notify(ctx.supabase, accountId, "esport_committee", access.auth.account.id, `Anda ditugaskan sebagai ${role} pada kompetisi “${access.tournament.title}”`, `#/kompetisi-esport/kelola/${id}`);
+  return ok({ assigned: true, groupId: group.id });
+}
+async function esportCommitteeRemove(ctx) {
+  const id = text(ctx.body.id, 60), accountId = text(ctx.body.accountId, 60);
+  const access = await esportTournamentAccess(ctx, id);
+  if (access.error) return access.error;
+  if (!accountId || accountId === access.tournament.creator_id) return fail(400, "invalid_input");
+  await ctx.supabase.from("esport_tournament_staff").delete().eq("tournament_id", id).eq("account_id", accountId);
+  const { data: group } = await ctx.supabase.from("groups").select("id").eq("tournament_id", id).maybeSingle();
+  if (group) await ctx.supabase.from("group_members").delete().eq("group_id", group.id).eq("account_id", accountId);
+  return ok({ removed: true });
+}
 
 const ROUTES = {
   "auth.register": register,
@@ -6090,6 +6520,12 @@ const ROUTES = {
   "esport.transfer.disputes.resolve": esportTransferDisputesResolve,
   "esport.transfer.roster.list": esportRosterHistoryList,
 
+  "esport.sponsors.list": esportSponsorsList,
+  "esport.sponsors.save": esportSponsorsSave,
+  "esport.committee.list": esportCommitteeList,
+  "esport.committee.assign": esportCommitteeAssign,
+  "esport.committee.remove": esportCommitteeRemove,
+
   "groups.list": groupsList,
   "groups.get": groupsGet,
   "groups.create": groupsCreate,
@@ -6107,6 +6543,11 @@ const ROUTES = {
   "chat.send": chatSend,
   "chat.message.delete": chatMessageDelete,
   "chat.clear": chatClear,
+  "referral.mine": referralMine,
+  "job.interviews.list": jobInterviewsList,
+  "job.interviews.schedule": jobInterviewSchedule,
+  "job.interviews.get": jobInterviewGet,
+  "job.interviews.join": jobInterviewJoin,
   "friends.list": friendsList,
   "friends.search": friendsSearch,
   "friends.request": friendsRequest,
@@ -6167,6 +6608,9 @@ const ROUTES = {
   "businesses.mine": businessesMine,
   "businesses.update": businessesUpdate,
 
+  "marketplace.orders.create": marketplaceOrdersCreate,
+  "marketplace.orders.list": marketplaceOrdersList,
+  "marketplace.orders.update": marketplaceOrderUpdate,
   "marketplace.list": marketplaceList,
   "marketplace.get": marketplaceGet,
   "marketplace.create": marketplaceCreate,
@@ -6254,6 +6698,12 @@ const ROUTES = {
   "learning.counseling.book": learningCounselingBook,
   "learning.financial.list": learningFinancialList,
   "learning.legal.list": learningLegalList,
+  "learning.jobs.create": learningJobsCreate,
+  "learning.jobs.mine": learningJobsMine,
+  "learning.jobs.myApplications": learningJobsMyApplications,
+  "learning.jobs.update": learningJobsUpdate,
+  "learning.jobs.applications": learningJobsApplications,
+  "learning.jobs.applicationStatus": learningJobsApplicationStatus,
   "learning.jobs.list": learningJobsList,
   "learning.jobs.apply": learningJobsApply,
   "learning.incubation.list": learningIncubationList,
@@ -6274,6 +6724,14 @@ async function register(ctx) {
   const password = typeof body.password === "string" ? body.password : "";
   if (!mail) return fail(400, "invalid_email");
   if (password.length < 8 || password.length > 200) return fail(400, "weak_password");
+  const referralCode = text(ctx.body.referralCode, 16).toUpperCase();
+  let referralOwner = null;
+  if (referralCode) {
+    if (!/^[A-Z0-9]{8,16}$/.test(referralCode)) return fail(400, "invalid_referral_code");
+    const { data: referral } = await supabase.from("referral_codes").select("account_id").eq("code", referralCode).maybeSingle();
+    if (!referral) return fail(400, "invalid_referral_code");
+    referralOwner = referral.account_id;
+  }
 
   const { data: existing } = await supabase
     .from("accounts")
@@ -6361,6 +6819,20 @@ async function register(ctx) {
     };
     const { error: pError } = await supabase.from("profiles").insert(createdProfile);
     if (pError) return fail(500, "server_error");
+  }
+
+  if (referralOwner) {
+    if (referralOwner === account.id) {
+      await supabase.from("accounts").delete().eq("id", account.id);
+      return fail(400, "invalid_referral_code");
+    }
+    const { error: attributionError } = await supabase.from("referral_attributions").insert({
+      referred_account_id: account.id, referrer_account_id: referralOwner, referral_code: referralCode, created_at: now(),
+    });
+    if (attributionError) {
+      await supabase.from("accounts").delete().eq("id", account.id);
+      return fail(500, "server_error");
+    }
   }
 
   const session = await createSession(supabase, account.id);
@@ -11456,7 +11928,7 @@ async function groupsList(ctx) {
     .order("created_at", { ascending: false })
     .limit(60);
   const rows = (data ?? []).filter(
-    (row) => (ROLE_RANK[row.audience_min_role] ?? 1) <= auth.rank,
+    (row) => !row.is_private && (ROLE_RANK[row.audience_min_role] ?? 1) <= auth.rank,
   );
   const ids = rows.map((r) => r.id);
   const memberCounts = new Map();
@@ -11487,6 +11959,7 @@ async function groupsGet(ctx) {
   const { data: row } = await ctx.supabase.from("groups").select("*").eq("id", id).maybeSingle();
   if (!row) return fail(404, "not_found");
   if ((ROLE_RANK[row.audience_min_role] ?? 1) > auth.rank) return fail(403, "forbidden");
+  if (row.is_private && !(await isEnrolled(ctx.supabase, "group_members", "group_id", id, auth.account.id))) return fail(404, "not_found");
   const { data: members } = await ctx.supabase
     .from("group_members")
     .select("account_id")
@@ -11577,6 +12050,7 @@ async function groupsCreate(ctx) {
 async function groupsAddMembers(ctx) {
   const guard = await groupChatGuard(ctx);
   if (guard.error) return guard.error;
+  if (guard.group.is_private) return fail(403, "forbidden");
   const rawMembers = Array.isArray(ctx.body.memberAccountIds)
     ? ctx.body.memberAccountIds
     : Array.isArray(ctx.body.members)
@@ -11611,7 +12085,7 @@ async function groupsJoin(ctx) {
   const id = text(ctx.body.id, 60);
   const { data: row } = await ctx.supabase.from("groups").select("*").eq("id", id).maybeSingle();
   if (!row) return fail(404, "not_found");
-  if ((ROLE_RANK[row.audience_min_role] ?? 1) > auth.rank) return fail(403, "forbidden");
+  if (row.is_private || (ROLE_RANK[row.audience_min_role] ?? 1) > auth.rank) return fail(403, "forbidden");
   const existing = await isEnrolled(ctx.supabase, "group_members", "group_id", id, auth.account.id);
   if (existing) return ok({ joined: true });
   if (row.capacity) {
@@ -11632,6 +12106,8 @@ async function groupsLeave(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60);
+  const { data: group } = await ctx.supabase.from("groups").select("is_private").eq("id", id).maybeSingle();
+  if (group?.is_private) return fail(403, "forbidden");
   const existing = await isEnrolled(ctx.supabase, "group_members", "group_id", id, auth.account.id);
   if (existing) await ctx.supabase.from("group_members").delete().eq("id", existing);
   return ok({ joined: false });
@@ -11667,10 +12143,11 @@ async function groupsMessages(ctx) {
     .eq("group_id", guard.group.id)
     .order("created_at", { ascending: true })
     .limit(300);
+  if (ctx.body.active === true) await markMessageReceiptsRead(ctx.supabase, rows ?? [], guard.auth.account.id);
   const names = await namesFor(ctx.supabase, (rows ?? []).map((r) => r.sender_account_id));
   return ok({
     group: groupPublic(guard.group),
-    items: (rows ?? []).map((r) => messagePublic(r, names)),
+    items: await messagesWithReceiptStatus(ctx.supabase, rows ?? [], names, guard.auth.account.id),
   });
 }
 
@@ -11679,6 +12156,9 @@ async function groupsSend(ctx) {
   if (guard.error) return guard.error;
   const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
   if (!body) return fail(400, "invalid_input");
+  const { data: members, error: membersError } = await ctx.supabase.from("group_members").select("account_id").eq("group_id", guard.group.id);
+  if (membersError) return fail(500, "server_error");
+  const recipients = (members ?? []).filter((member) => member.account_id !== guard.auth.account.id);
   const row = {
     id: crypto.randomUUID(),
     thread_kind: "group",
@@ -11690,6 +12170,15 @@ async function groupsSend(ctx) {
   };
   const { error } = await ctx.supabase.from("messages").insert(row);
   if (error) return fail(500, "server_error");
+  if (recipients.length) {
+    const { error: receiptError } = await ctx.supabase.from("message_receipts").insert(recipients.map((member) => ({
+      message_id: row.id, recipient_account_id: member.account_id, read_at: null, created_at: row.created_at,
+    })));
+    if (receiptError) {
+      await ctx.supabase.from("messages").delete().eq("id", row.id);
+      return fail(500, "server_error");
+    }
+  }
   const names = await namesFor(ctx.supabase, [guard.auth.account.id]);
   return ok({ message: messagePublic(row, names) });
 }
@@ -11771,9 +12260,50 @@ async function followsMine(ctx) {
   });
 }
 
+// ---------- tanda baca pesan ----------
+async function markMessageReceiptsRead(supabase, rows, accountId) {
+  const received = (rows ?? []).filter((row) => row.sender_account_id !== accountId);
+  if (!received.length) return;
+  const ids = received.map((row) => row.id);
+  const { data: receipts } = await supabase.from("message_receipts").select("message_id,read_at")
+    .in("message_id", ids).eq("recipient_account_id", accountId);
+  const existing = new Set((receipts ?? []).map((row) => row.message_id));
+  const missingDirect = received.filter((row) => row.thread_kind === "dm" && row.recipient_account_id === accountId && !existing.has(row.id));
+  if (missingDirect.length) {
+    await supabase.from("message_receipts").insert(missingDirect.map((row) => ({
+      message_id: row.id, recipient_account_id: accountId, read_at: now(), created_at: row.created_at,
+    })));
+  }
+  for (const receipt of receipts ?? []) {
+    if (receipt.read_at == null) {
+      await supabase.from("message_receipts").update({ read_at: now() })
+        .eq("message_id", receipt.message_id).eq("recipient_account_id", accountId).is("read_at", null);
+    }
+  }
+}
+async function messagesWithReceiptStatus(supabase, rows, names, senderAccountId) {
+  const mine = (rows ?? []).filter((row) => row.sender_account_id === senderAccountId);
+  const ids = mine.map((row) => row.id);
+  const { data: receipts } = ids.length
+    ? await supabase.from("message_receipts").select("message_id,read_at").in("message_id", ids)
+    : { data: [] };
+  const byMessage = new Map();
+  for (const receipt of receipts ?? []) {
+    const list = byMessage.get(receipt.message_id) ?? [];
+    list.push(receipt);
+    byMessage.set(receipt.message_id, list);
+  }
+  return (rows ?? []).map((row) => {
+    if (row.sender_account_id !== senderAccountId) return messagePublic(row, names);
+    const recipients = byMessage.get(row.id) ?? [];
+    const readStatus = recipients.length > 0 && recipients.every((receipt) => Boolean(receipt.read_at)) ? "read" : "sent";
+    return messagePublic(row, names, readStatus);
+  });
+}
+
 // ---------- direct chat ----------
 
-const messagePublic = (row, names) => {
+const messagePublic = (row, names, readStatus = null) => {
   const info = names?.get(row.sender_account_id);
   return {
     id: row.id,
@@ -11785,6 +12315,7 @@ const messagePublic = (row, names) => {
     groupId: row.group_id ?? null,
     body: row.body,
     createdAt: row.created_at,
+    ...(readStatus ? { readStatus } : {}),
   };
 };
 
@@ -12199,6 +12730,7 @@ async function chatThread(ctx) {
     .eq("id", withId)
     .maybeSingle();
   if (!target || target.status !== "active" || target.id === auth.account.id) return fail(404, "not_found");
+  const friendshipStatus = await getFriendshipStatus(ctx.supabase, auth.account.id, withId);
   const { data: profileRow } = await ctx.supabase
     .from("profiles")
     .select("id,nickname,tier,photo_data")
@@ -12223,6 +12755,7 @@ async function chatThread(ctx) {
   const merged = [...(sent ?? []), ...(received ?? [])].sort((a, b) =>
     String(a.created_at).localeCompare(String(b.created_at)),
   );
+  if (ctx.body.active === true) await markMessageReceiptsRead(ctx.supabase, received ?? [], auth.account.id);
   const names = await namesFor(ctx.supabase, [auth.account.id, withId]);
   return ok({
     contact: {
@@ -12232,7 +12765,8 @@ async function chatThread(ctx) {
       tier: profileRow?.tier ?? null,
       photoData: profileRow?.photo_data ?? null,
     },
-    items: merged.map((m) => messagePublic(m, names)),
+    items: await messagesWithReceiptStatus(ctx.supabase, merged, names, auth.account.id),
+    friendshipStatus,
   });
 }
 
@@ -12262,6 +12796,13 @@ async function chatSend(ctx) {
   };
   const { error } = await ctx.supabase.from("messages").insert(row);
   if (error) return fail(500, "server_error");
+  const { error: receiptError } = await ctx.supabase.from("message_receipts").insert({
+    message_id: row.id, recipient_account_id: withId, read_at: null, created_at: row.created_at,
+  });
+  if (receiptError) {
+    await ctx.supabase.from("messages").delete().eq("id", row.id);
+    return fail(500, "server_error");
+  }
   await notify(ctx.supabase, withId, "message", auth.account.id, "Mengirimkan pesan", `#/pesan?with=${auth.account.id}`);
   const names = await namesFor(ctx.supabase, [auth.account.id]);
   return ok({ message: messagePublic(row, names) });
@@ -12343,10 +12884,26 @@ async function callStart(ctx) {
   const auth = await actor(ctx, 1);
   if (auth.error) return auth.error;
   const recipientAccountId = text(ctx.body.recipientAccountId, 60);
+  const interviewId = text(ctx.body.interviewId, 60);
   const offer = ctx.body.offer;
   const mode = ctx.body.mode === "video" ? "video" : "audio";
   if (!recipientAccountId || !offer) return fail(400, "invalid_input");
   if (recipientAccountId === auth.account.id) return fail(400, "cannot_message_self");
+  let interview = null;
+  if (interviewId) {
+    if (mode !== "video") return fail(400, "invalid_input");
+    const { data, error } = await ctx.supabase.from("job_interviews").select("*").eq("id", interviewId).maybeSingle();
+    if (error) return fail(500, "server_error");
+    interview = data;
+    const participantsMatch = interview &&
+      [interview.employer_account_id, interview.candidate_account_id].includes(auth.account.id) &&
+      [interview.employer_account_id, interview.candidate_account_id].includes(recipientAccountId) &&
+      interview.employer_account_id !== interview.candidate_account_id && auth.account.id !== recipientAccountId;
+    const startMs = Date.parse(interview?.scheduled_start ?? "");
+    const endMs = Date.parse(interview?.scheduled_end ?? "");
+    const inWindow = Number.isFinite(startMs) && Number.isFinite(endMs) && Date.now() >= startMs - 30 * 60_000 && Date.now() <= endMs + 4 * 3600_000;
+    if (!participantsMatch || interview.mode !== "online" || interview.status !== "scheduled" || !inWindow) return fail(403, "interview_room_closed");
+  }
   const { data, error } = await ctx.supabase
     .from("accounts")
     .select("id,status")
@@ -12365,6 +12922,14 @@ async function callStart(ctx) {
   if (result.error) return result.error;
   const call = result.data?.call;
   if (!call?.id) return fail(500, "server_error");
+  if (interview) {
+    const { error: linkError } = await ctx.supabase.from("call_signals").update({ interview_id: interview.id }).eq("id", call.id)
+      .eq("caller_account_id", auth.account.id).eq("recipient_account_id", recipientAccountId);
+    if (linkError) {
+      await callSignalRpc(ctx, "call_signal_end", { p_call_id: call.id, p_reason: "ended", p_duration: 0 });
+      return fail(500, "server_error");
+    }
+  }
   const callTypeLabel = mode === "video" ? "Panggilan video" : "Panggilan suara";
   await notify(
     ctx.supabase,
@@ -12372,7 +12937,7 @@ async function callStart(ctx) {
     "call",
     auth.account.id,
     callTypeLabel + " dari " + (callerInfo?.nickname ?? "Pengguna"),
-    "#/pesan?with=" + auth.account.id
+    interview ? `#/lowongan/wawancara/${interview.id}` : "#/pesan?with=" + auth.account.id
   );
   return ok({
     call: {
@@ -12392,7 +12957,17 @@ async function callPoll(ctx) {
     return fail(400, "invalid_input");
   }
   const result = await callSignalRpc(ctx, "call_signal_poll", { p_call_id: callId || null });
-  return result.error ? result.error : ok(result.data);
+  if (result.error) return result.error;
+  const payload = result.data ?? {};
+  const attachInterview = async (item, id) => {
+    if (!item || !id) return item;
+    const { data } = await ctx.supabase.from("call_signals").select("interview_id,caller_account_id,recipient_account_id").eq("id", id).maybeSingle();
+    if (!data || ![data.caller_account_id, data.recipient_account_id].includes(auth.account.id)) return item;
+    return data.interview_id ? { ...item, interviewId: data.interview_id } : item;
+  };
+  if (payload.call?.id) payload.call = await attachInterview(payload.call, payload.call.id);
+  if (payload.incomingCall?.callId) payload.incomingCall = await attachInterview(payload.incomingCall, payload.incomingCall.callId);
+  return ok(payload);
 }
 async function callAnswer(ctx) {
   const auth = await actor(ctx, 1);
@@ -15030,11 +15605,16 @@ async function mediaLike(ctx) {
   if (auth.error) return auth.error;
   const postId = text(ctx.body.postId, 60);
   if (!postId) return fail(400, "invalid_input");
+  const { data: post } = await ctx.supabase.from("media_posts").select("id,account_id").eq("id", postId).maybeSingle();
+  if (!post) return fail(404, "not_found");
   const { data: existing } = await ctx.supabase.from("media_post_likes").select("id").eq("post_id", postId).eq("account_id", auth.account.id).maybeSingle();
   if (existing) await ctx.supabase.from("media_post_likes").delete().eq("id", existing.id);
   else {
     const { error } = await ctx.supabase.from("media_post_likes").insert({ id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, created_at: now() });
-    if (error) return fail(404, "not_found");
+    if (error) return fail(error.code === "23505" ? 409 : 404, error.code === "23505" ? "already_liked" : "not_found");
+    if (post.account_id !== auth.account.id) {
+      await notify(ctx.supabase, post.account_id, "media_like", auth.account.id, "Postingan Anda mendapat like baru", `#/feed?post=${postId}`);
+    }
   }
   const { data: rows, error } = await ctx.supabase.from("media_post_likes").select("account_id").eq("post_id", postId);
   if (error) return fail(500, "server_error");
@@ -15047,8 +15627,13 @@ async function mediaComment(ctx) {
   const postId = text(ctx.body.postId, 60);
   const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
   if (!postId || !body) return fail(400, "invalid_input");
+  const { data: post } = await ctx.supabase.from("media_posts").select("id,account_id").eq("id", postId).maybeSingle();
+  if (!post) return fail(404, "not_found");
   const { data: comment, error } = await ctx.supabase.from("media_post_comments").insert({ id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, body, created_at: now() }).select("*").single();
   if (error || !comment) return fail(404, "not_found");
+  if (post.account_id !== auth.account.id) {
+    await notify(ctx.supabase, post.account_id, "media_comment", auth.account.id, "Postingan Anda mendapat komentar baru", `#/feed?post=${postId}`);
+  }
   const names = await namesFor(ctx.supabase, [auth.account.id]);
   const author = names.get(auth.account.id);
   return ok({ comment: { id: comment.id, postId: comment.post_id, accountId: comment.account_id,
