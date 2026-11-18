@@ -6134,6 +6134,11 @@ const ROUTES = {
   "admin.profiles.review": adminReviewProfile,
   "admin.reports.list": adminReportsList,
   "admin.reports.resolve": adminResolveReport,
+  "admin.vendors.list": adminVendorsList,
+  "admin.vendors.update": adminVendorUpdate,
+  "admin.partners.list": adminPartnersList,
+  "admin.partners.create": adminPartnerCreate,
+  "admin.partners.update": adminPartnerUpdate,
   "admin.events.list": adminEventsList,
   "admin.events.approvals": adminEventApprovals,
   "admin.events.decide": adminEventDecide,
@@ -12815,6 +12820,69 @@ async function adminResolveReport(ctx) {
   }
   await ctx.supabase.from("reports").update({ status: "resolved", resolved_at: now() }).eq("id", id);
   return ok({ resolved: true, resolution });
+}
+
+const VENDOR_ADMIN_STATUSES = ["pending", "active", "suspended", "rejected", "archived"];
+const PARTNER_ADMIN_STATUSES = ["prospect", "review", "active", "suspended", "completed"];
+
+function adminVendorItem(row, account, documentCount = 0) {
+  return { id: row.id, accountId: row.account_id, accountName: account?.display_name ?? null, accountEmail: account?.email ?? null, businessName: row.business_name, vendorType: row.vendor_type, description: row.description ?? null, status: row.status, commissionPercent: Number(row.commission_percent ?? 0), payoutSchedule: row.payout_schedule, documentCount, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+function adminPartnerItem(row, owner) {
+  return { id: row.id, organizationName: row.organization_name, partnerType: row.partner_type, description: row.description ?? null, contactName: row.contact_name ?? null, contactEmail: row.contact_email ?? null, contactPhone: row.contact_phone ?? null, website: row.website ?? null, status: row.status, startDate: row.start_date ?? null, endDate: row.end_date ?? null, internalOwnerAccountId: row.internal_owner_account_id ?? null, internalOwnerName: owner?.display_name ?? null, publicVisibility: Boolean(row.public_visibility), createdAt: row.created_at, updatedAt: row.updated_at };
+}
+async function adminPartnerAudit(ctx, entityType, entityId, action, details = {}) {
+  await ctx.supabase.from("admin_partner_audit_logs").insert({ entity_type: entityType, entity_id: entityId, action, details, actor_account_id: ctx._actor?.account?.id ?? null, created_at: now() });
+}
+async function adminVendorsList(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const { data: rows, error } = await ctx.supabase.from("vendor_profiles").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error) return fail(500, "server_error");
+  const accountIds = [...new Set((rows ?? []).map((row) => row.account_id))];
+  const { data: accounts } = accountIds.length ? await ctx.supabase.from("accounts").select("id,email,display_name").in("id", accountIds) : { data: [] };
+  const { data: docs } = (rows ?? []).length ? await ctx.supabase.from("vendor_documents").select("vendor_id") : { data: [] };
+  const accountMap = new Map((accounts ?? []).map((item) => [item.id, item])); const docCounts = new Map();
+  for (const doc of docs ?? []) docCounts.set(doc.vendor_id, (docCounts.get(doc.vendor_id) ?? 0) + 1);
+  return ok({ items: (rows ?? []).map((row) => adminVendorItem(row, accountMap.get(row.account_id), docCounts.get(row.id) ?? 0)) });
+}
+async function adminVendorUpdate(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60); if (!id) return fail(400, "invalid_input");
+  const { data: existing } = await ctx.supabase.from("vendor_profiles").select("*").eq("id", id).maybeSingle(); if (!existing) return fail(404, "not_found");
+  const patch = { updated_at: now(), reviewed_by: auth.account.id, reviewed_at: now() };
+  if (ctx.body.status !== undefined) { const status = text(ctx.body.status, 20); if (!VENDOR_ADMIN_STATUSES.includes(status)) return fail(400, "invalid_status"); patch.status = status; }
+  if (ctx.body.businessName !== undefined) { const businessName = text(ctx.body.businessName, 160); if (businessName.length < 2) return fail(400, "invalid_business_name"); patch.business_name = businessName; }
+  if (ctx.body.commissionPercent !== undefined) { const commission = Number(ctx.body.commissionPercent); if (!Number.isFinite(commission) || commission < 0 || commission > 100) return fail(400, "invalid_commission"); patch.commission_percent = Math.round(commission * 100) / 100; }
+  if (ctx.body.payoutSchedule !== undefined) patch.payout_schedule = text(ctx.body.payoutSchedule, 30) || "monthly";
+  if (ctx.body.internalNotes !== undefined) patch.internal_notes = textOrNull(ctx.body.internalNotes, 4000);
+  const { error } = await ctx.supabase.from("vendor_profiles").update(patch).eq("id", id); if (error) return fail(500, "server_error");
+  await adminPartnerAudit(ctx, "vendor", id, "update", { fromStatus: existing.status, toStatus: patch.status ?? existing.status }); return ok({ updated: true });
+}
+async function adminPartnersList(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const { data: rows, error } = await ctx.supabase.from("external_partners").select("*").order("created_at", { ascending: false }).limit(200); if (error) return fail(500, "server_error");
+  const ownerIds = [...new Set((rows ?? []).map((row) => row.internal_owner_account_id).filter(Boolean))];
+  const { data: owners } = ownerIds.length ? await ctx.supabase.from("accounts").select("id,display_name").in("id", ownerIds) : { data: [] }; const ownerMap = new Map((owners ?? []).map((item) => [item.id, item]));
+  return ok({ items: (rows ?? []).map((row) => adminPartnerItem(row, ownerMap.get(row.internal_owner_account_id))) });
+}
+async function adminPartnerCreate(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const organizationName = text(ctx.body.organizationName, 160); if (organizationName.length < 2) return fail(400, "invalid_organization_name");
+  const partnerType = text(ctx.body.partnerType, 60) || "community"; const status = text(ctx.body.status, 20) || "prospect"; if (!PARTNER_ADMIN_STATUSES.includes(status)) return fail(400, "invalid_status");
+  const payload = { organization_name: organizationName, partner_type: partnerType, description: textOrNull(ctx.body.description, 3000), contact_name: textOrNull(ctx.body.contactName, 120), contact_email: textOrNull(ctx.body.contactEmail, 160), contact_phone: textOrNull(ctx.body.contactPhone, 50), website: textOrNull(ctx.body.website, 500), status, public_visibility: Boolean(ctx.body.publicVisibility), internal_notes: textOrNull(ctx.body.internalNotes, 4000), internal_owner_account_id: textOrNull(ctx.body.internalOwnerAccountId, 60), start_date: dateOrNull(ctx.body.startDate), end_date: dateOrNull(ctx.body.endDate), created_at: now(), updated_at: now() };
+  const { data: row, error } = await ctx.supabase.from("external_partners").insert(payload).select("*").single(); if (error) return fail(500, "server_error");
+  await adminPartnerAudit(ctx, "partner", row.id, "create", { status }); return ok({ item: adminPartnerItem(row, null) });
+}
+async function adminPartnerUpdate(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60); if (!id) return fail(400, "invalid_input"); const { data: existing } = await ctx.supabase.from("external_partners").select("*").eq("id", id).maybeSingle(); if (!existing) return fail(404, "not_found");
+  const patch = { updated_at: now() }; const fieldMap = { organizationName: "organization_name", partnerType: "partner_type", description: "description", contactName: "contact_name", contactEmail: "contact_email", contactPhone: "contact_phone", website: "website", internalNotes: "internal_notes", internalOwnerAccountId: "internal_owner_account_id", startDate: "start_date", endDate: "end_date" };
+  for (const [input, column] of Object.entries(fieldMap)) if (ctx.body[input] !== undefined) patch[column] = column === "start_date" || column === "end_date" ? dateOrNull(ctx.body[input]) : textOrNull(ctx.body[input], column === "description" || column === "internal_notes" ? 4000 : 500);
+  if (ctx.body.status !== undefined) { const status = text(ctx.body.status, 20); if (!PARTNER_ADMIN_STATUSES.includes(status)) return fail(400, "invalid_status"); patch.status = status; }
+  if (ctx.body.publicVisibility !== undefined) patch.public_visibility = Boolean(ctx.body.publicVisibility);
+  if (patch.organization_name !== undefined && String(patch.organization_name).length < 2) return fail(400, "invalid_organization_name");
+  const { error } = await ctx.supabase.from("external_partners").update(patch).eq("id", id); if (error) return fail(500, "server_error");
+  await adminPartnerAudit(ctx, "partner", id, "update", { fromStatus: existing.status, toStatus: patch.status ?? existing.status }); return ok({ updated: true });
 }
 
 // ---------- admin settings ----------

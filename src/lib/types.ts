@@ -594,6 +594,44 @@ export interface AdminAccount extends Account {
   tier: WidowRole | null;
 }
 
+export type VendorAdminStatus = "pending" | "active" | "suspended" | "rejected" | "archived";
+export type ExternalPartnerStatus = "prospect" | "review" | "active" | "suspended" | "completed";
+
+export interface VendorAdminItem {
+  id: string;
+  accountId: string;
+  accountName: string | null;
+  accountEmail: string | null;
+  businessName: string;
+  vendorType: string;
+  description: string | null;
+  status: VendorAdminStatus;
+  commissionPercent: number;
+  payoutSchedule: string;
+  documentCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalPartnerAdminItem {
+  id: string;
+  organizationName: string;
+  partnerType: string;
+  description: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  status: ExternalPartnerStatus;
+  startDate: string | null;
+  endDate: string | null;
+  internalOwnerAccountId: string | null;
+  internalOwnerName: string | null;
+  publicVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ReportItem {
   id: string;
   targetType: "profile" | "update" | "comment";

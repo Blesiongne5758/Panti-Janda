@@ -25,8 +25,11 @@ import {
   QrCode,
   RefreshCw,
   RotateCcw,
+  Search,
   Save,
   ShieldCheck,
+  Handshake,
+  Store,
   Trash2,
   TrendingUp,
   Truck,
@@ -46,8 +49,10 @@ import type {
   AdminStats,
   AppSettings,
   DonationItem,
+  ExternalPartnerAdminItem,
   Profile,
   ReportItem,
+  VendorAdminItem,
   WidowRole,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -275,6 +280,12 @@ export default function AdminPage() {
   const { ready, account } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [accounts, setAccounts] = useState<AdminAccount[] | null>(null);
+  const [vendors, setVendors] = useState<VendorAdminItem[]>([]);
+  const [partners, setPartners] = useState<ExternalPartnerAdminItem[]>([]);
+  const [vendorQuery, setVendorQuery] = useState("");
+  const [vendorStatus, setVendorStatus] = useState("all");
+  const [partnerQuery, setPartnerQuery] = useState("");
+  const [partnerStatus, setPartnerStatus] = useState("all");
   const [pending, setPending] = useState<Profile[] | null>(null);
   const [reports, setReports] = useState<ReportItem[] | null>(null);
   const [donations, setDonations] = useState<DonationItem[] | null>(null);
@@ -473,6 +484,14 @@ export default function AdminPage() {
       setReports(reportsData.items);
       setDonations(donationsData.items);
       setSettings(settingsData.settings);
+      try {
+        const vendorsData = await api<{ items: VendorAdminItem[] }>("admin.vendors.list");
+        setVendors(vendorsData.items);
+      } catch { setVendors([]); }
+      try {
+        const partnersData = await api<{ items: ExternalPartnerAdminItem[] }>("admin.partners.list");
+        setPartners(partnersData.items);
+      } catch { setPartners([]); }
       try {
         const eventsData = await api<{ items: AdminEventRow[] }>("admin.events.list");
         setEventsAdmin(eventsData.items);
@@ -693,6 +712,34 @@ export default function AdminPage() {
     }
   };
 
+  const updateVendor = async (vendor: VendorAdminItem, status: VendorAdminItem["status"]) => {
+    setBusyId(vendor.id);
+    try {
+      await api("admin.vendors.update", { id: vendor.id, status });
+      setVendors((items) => items.map((item) => item.id === vendor.id ? { ...item, status } : item));
+      toast.success(`Status vendor ${vendor.businessName} diperbarui.`);
+    } catch (err) { toast.error(errorText(err)); } finally { setBusyId(null); }
+  };
+
+  const updatePartner = async (partner: ExternalPartnerAdminItem, status: ExternalPartnerAdminItem["status"]) => {
+    setBusyId(partner.id);
+    try {
+      await api("admin.partners.update", { id: partner.id, status });
+      setPartners((items) => items.map((item) => item.id === partner.id ? { ...item, status } : item));
+      toast.success(`Status mitra ${partner.organizationName} diperbarui.`);
+    } catch (err) { toast.error(errorText(err)); } finally { setBusyId(null); }
+  };
+
+  const createPartner = async () => {
+    const organizationName = window.prompt("Nama organisasi/mitra eksternal");
+    if (!organizationName?.trim()) return;
+    try {
+      const result = await api<{ item: ExternalPartnerAdminItem }>("admin.partners.create", { organizationName: organizationName.trim(), partnerType: "community" });
+      setPartners((items) => [result.item, ...items]);
+      toast.success("Mitra eksternal berhasil ditambahkan.");
+    } catch (err) { toast.error(errorText(err)); }
+  };
+
   const resolveReport = async (report: ReportItem, resolution: "hide" | "dismiss") => {
     setBusyId(report.id);
     try {
@@ -886,6 +933,14 @@ export default function AdminPage() {
   };
 
   const loading = !stats || !accounts || !pending || !reports || !donations || !settings;
+  const filteredVendors = vendors.filter((item) =>
+    (vendorStatus === "all" || item.status === vendorStatus) &&
+    `${item.businessName} ${item.accountName ?? ""} ${item.accountEmail ?? ""}`.toLowerCase().includes(vendorQuery.toLowerCase()),
+  );
+  const filteredPartners = partners.filter((item) =>
+    (partnerStatus === "all" || item.status === partnerStatus) &&
+    `${item.organizationName} ${item.partnerType} ${item.contactName ?? ""}`.toLowerCase().includes(partnerQuery.toLowerCase()),
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 py-6 sm:gap-6 sm:px-4 sm:py-10">
@@ -917,6 +972,8 @@ export default function AdminPage() {
             Verifikasi{pending && pending.length ? ` (${pending.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="pengguna">Pengguna</TabsTrigger>
+          <TabsTrigger value="vendor"><Store className="size-3.5" /> Vendor</TabsTrigger>
+          <TabsTrigger value="mitra"><Handshake className="size-3.5" /> Mitra Eksternal</TabsTrigger>
           <TabsTrigger value="laporan">
             Laporan{reports && reports.length ? ` (${reports.length})` : ""}
           </TabsTrigger>
@@ -1180,6 +1237,41 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="vendor" className="mt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Stat label="Total vendor" value={vendors.length} />
+            <Stat label="Menunggu review" value={vendors.filter((item) => item.status === "pending").length} />
+            <Stat label="Vendor aktif" value={vendors.filter((item) => item.status === "active").length} />
+            <Stat label="Dokumen masuk" value={vendors.reduce((sum, item) => sum + item.documentCount, 0)} />
+          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><CardTitle className="flex items-center gap-2 font-display text-lg"><Store className="size-4" /> Manajemen Vendor</CardTitle><CardDescription>Kelola penjual marketplace dan penyedia jasa yang terhubung ke platform.</CardDescription></div>
+                <Badge variant="outline">Fase 1 · Review & status</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Cari vendor atau email..." value={vendorQuery} onChange={(event) => setVendorQuery(event.target.value)} /></div>
+                <Select value={vendorStatus} onValueChange={setVendorStatus}><SelectTrigger className="w-44"><SelectValue placeholder="Semua status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{["pending", "active", "suspended", "rejected", "archived"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select>
+              </div>
+              {filteredVendors.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Belum ada vendor yang sesuai filter.</p> : <div className="space-y-2">{filteredVendors.map((vendor) => <div key={vendor.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"><div className="min-w-52 flex-1"><p className="font-medium">{vendor.businessName}</p><p className="text-xs text-muted-foreground">{vendor.accountName ?? "Tanpa nama"} · {vendor.accountEmail ?? "—"}</p></div><div className="text-xs text-muted-foreground">{vendor.documentCount} dokumen · {vendor.commissionPercent}% komisi</div><Select value={vendor.status} onValueChange={(value) => updateVendor(vendor, value as VendorAdminItem["status"])} disabled={busyId === vendor.id}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent>{["pending", "active", "suspended", "rejected", "archived"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>)}</div>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mitra" className="mt-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-4"><Stat label="Total mitra" value={partners.length} /><Stat label="Prospek" value={partners.filter((item) => item.status === "prospect").length} /><Stat label="Review" value={partners.filter((item) => item.status === "review").length} /><Stat label="Mitra aktif" value={partners.filter((item) => item.status === "active").length} /></div>
+          <Card>
+            <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 font-display text-lg"><Handshake className="size-4" /> Mitra Eksternal</CardTitle><CardDescription>Kelola organisasi, sponsor, komunitas, dan lembaga yang bekerja sama dengan platform.</CardDescription></div><Button size="sm" onClick={createPartner}><Plus className="size-4" /> Tambah mitra</Button></div></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2"><div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Cari organisasi atau tipe..." value={partnerQuery} onChange={(event) => setPartnerQuery(event.target.value)} /></div><Select value={partnerStatus} onValueChange={setPartnerStatus}><SelectTrigger className="w-44"><SelectValue placeholder="Semua status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{["prospect", "review", "active", "suspended", "completed"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>
+              {filteredPartners.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Belum ada mitra. Tambahkan organisasi pertama untuk memulai pipeline kerja sama.</p> : <div className="space-y-2">{filteredPartners.map((partner) => <div key={partner.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"><div className="min-w-52 flex-1"><p className="font-medium">{partner.organizationName}</p><p className="text-xs text-muted-foreground">{partner.partnerType} · {partner.contactName ?? "PIC belum diisi"}</p></div><div className="text-xs text-muted-foreground">{partner.contactEmail ?? "Kontak belum diisi"}</div><Select value={partner.status} onValueChange={(value) => updatePartner(partner, value as ExternalPartnerAdminItem["status"])} disabled={busyId === partner.id}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent>{["prospect", "review", "active", "suspended", "completed"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>)}</div>}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="laporan" className="mt-4">
