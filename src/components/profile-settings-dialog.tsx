@@ -13,6 +13,7 @@ import {
   Lock,
   Plus,
   RefreshCw,
+  Share2,
   Settings,
   Shield,
   ShieldCheck,
@@ -63,7 +64,7 @@ export function ProfileSettingsDialog({
   onOpenChange: controlledOnOpenChange,
 }: {
   trigger?: React.ReactNode;
-  defaultTab?: "profil" | "keamanan" | "bank" | "crypto";
+  defaultTab?: "profil" | "keamanan" | "bank" | "crypto" | "referral";
   onSaved?: (profile: Profile) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -115,6 +116,8 @@ export function ProfileSettingsDialog({
   const [creatingWallet, setCreatingWallet] = useState(false);
   const [selectedCoinSymbol, setSelectedCoinSymbol] = useState("");
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [referral, setReferral] = useState<{ code: string; shareUrl: string; referralCount: number } | null>(null);
+  const [loadingReferral, setLoadingReferral] = useState(false);
 
   // Synchronize state when profile updates
   useEffect(() => {
@@ -135,6 +138,9 @@ export function ProfileSettingsDialog({
   useEffect(() => {
     if (open) {
       loadWallets();
+      setLoadingReferral(true);
+      api<{ code: string; shareUrl: string; referralCount: number }>("referral.mine")
+        .then(setReferral).catch((err) => toast.error(errorText(err))).finally(() => setLoadingReferral(false));
     }
   }, [open]);
 
@@ -280,10 +286,10 @@ export function ProfileSettingsDialog({
     try {
       await navigator.clipboard.writeText(text);
       setCopiedAddress(text);
-      toast.success("Alamat dompet crypto disalin!");
+      toast.success("Berhasil disalin!");
       setTimeout(() => setCopiedAddress(null), 2500);
     } catch {
-      toast.error("Gagal menyalin alamat");
+      toast.error("Gagal menyalin");
     }
   };
 
@@ -303,7 +309,7 @@ export function ProfileSettingsDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid h-auto w-full grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-5">
             <TabsTrigger value="profil" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
               <User className="size-3.5" aria-hidden />
               <span>Profil</span>
@@ -320,6 +326,9 @@ export function ProfileSettingsDialog({
             <TabsTrigger value="crypto" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
               <Coins className="size-3.5" aria-hidden />
               <span>Crypto</span>
+            </TabsTrigger>
+            <TabsTrigger value="referral" className="h-auto min-h-11 min-w-0 flex-col gap-1 px-1 py-2 text-xs leading-tight sm:h-[calc(100%-1px)] sm:min-h-0 sm:flex-row sm:gap-1.5 sm:px-2 sm:py-1 sm:text-sm">
+              <Share2 className="size-3.5" aria-hidden /><span>Referral</span>
             </TabsTrigger>
           </TabsList>
 
@@ -757,6 +766,17 @@ export function ProfileSettingsDialog({
                 </Button>
               </div>
             </div>
+          </TabsContent>
+          <TabsContent value="referral" className="space-y-4 pt-4">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <h3 className="font-semibold">Ajak teman bergabung</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Bagikan kode atau tautan ini. Pendaftaran baru dapat memasukkan kode referral Anda.</p>
+            </div>
+            {loadingReferral ? <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Memuat referral…</div> : referral ? <>
+              <div className="space-y-2"><Label>Kode referral</Label><div className="flex gap-2"><Input readOnly value={referral.code} /><Button type="button" variant="outline" onClick={() => void copyToClipboard(referral.code)}><Copy className="mr-2 size-4" />Salin</Button></div></div>
+              <div className="space-y-2"><Label>Tautan berbagi</Label><div className="flex gap-2"><Input readOnly value={referral.shareUrl} /><Button type="button" onClick={() => void copyToClipboard(referral.shareUrl)}><Share2 className="mr-2 size-4" />Salin tautan</Button></div></div>
+              <p className="text-xs text-muted-foreground">Pendaftaran melalui kode Anda: {referral.referralCount}</p>
+            </> : <p className="text-sm text-muted-foreground">Kode referral belum tersedia.</p>}
           </TabsContent>
         </Tabs>
 

@@ -114,6 +114,7 @@ export function matchRoute(path: string): { name: string; params: Record<string,
     case "mentor-ai":
       return { name: "ai-mentor", params: {} };
     case "marketplace":
+      if (second === "orders") return { name: "marketplace-orders", params: {} };
       if (second === "baru") return { name: "marketplace-form", params: {} };
       if (second && segments[2] === "edit") return { name: "marketplace-form", params: { id: second } };
       if (second) return { name: "marketplace-detail", params: { id: second } };
@@ -126,6 +127,13 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "ai-agent", params: {} };
     case "learning-center":
       return { name: "learning-center", params: {} };
+    case "lowongan":
+      if (second === "baru") return { name: "jobs", params: { section: "create" } };
+      if (second === "saya") return { name: "jobs", params: { section: "mine" } };
+      if (second === "lamaran") return { name: "jobs", params: { section: "applications" } };
+      if (second === "wawancara" && segments[2]) return { name: "interview-room", params: { id: segments[2] } };
+      if (second === "wawancara") return { name: "jobs", params: { section: "interviews" } };
+      return { name: "jobs", params: second ? { jobId: second, section: "browse" } : { section: "browse" } };
     case "kompetisi-esport":
       if (second === "baru") return { name: "esport-create", params: {} };
       if (second === "tim") return { name: "esport-teams", params: {} };

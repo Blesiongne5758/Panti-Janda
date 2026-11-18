@@ -96,6 +96,7 @@ function standingsGridClass(format: string): string {
 export default function EsportDetailPage({ id }: { id: string }) {
   const { account } = useAuth();
   const [data, setData] = useState<EsportTournamentDetail | null>(null);
+  const primarySponsor = data?.sponsors.find((sponsor) => sponsor.isPrimary) ?? null;
   const [board, setBoard] = useState<EsportLeaderboard | null>(null);
   const [boardForId, setBoardForId] = useState<string | null>(null);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -314,6 +315,7 @@ export default function EsportDetailPage({ id }: { id: string }) {
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Badge className={cn("border-transparent", statusMeta.tone)}>{statusMeta.label}</Badge>
               <Badge variant="outline">{formatMeta?.label ?? t.format}</Badge>
+              <Badge variant="outline">{t.competitionMode === "onsite" ? "Onsite" : "Online"}</Badge>
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Users className="size-3.5" aria-hidden />
                 {data.registrations.length}/{t.maxTeams} tim
@@ -501,6 +503,17 @@ export default function EsportDetailPage({ id }: { id: string }) {
                   <InfoRow label="Roster" value={`${t.rosterMin}–${t.rosterMax} pemain`} />
                   <InfoRow label="Jendela check-in" value={`${t.checkinWindowMinutes} menit sebelum jadwal`} />
                   <InfoRow label="Kuota tim" value={`${data.registrations.length} dari ${t.maxTeams} tim`} />
+                  {t.competitionMode === "onsite" ? (
+                    <>
+                      {t.venueName ? <InfoRow label="Venue" value={t.venueName} /> : null}
+                      {t.venueAddress ? <InfoRow label="Alamat" value={t.venueAddress} /> : null}
+                      {t.venueMapsUrl ? (
+                        <a href={t.venueMapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-accent-foreground hover:underline">
+                          Buka peta <ExternalLink className="size-3.5" aria-hidden />
+                        </a>
+                      ) : null}
+                    </>
+                  ) : null}
                   {t.timezone ? <InfoRow label="Zona waktu" value={t.timezone.replace("_", " ")} /> : null}
                 </CardContent>
               </Card>
@@ -586,6 +599,41 @@ export default function EsportDetailPage({ id }: { id: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {primarySponsor ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400 bg-gradient-to-r from-amber-50 via-white to-amber-100 p-4 shadow-sm dark:from-amber-950/40 dark:via-background dark:to-amber-900/20">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-bold tracking-[0.18em] text-amber-800 uppercase dark:text-amber-200">Sponsor utama · live stream</p>
+                        <p className="mt-1 truncate text-base font-bold text-foreground">{primarySponsor.name}</p>
+                      </div>
+                      {primarySponsor.logoUrl ? (
+                        <img src={primarySponsor.logoUrl} alt={`${primarySponsor.name} logo`} className="h-14 w-full max-w-52 rounded-md bg-white px-3 py-2 object-contain" />
+                      ) : (
+                        <span aria-hidden className="flex size-12 items-center justify-center rounded-full bg-amber-200 text-lg font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-100">★</span>
+                      )}
+                    </div>
+                  ) : null}
+                  {data.sponsors.length ? (
+                    <div className="space-y-2 rounded-xl border border-amber-300/70 bg-amber-50/80 p-3 dark:bg-amber-950/20">
+                      <p className="text-xs font-semibold tracking-wide text-amber-900 uppercase dark:text-amber-200">Didukung oleh</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {data.sponsors.map((sponsor) => (
+                          <a
+                            key={sponsor.id}
+                            href={sponsor.websiteUrl || undefined}
+                            target={sponsor.websiteUrl ? "_blank" : undefined}
+                            rel={sponsor.websiteUrl ? "noreferrer" : undefined}
+                            className={cn("flex min-w-0 items-center gap-2 rounded-lg border bg-background/80 p-2", sponsor.isPrimary && "border-amber-400 ring-1 ring-amber-300")}
+                          >
+                            {sponsor.logoUrl ? <img src={sponsor.logoUrl} alt={`${sponsor.name} logo`} className="h-12 w-24 rounded object-contain" /> : null}
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-foreground">{sponsor.name}</span>
+                              {sponsor.isPrimary ? <span className="block text-[10px] font-semibold text-amber-700 dark:text-amber-300">SPONSOR UTAMA</span> : null}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {data.streams.length ? (
                     <div className="flex flex-col gap-2">
                       {data.streams.map((s) => (

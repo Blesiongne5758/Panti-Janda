@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, type ReactNode } from "react";
 import { getAccountRank } from "@/lib/constants";
-import { Bell, Crown, HandHeart, LayoutDashboard, LogOut, Menu, Settings, ShieldCheck, UserRound, Package } from "lucide-react";
+import { Bell, BriefcaseBusiness, Crown, HandHeart, Heart, LayoutDashboard, LogOut, Menu, MessageSquare, Package, Settings, ShieldCheck, ShoppingBag, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
@@ -22,6 +22,7 @@ const NAV = [
   { to: "/kompetisi-esport", labelKey: "nav.esport" as const },
   { to: "/galang-dana", labelKey: "nav.fundraising" as const },
   { to: "/marketplace", labelKey: "nav.marketplace" as const },
+  { to: "/lowongan", labelKey: "nav.jobs" as const },
 ];
 
 function NavLinks({ onNavigate, memberOnly }: { onNavigate?: () => void; memberOnly: boolean }) {
@@ -155,6 +156,10 @@ function NotificationBell() {
                     {n.type === "donation" && <Crown className="size-3.5" aria-hidden />}
                     {n.type === "verification" && <ShieldCheck className="size-3.5" aria-hidden />}
                     {n.type === "marketplace_low_stock" && <Package className="size-3.5 text-amber-600" aria-hidden />}
+                    {(n.type === "job_application" || n.type === "job_application_status" || n.type === "job_interview") && <BriefcaseBusiness className="size-3.5" aria-hidden />}
+                    {(n.type === "marketplace_order" || n.type === "marketplace_order_update") && <ShoppingBag className="size-3.5" aria-hidden />}
+                    {n.type === "media_like" && <Heart className="size-3.5" aria-hidden />}
+                    {n.type === "media_comment" && <MessageSquare className="size-3.5" aria-hidden />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm">

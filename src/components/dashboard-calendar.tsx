@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const KINDS: CalendarKind[] = ["event", "esport", "tugas", "konseling", "langganan", "pribadi"];
+const KINDS: CalendarKind[] = ["event", "esport", "tugas", "konseling", "wawancara", "langganan", "pribadi"];
 const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
 const WEEK_START = Date.UTC(2024, 0, 1); // Senin
 

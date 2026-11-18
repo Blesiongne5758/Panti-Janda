@@ -16,7 +16,11 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
   ]);
 
   const rowsOf = (table) => {
-    if (!store.has(table)) store.set(table, []);
+    if (!store.has(table)) {
+      const rows = [];
+      store.set(table, rows);
+      tables[table] = rows;
+    }
     return store.get(table);
   };
 
@@ -58,6 +62,10 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
     }
     eq(column, value) {
       this.filters.push((row) => String(row[column]) === String(value));
+      return this;
+    }
+    is(column, value) {
+      this.filters.push((row) => value === null ? row[column] == null : row[column] === value);
       return this;
     }
     neq(column, value) {
@@ -140,6 +148,12 @@ export function createFakeSupabase({ tables = {}, failAll = false } = {}) {
           }
         }
         for (const row of list) rows.push({ ...row });
+        if (this.mode === "single" || this.mode === "maybeSingle") {
+          if (list.length !== 1) {
+            return { data: null, error: { message: "expected one row", code: "PGRST116" } };
+          }
+          return { data: { ...list[0] }, error: null };
+        }
         return { data: list.map((r) => ({ ...r })), error: null };
       }
       if (this.op === "upsert") {

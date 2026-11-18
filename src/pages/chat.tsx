@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Check,
+  CheckCheck,
   Clock,
   Loader2,
   MessageCircle,
@@ -340,6 +341,11 @@ function MessageBubble({
         </div>
         <div className={`flex items-center gap-1 px-1 text-[10px] text-muted-foreground ${mine ? "justify-end" : "justify-start"}`}>
           <span>{timeOf(message.createdAt)}</span>
+          {mine && message.readStatus ? (
+            message.readStatus === "read"
+              ? <CheckCheck className="size-3.5 text-sky-500" aria-label="Sudah dibaca" />
+              : <Check className="size-3.5" aria-label="Terkirim, belum dibaca" />
+          ) : null}
           {mine && onDelete ? (
             <button
               type="button"
@@ -478,6 +484,20 @@ export default function ChatPage() {
     }
   }, [loadLists, loadRequests, rank]);
 
+  useEffect(() => {
+    if (!groupParam || rank < 1) return;
+    let active = true;
+    void api<{ group: GroupItem }>("groups.get", { id: groupParam })
+      .then(({ group }) => {
+        if (!active) return;
+        setGroups((current) => current.some((item) => item.id === group.id) ? current.map((item) => item.id === group.id ? group : item) : [...current, group]);
+      })
+      .catch(() => {
+        if (active) setThreadError("Grup tidak ditemukan atau akun Anda bukan anggota yang diizinkan.");
+      });
+    return () => { active = false; };
+  }, [groupParam, rank]);
+
   // Search debounce
   useEffect(() => {
     if (sidebarTab === "search") {
@@ -516,12 +536,12 @@ export default function ChatPage() {
             items: ChatMessage[];
             contact?: ChatContact;
             friendshipStatus?: FriendshipStatus;
-          }>("chat.thread", { withAccountId: thread.accountId });
+          }>("chat.thread", { withAccountId: thread.accountId, active: document.visibilityState === "visible" && document.hasFocus() });
           setMessages(data.items);
           if (data.contact) setThreadContact(data.contact);
           setThreadFriendship(data.friendshipStatus ?? "none");
         } else {
-          const data = await api<{ items: ChatMessage[] }>("groups.messages", { id: thread.id });
+          const data = await api<{ items: ChatMessage[] }>("groups.messages", { id: thread.id, active: document.visibilityState === "visible" && document.hasFocus() });
           setMessages(data.items);
           setThreadFriendship("accepted");
         }
