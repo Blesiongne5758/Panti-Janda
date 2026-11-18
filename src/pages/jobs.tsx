@@ -177,6 +177,7 @@ export default function JobsPage({ section = "browse", jobId }: { section?: "bro
 
   const heading = section === "create" ? "Buat lowongan" : section === "mine" ? "Lowongan saya" : section === "applications" ? "Lamaran kerja" : section === "interviews" ? "Jadwal wawancara" : "Lowongan kerja";
   const selectedJob = myJobs.find((job) => job.id === selectedJobId);
+  const requiresAccount = section === "mine" || section === "applications" || section === "interviews";
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-3 py-6 sm:px-4 sm:py-10">
@@ -194,6 +195,10 @@ export default function JobsPage({ section = "browse", jobId }: { section?: "bro
         </> : null}
       </nav>
 
+      {requiresAccount && !account ? <Card><CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+        <p className="text-sm text-muted-foreground">Masuk untuk melihat lowongan yang Anda kelola, lamaran, dan jadwal wawancara.</p>
+        <Button onClick={() => navigate("/masuk")}>Masuk</Button>
+      </CardContent></Card> : null}
       {error ? <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
       {section === "create" ? (
         <Card><CardHeader><CardTitle>Informasi pekerjaan</CardTitle><CardDescription>Lowongan yang dipublikasikan dapat dilihat oleh pencari kerja lain.</CardDescription></CardHeader><CardContent>
@@ -222,16 +227,16 @@ export default function JobsPage({ section = "browse", jobId }: { section?: "bro
         </CardContent></Card>) : <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Belum ada lowongan aktif.</CardContent></Card>}
       </section> : null}
 
-      {section === "mine" ? <section className="space-y-3">{loading ? <Loader2 className="mx-auto size-6 animate-spin" /> : myJobs.length ? myJobs.map((job) => <Card key={job.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h2 className="font-semibold">{job.title}</h2><p className="text-sm text-muted-foreground">{job.company}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "closed" ? "secondary" : "outline"}>{job.status === "closed" ? "Ditutup" : "Aktif"}</Badge><Button size="sm" variant="outline" onClick={() => void updateJobStatus(job)}>{job.status === "closed" ? "Aktifkan" : "Tutup"}</Button><Button size="sm" onClick={() => { setSelectedJobId(job.id); navigate("/lowongan/lamaran"); }}>Lihat lamaran</Button></div></CardContent></Card>) : <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Anda belum membuat lowongan.</CardContent></Card>}</section> : null}
+      {account && section === "mine" ? <section className="space-y-3">{loading ? <Loader2 className="mx-auto size-6 animate-spin" /> : myJobs.length ? myJobs.map((job) => <Card key={job.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h2 className="font-semibold">{job.title}</h2><p className="text-sm text-muted-foreground">{job.company}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "closed" ? "secondary" : "outline"}>{job.status === "closed" ? "Ditutup" : "Aktif"}</Badge><Button size="sm" variant="outline" onClick={() => void updateJobStatus(job)}>{job.status === "closed" ? "Aktifkan" : "Tutup"}</Button><Button size="sm" onClick={() => { setSelectedJobId(job.id); navigate("/lowongan/lamaran"); }}>Lihat lamaran</Button></div></CardContent></Card>) : <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Anda belum membuat lowongan.</CardContent></Card>}</section> : null}
 
-      {section === "interviews" ? <section className="space-y-3">
+      {account && section === "interviews" ? <section className="space-y-3">
         {interviews.length ? interviews.map((interview) => <Card key={interview.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div><h2 className="font-semibold">{interview.jobTitle}</h2><p className="text-sm text-muted-foreground">{interview.company} · {interview.otherParticipantName} ({interview.myRole === "candidate" ? "pemberi kerja" : "kandidat"})</p><p className="mt-1 text-xs text-muted-foreground">{new Date(interview.scheduledStart).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: interview.timezone })} · {interview.timezone} · {interview.mode === "online" ? "Online" : `Onsite${interview.location ? ` · ${interview.location}` : ""}`}</p>{interview.note ? <p className="mt-1 text-xs text-muted-foreground">{interview.note}</p> : null}</div>
           {interview.mode === "online" ? <Button size="sm" onClick={() => navigate(`/lowongan/wawancara/${interview.id}`)}><Video className="mr-1 size-4" />Ruang wawancara</Button> : null}
         </CardContent></Card>) : <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Belum ada jadwal wawancara.</CardContent></Card>}
       </section> : null}
 
-      {section === "applications" ? <div className="grid gap-5 lg:grid-cols-2">
+      {account && section === "applications" ? <div className="grid gap-5 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Lamaran yang saya kirim</CardTitle><CardDescription>Status lamaran dan undangan wawancara.</CardDescription></CardHeader><CardContent className="space-y-3">
           {myApplications.length ? myApplications.map((app) => {
             const interview = interviews.find((item) => item.applicationId === app.id);

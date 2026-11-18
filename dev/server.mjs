@@ -5,6 +5,7 @@
 import { createServer } from "node:http";
 import { createFakeSupabase } from "./fake-supabase.mjs";
 import { handleApp, __internals } from "../functions/handler.mjs";
+import { handleApp as handleProductionApp } from "../supabase/functions/app/handler.mjs";
 
 const { hashPassword } = __internals;
 const now = () => new Date().toISOString();
@@ -2561,7 +2562,8 @@ const server = createServer(async (incoming, outgoing) => {
     });
     const failAll = url.searchParams.get("fixture") === "error";
     const supabase = createFakeSupabase({ tables, failAll });
-    const response = await handleApp({ request, supabase });
+    const selectedHandler = url.searchParams.get("handler") === "production" ? handleProductionApp : handleApp;
+    const response = await selectedHandler({ request, supabase });
     outgoing.writeHead(response.status, Object.fromEntries(response.headers));
     outgoing.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {

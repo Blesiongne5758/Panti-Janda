@@ -4,10 +4,12 @@ const BASE = process.env.PANTI_API_URL ?? "http://127.0.0.1:8000/functions/v1/ap
 let passed = 0;
 let failed = 0;
 
-async function call(action, payload = {}, token = null) {
+async function call(action, payload = {}, token = null, handler = "fixture") {
   const headers = { "content-type": "application/json", accept: "application/json" };
   if (token) headers["x-app-session"] = token;
-  const response = await fetch(BASE, { method: "POST", headers, body: JSON.stringify({ action, ...payload }) });
+  const endpoint = new URL(BASE);
+  if (handler === "production") endpoint.searchParams.set("handler", "production");
+  const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ action, ...payload }) });
   return { status: response.status, body: await response.json().catch(() => null) };
 }
 function check(label, condition, detail = "") {
@@ -206,6 +208,12 @@ try {
   const feedNotifications = await call("notifications.list", {}, candidate.token);
   check("new like and comment notify the post owner with a post deep link", mediaPost.status === 200 && likedPost?.status === 200 && commentedPost?.status === 200 && feedNotifications.body?.data?.items?.some((item) => item.type === "media_like" && item.link === `#/feed?post=${postId}`) && feedNotifications.body?.data?.items?.some((item) => item.type === "media_comment" && item.link === `#/feed?post=${postId}`),
     `create=${mediaPost.status}; like=${likedPost?.status ?? "not-run"}; comment=${commentedPost?.status ?? "not-run"}; notifications=${JSON.stringify(feedNotifications.body?.data?.items?.filter((item) => item.link === `#/feed?post=${postId}`))}`);
+  const productionPost = await call("media.create", { type: "photo", mediaUrl: "https://example.test/production-handler-feed.jpg", caption: `Synthetic production feed post ${Date.now()}` }, candidate.token);
+  const productionPostId = productionPost.body?.data?.post?.id;
+  const productionComment = productionPostId ? await call("media.comment", { postId: productionPostId, body: "Production-handler fixture comment" }, employer.token, "production") : null;
+  const productionNotifications = await call("notifications.list", {}, candidate.token, "production");
+  check("production handler notifies the post owner after a feed comment", productionPost.status === 200 && productionComment?.status === 200 && productionNotifications.body?.data?.items?.some((item) => item.type === "media_comment" && item.link === `#/feed?post=${productionPostId}`),
+    `post=${productionPost.status}; comment=${productionComment?.status ?? "not-run"}; notifications=${JSON.stringify(productionNotifications.body?.data?.items?.filter((item) => item.type === "media_comment" && item.link === `#/feed?post=${productionPostId}`))}`);
   if (postId) await call("media.like", { postId }, candidate.token);
   const beforeUnlike = await call("notifications.list", {}, candidate.token);
   if (postId) await call("media.like", { postId }, employer.token);

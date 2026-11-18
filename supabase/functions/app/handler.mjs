@@ -15591,17 +15591,18 @@ async function mediaComment(ctx) {
   const postId = text(ctx.body.postId, 60);
   const body = text(ctx.body.body, MAX_MESSAGE_CHARS);
   if (!postId || !body) return fail(400, "invalid_input");
-  const { data: comment, error } = await ctx.supabase.from("media_post_comments").insert({
-    id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, body, created_at: now(),
-  }).select("*").single();
+  const { data: post } = await ctx.supabase.from("media_posts").select("id,account_id").eq("id", postId).maybeSingle();
+  if (!post) return fail(404, "not_found");
+  const { data: comment, error } = await ctx.supabase.from("media_post_comments").insert({ id: crypto.randomUUID(), post_id: postId, account_id: auth.account.id, body, created_at: now() }).select("*").single();
   if (error || !comment) return fail(404, "not_found");
+  if (post.account_id !== auth.account.id) {
+    await notify(ctx.supabase, post.account_id, "media_comment", auth.account.id, "Postingan Anda mendapat komentar baru", `#/feed?post=${postId}`);
+  }
   const names = await namesFor(ctx.supabase, [auth.account.id]);
   const author = names.get(auth.account.id);
-  return ok({ comment: {
-    id: comment.id, postId: comment.post_id, accountId: comment.account_id,
-    authorName: author?.nickname ?? author?.displayName ?? "Pengguna",
-    authorPhoto: author?.photoData ?? null, body: comment.body, createdAt: comment.created_at,
-  } });
+  return ok({ comment: { id: comment.id, postId: comment.post_id, accountId: comment.account_id,
+    authorName: author?.nickname ?? author?.displayName ?? "Pengguna", authorPhoto: author?.photoData ?? null,
+    body: comment.body, createdAt: comment.created_at } });
 }
 
 async function mediaShare(ctx) {
