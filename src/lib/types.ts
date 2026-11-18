@@ -831,6 +831,7 @@ export interface MediaPost {
   authorTier: string;
   type: MediaPostType;
   mediaUrl: string;
+  mediaDeferred?: boolean;
   caption: string | null;
   likes: string[];
   comments: MediaComment[];

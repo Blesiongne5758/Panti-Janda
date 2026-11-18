@@ -621,7 +621,8 @@ const server = createServer(async (req, res) => {
                 authorPhoto: p.author_photo,
                 authorTier: p.author_tier,
                 type: p.type,
-                mediaUrl: p.media_url,
+                mediaUrl: "",
+                mediaDeferred: true,
                 caption: p.caption,
                 likes: p.likes,
                 comments: p.comments,
@@ -631,6 +632,14 @@ const server = createServer(async (req, res) => {
               })),
             },
           };
+          break;
+        }
+
+        case "media.asset": {
+          const post = mediaPosts.find((item) => item.id === data.postId);
+          response = post
+            ? { ok: true, data: { mediaUrl: post.media_url } }
+            : { ok: false, error: "not_found" };
           break;
         }
 

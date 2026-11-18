@@ -378,11 +378,12 @@ async function namesFor(supabase, accountIds) {
   const ids = [...new Set(accountIds.filter(Boolean))];
   const map = new Map();
   if (ids.length === 0) return map;
-  const { data: accounts } = await supabase.from("accounts").select("id,display_name").in("id", ids);
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id,account_id,nickname,tier,photo_data")
-    .in("account_id", ids);
+  const [accountsResult, profilesResult] = await Promise.all([
+    supabase.from("accounts").select("id,display_name").in("id", ids),
+    supabase.from("profiles").select("id,account_id,nickname,tier,photo_data").in("account_id", ids),
+  ]);
+  const accounts = accountsResult.data;
+  const profiles = profilesResult.data;
   const profilesByAccount = new Map((profiles ?? []).map((p) => [p.account_id, p]));
   for (const a of accounts ?? []) {
     const p = profilesByAccount.get(a.id);
@@ -6196,6 +6197,7 @@ const ROUTES = {
   "storage.presignedDownload": storagePresignedDownload,
   "storage.validateFile": storageValidateFile,
   "media.feed": mediaFeed,
+  "media.asset": mediaAsset,
   "media.userPosts": mediaUserPosts,
   "media.create": mediaCreate,
   "media.like": mediaLike,
@@ -14911,13 +14913,14 @@ async function paymentQrisSettings(ctx) {
 
 // ---------- cloud storage ----------
 
-async function mediaRead(ctx, accountId = null) {
+async function mediaRead(ctx, accountId = null, deferMedia = false) {
   const auth = await actor(ctx, 0);
   const requestedLimit = Number(ctx.body.limit);
   const pageLimit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(30, Math.floor(requestedLimit))) : 200;
   const before = typeof ctx.body.before === "string" ? ctx.body.before : "";
   const beforeId = typeof ctx.body.beforeId === "string" && /^[0-9a-f-]{36}$/i.test(ctx.body.beforeId) ? ctx.body.beforeId : "";
-  let query = ctx.supabase.from("media_posts").select("*")
+  const selectColumns = deferMedia ? "id,account_id,type,caption,duration,share_count,created_at" : "*";
+  let query = ctx.supabase.from("media_posts").select(selectColumns)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(pageLimit + 1);
@@ -14930,8 +14933,12 @@ async function mediaRead(ctx, accountId = null) {
   const posts = (rows ?? []).slice(0, pageLimit);
   if (!posts.length) return ok({ items: [], hasMore: false });
   const ids = posts.map((post) => post.id);
-  const { data: likes } = await ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids);
-  const { data: comments } = await ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true });
+  const [likesResult, commentsResult] = await Promise.all([
+    ctx.supabase.from("media_post_likes").select("post_id,account_id").in("post_id", ids),
+    ctx.supabase.from("media_post_comments").select("id,post_id,account_id,body,created_at").in("post_id", ids).order("created_at", { ascending: true }),
+  ]);
+  const likes = likesResult.data;
+  const comments = commentsResult.data;
   const names = await namesFor(ctx.supabase, [
     ...posts.map((post) => post.account_id),
     ...(comments ?? []).map((comment) => comment.account_id),
@@ -14961,7 +14968,8 @@ async function mediaRead(ctx, accountId = null) {
       authorProfileId: author?.profileId ?? null,
       authorTier: author?.tier ?? "wonder_woman",
       type: post.type,
-      mediaUrl: post.media_url,
+      mediaUrl: deferMedia ? "" : post.media_url,
+      mediaDeferred: deferMedia,
       caption: post.caption,
       likes: (likes ?? []).filter((like) => like.post_id === post.id).map((like) => like.account_id),
       comments: commentsByPost.get(post.id) ?? [],
@@ -14973,7 +14981,18 @@ async function mediaRead(ctx, accountId = null) {
 }
 
 async function mediaFeed(ctx) {
-  return await mediaRead(ctx);
+  return await mediaRead(ctx, null, true);
+}
+
+async function mediaAsset(ctx) {
+  const postId = typeof ctx.body.postId === "string" && /^[0-9a-f-]{36}$/i.test(ctx.body.postId)
+    ? ctx.body.postId
+    : "";
+  if (!postId) return fail(400, "invalid_input");
+  const { data, error } = await ctx.supabase.from("media_posts").select("media_url").eq("id", postId).maybeSingle();
+  if (error) return fail(500, "server_error");
+  if (typeof data?.media_url !== "string" || !data.media_url) return fail(404, "not_found");
+  return ok({ mediaUrl: data.media_url });
 }
 
 async function mediaUserPosts(ctx) {
@@ -15256,7 +15275,9 @@ export async function handleApp({ request, supabase }) {
     const action = typeof body.action === "string" ? body.action : "";
     const run = Object.prototype.hasOwnProperty.call(ROUTES, action) ? ROUTES[action] : null;
     if (!run) return fail(400, "invalid_action");
-    await loadPersistedSettings(supabase);
+    if (action !== "media.feed" && action !== "media.userPosts" && action !== "media.asset") {
+      await loadPersistedSettings(supabase);
+    }
     return await run(ctx);
   } catch {
     return fail(500, "server_error");

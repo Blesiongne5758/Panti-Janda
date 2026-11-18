@@ -16,6 +16,70 @@ import type { MediaPost, WidowRole } from "@/lib/types";
 import { toast } from "sonner";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
+function FeedPostMedia({ post }: { post: MediaPost }) {
+  const deferred = Boolean(post.mediaDeferred);
+  const mediaRef = useRef<HTMLDivElement>(null);
+  const requestStarted = useRef(false);
+  const [mediaUrl, setMediaUrl] = useState(post.mediaUrl || "");
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
+
+  function loadDeferredMedia() {
+    if (!deferred || mediaUrl || requestStarted.current) return;
+    requestStarted.current = true;
+    setLoadingMedia(true);
+    setMediaError(false);
+    void api<{ mediaUrl: string }>("media.asset", { postId: post.id })
+      .then((data) => {
+        if (!data.mediaUrl) throw new Error("Media tidak tersedia");
+        setMediaUrl(data.mediaUrl);
+      })
+      .catch(() => {
+        requestStarted.current = false;
+        setMediaError(true);
+      })
+      .finally(() => setLoadingMedia(false));
+  }
+
+  useEffect(() => {
+    if (!deferred || post.type !== "photo" || !mediaRef.current || mediaUrl) return;
+    if (typeof IntersectionObserver === "undefined") {
+      loadDeferredMedia();
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        observer.disconnect();
+        loadDeferredMedia();
+      }
+    }, { rootMargin: "400px 0px" });
+    observer.observe(mediaRef.current);
+    return () => observer.disconnect();
+  }, [deferred, mediaUrl, post.id, post.type]);
+
+  if (post.type === "photo") {
+    if (!mediaUrl) {
+      return (
+        <div ref={mediaRef} className="flex min-h-64 w-full items-center justify-center rounded-lg bg-muted/40" aria-busy={loadingMedia}>
+          {loadingMedia ? <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Memuat foto" /> : mediaError ? <Button type="button" variant="outline" onClick={loadDeferredMedia}>Coba muat foto lagi</Button> : null}
+        </div>
+      );
+    }
+    return <img src={mediaUrl} alt={post.caption || "Photo"} loading="lazy" decoding="async" className="w-full rounded-lg object-cover" style={{ maxHeight: "500px" }} />;
+  }
+
+  if (!mediaUrl) {
+    return (
+      <div ref={mediaRef} className="flex aspect-video w-full items-center justify-center rounded-lg bg-black/90" aria-busy={loadingMedia}>
+        <Button type="button" variant="secondary" onClick={loadDeferredMedia} disabled={loadingMedia}>
+          {loadingMedia ? <><Loader2 className="mr-2 size-4 animate-spin" />Memuat video…</> : mediaError ? "Coba muat video lagi" : "Muat video"}
+        </Button>
+      </div>
+    );
+  }
+  return <video src={mediaUrl} controls preload="none" playsInline className="w-full rounded-lg bg-black" style={{ maxHeight: "500px" }}>Video tidak didukung</video>;
+}
+
 export function FeedPage() {
   const auth = useAuth();
   const { navigate } = useRoute();
@@ -539,27 +603,7 @@ export function FeedPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {post.type === "photo" ? (
-                    <img
-                      src={post.mediaUrl}
-                      alt={post.caption || "Photo"}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full rounded-lg object-cover"
-                      style={{ maxHeight: "500px" }}
-                    />
-                  ) : (
-                    <video
-                      src={post.mediaUrl}
-                      controls
-                      preload="none"
-                      playsInline
-                      className="w-full rounded-lg bg-black"
-                      style={{ maxHeight: "500px" }}
-                    >
-                      Video tidak didukung
-                    </video>
-                  )}
+                  <FeedPostMedia post={post} />
 
                   {post.caption && <p className="text-sm">{post.caption}</p>}
 
