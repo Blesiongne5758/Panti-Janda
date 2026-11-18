@@ -28,10 +28,13 @@ const AIMentorPage = lazy(() => import("@/pages/ai-mentor"));
 const MarketplacePage = lazy(() => import("@/pages/marketplace"));
 const MarketplaceDetailPage = lazy(() => import("@/pages/marketplace-detail"));
 const MarketplaceFormPage = lazy(() => import("@/pages/marketplace-form"));
+const MarketplaceOrdersPage = lazy(() => import("@/pages/marketplace-orders"));
 const CoinsPage = lazy(() => import("@/pages/coins"));
 const LiveTradingPage = lazy(() => import("@/pages/live-trading"));
 const AiAgentPage = lazy(() => import("@/pages/ai-agent"));
 const LearningCenterPage = lazy(() => import("@/pages/learning-center"));
+const JobsPage = lazy(() => import("@/pages/jobs"));
+const InterviewRoomPage = lazy(() => import("@/pages/interview-room"));
 const EsportPage = lazy(() => import("@/pages/esport"));
 const EsportDetailPage = lazy(() => import("@/pages/esport-detail"));
 const EsportTeamsPage = lazy(() => import("@/pages/esport-teams"));
@@ -89,6 +92,8 @@ function Routes() {
       return <AIMentorPage />;
     case "marketplace":
       return <MarketplacePage />;
+    case "marketplace-orders":
+      return <MarketplaceOrdersPage />;
     case "marketplace-detail":
       return <MarketplaceDetailPage />;
     case "marketplace-form":
@@ -101,6 +106,10 @@ function Routes() {
       return <AiAgentPage />;
     case "learning-center":
       return <LearningCenterPage />;
+    case "jobs":
+      return <JobsPage section={(params.section as "browse" | "create" | "mine" | "applications" | "interviews") ?? "browse"} jobId={params.jobId} />;
+    case "interview-room":
+      return params.id ? <InterviewRoomPage interviewId={params.id} /> : <NotFoundPage />;
     case "esport-competition":
       return params.id ? <EsportDetailPage id={params.id} /> : <EsportPage />;
     case "esport-teams":

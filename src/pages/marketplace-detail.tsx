@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { MapPin, MessageCircle, ArrowLeft, Pencil, Trash2, Package, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link, useRoute } from "@/lib/router";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,10 @@ export default function MarketplaceDetailPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState("1");
+  const [buyerMessage, setBuyerMessage] = useState("");
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +101,23 @@ export default function MarketplaceDetailPage() {
   const whatsappLink = sellerWhatsapp
     ? `https://wa.me/${sellerWhatsapp.replace(/\D/g, "")}?text=Halo, saya tertarik dengan "${listing.title}" di Marketplace Panti Janda.`
     : null;
+
+  const createOrder = async () => {
+    setOrderBusy(true);
+    setOrderError(null);
+    try {
+      const result = await api<{ order: { id: string } }>("marketplace.orders.create", {
+        listingId: listing.id,
+        quantity: Number(quantity),
+        message: buyerMessage.trim() || undefined,
+      });
+      navigate(`/marketplace/orders?order=${encodeURIComponent(result.order.id)}`);
+    } catch (error) {
+      setOrderError(errorText(error) || "Permintaan pesanan belum dapat dibuat.");
+    } finally {
+      setOrderBusy(false);
+    }
+  };
 
   return (
     <>
@@ -230,6 +251,22 @@ export default function MarketplaceDetailPage() {
             </p>
           </CardContent>
         </Card>
+        {account && listing.status === "active" ? (
+          <Card className="mt-4">
+            <CardHeader><CardTitle className="text-lg">Ajukan pesanan</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <label htmlFor="order-quantity" className="block text-sm font-medium">Jumlah</label>
+              <input id="order-quantity" type="number" min={1} max={99} value={quantity} onChange={(event) => setQuantity(event.target.value)} className="w-full max-w-32 rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              <label htmlFor="order-message" className="block text-sm font-medium">Pesan untuk penjual (opsional)</label>
+              <textarea id="order-message" maxLength={1000} rows={3} value={buyerMessage} onChange={(event) => setBuyerMessage(event.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              {orderError ? <p role="alert" className="text-sm text-destructive">{orderError}</p> : null}
+              <Button disabled={orderBusy || !Number.isInteger(Number(quantity)) || Number(quantity) < 1 || Number(quantity) > 99} onClick={() => void createOrder()}>
+                {orderBusy ? "Mengirim…" : "Kirim permintaan pesanan"}
+              </Button>
+              <p className="text-xs text-muted-foreground">Pesanan menunggu konfirmasi penjual. Pembayaran tidak diproses di sini.</p>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </>
   );

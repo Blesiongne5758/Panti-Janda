@@ -584,6 +584,9 @@ export default function LearningCenter() {
                     ))}
                   </ul>
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/lowongan">Jelajahi semua lowongan</Link>
+                    </Button>
                     <Button asChild size="sm">
                       <Link to="/marketplace">Buka Marketplace</Link>
                     </Button>

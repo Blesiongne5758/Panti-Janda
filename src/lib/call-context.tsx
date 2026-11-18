@@ -38,6 +38,7 @@ export type CallStatus = "idle" | "calling" | "ringing" | "connected" | "ended";
 
 export interface CallState {
   callId: string;
+  interviewId?: string;
   mode: CallMode;
   status: CallStatus;
   isCaller: boolean;
@@ -51,6 +52,7 @@ export interface CallState {
 export interface IncomingCall {
   callId: string;
   id?: string;
+  interviewId?: string | null;
   mode: CallMode;
   callerAccountId: string;
   callerName: string;
@@ -78,7 +80,7 @@ interface CallContextValue {
   mediaPermissionIssue: string | null;
   incomingVideoUpgrade: CallRenegotiation | null;
   acceptingVideoUpgrade: boolean;
-  startCall: (target: CallUser, mode?: CallMode) => Promise<void>;
+  startCall: (target: CallUser, mode?: CallMode, options?: { interviewId?: string }) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: () => Promise<void>;
   acceptVideoUpgrade: () => Promise<void>;
@@ -393,7 +395,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
   // Start outgoing call (audio or video)
   const startCall = useCallback(
-    async (target: CallUser, mode: CallMode = "audio") => {
+    async (target: CallUser, mode: CallMode = "audio", options?: { interviewId?: string }) => {
       if (callStateRef.current) {
         toast.info("Anda sedang dalam panggilan aktif.");
         return;
@@ -439,6 +441,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
         }>("call.start", {
           recipientAccountId: target.accountId,
           mode,
+          ...(options?.interviewId ? { interviewId: options.interviewId } : {}),
           offer: {
             type: offer.type,
             sdp: offer.sdp,
@@ -452,6 +455,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
         const newCallState: CallState = {
           callId: data.call.id,
+          ...(options?.interviewId ? { interviewId: options.interviewId } : {}),
           mode,
           status: "calling",
           isCaller: true,
@@ -637,6 +641,7 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
 
       setCallState({
         callId: currentIncoming.callId,
+        ...(currentIncoming.interviewId ? { interviewId: currentIncoming.interviewId } : {}),
         mode: currentIncoming.mode,
         status: "calling",
         isCaller: false,
@@ -976,7 +981,9 @@ export function VoiceCallProvider({ children }: { children: ReactNode }) {
               if (typeof Notification !== "undefined" && Notification.permission === "granted") {
                 const title = normalizedIncoming.mode === "video" ? "Panggilan video masuk" : "Panggilan suara masuk";
                 const body = `${normalizedIncoming.callerName} sedang menghubungi Anda`;
-                const url = `/#/pesan?with=${encodeURIComponent(normalizedIncoming.callerAccountId)}`;
+                const url = normalizedIncoming.interviewId
+                  ? `/#/lowongan/wawancara/${encodeURIComponent(normalizedIncoming.interviewId)}`
+                  : `/#/pesan?with=${encodeURIComponent(normalizedIncoming.callerAccountId)}`;
                 const options: NotificationOptions = {
                   body,
                   icon: "/images/logo-pj.png",

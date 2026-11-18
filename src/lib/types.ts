@@ -143,6 +143,7 @@ export interface ChatMessage {
   groupId: string | null;
   body: string;
   createdAt: string;
+  readStatus?: "sent" | "read" | null;
 }
 
 export interface ChatThread {
@@ -636,7 +637,7 @@ export interface CampaignDonation {
   createdAt: string;
 }
 
-export type NotificationType = "follow" | "message" | "donation" | "verification" | "marketplace_low_stock";
+export type NotificationType = "follow" | "message" | "donation" | "verification" | "marketplace_low_stock" | "media_like" | "media_comment" | "marketplace_order" | "marketplace_order_update" | "job_application" | "job_application_status" | "job_interview" | "esport_committee";
 
 export interface NotificationItem {
   id: string;
@@ -1419,6 +1420,14 @@ export interface EsportStream {
   createdAt: string;
 }
 
+export interface EsportSponsor {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  isPrimary: boolean;
+}
+
 export interface EsportMyRegistration {
   registrationId: string;
   teamId: string;
@@ -1476,6 +1485,10 @@ export interface EsportTournamentDetail {
     creatorId: string;
     creatorName: string;
     canManage: boolean;
+    competitionMode: "online" | "onsite";
+    venueName: string | null;
+    venueAddress: string | null;
+    venueMapsUrl: string | null;
   };
   game:
     | (EsportGameRef & {
@@ -1498,6 +1511,7 @@ export interface EsportTournamentDetail {
   matches: EsportMatch[];
   casters: EsportCaster[];
   streams: EsportStream[];
+  sponsors: EsportSponsor[];
   disputes: EsportDispute[];
   myRegistrations: EsportMyRegistration[];
   permissions: { registrationOpen: boolean };
@@ -1579,7 +1593,7 @@ export interface EsportLeaderboard {
   topPlayers: EsportTopPlayer[];
 }
 
-export type CalendarKind = "event" | "esport" | "tugas" | "konseling" | "langganan" | "pribadi";
+export type CalendarKind = "event" | "esport" | "tugas" | "konseling" | "wawancara" | "langganan" | "pribadi";
 
 export type CalendarRole = "penyelenggara" | "panitia" | "peserta" | "undangan";
 

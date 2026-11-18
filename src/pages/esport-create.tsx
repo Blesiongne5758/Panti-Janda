@@ -269,6 +269,10 @@ export default function EsportCreatePage() {
   const [gameId, setGameId] = useState("");
   const [format, setFormat] = useState<EsportFormat>("single_elim");
   const [platform, setPlatform] = useState<EsportPlatform>("mobile");
+  const [competitionMode, setCompetitionMode] = useState<"online" | "onsite">("online");
+  const [venueName, setVenueName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [venueMapsUrl, setVenueMapsUrl] = useState("");
   const [basic, setBasic] = useState<BasicDraft>(emptyBasic);
   const [schedule, setSchedule] = useState<ScheduleDraft>(emptySchedule);
   const [teams, setTeams] = useState<TeamsDraft>(emptyTeams);
@@ -316,6 +320,10 @@ export default function EsportCreatePage() {
     setGameId(data.game?.id ?? "");
     setFormat(t.format);
     setPlatform(t.platform);
+    setCompetitionMode(t.competitionMode ?? "online");
+    setVenueName(t.venueName ?? "");
+    setVenueAddress(t.venueAddress ?? "");
+    setVenueMapsUrl(t.venueMapsUrl ?? "");
     setBasic({
       title: t.title,
       description: t.description ?? "",
@@ -401,8 +409,8 @@ export default function EsportCreatePage() {
   }, [resumeId, account, applyResume, navigate]);
 
   const snapshot = useMemo(
-    () => JSON.stringify({ gameId, format, platform, basic, schedule, teams, prizePool, rules, streaming }),
-    [gameId, format, platform, basic, schedule, teams, prizePool, rules, streaming],
+    () => JSON.stringify({ gameId, format, platform, competitionMode, venueName, venueAddress, venueMapsUrl, basic, schedule, teams, prizePool, rules, streaming }),
+    [gameId, format, platform, competitionMode, venueName, venueAddress, venueMapsUrl, basic, schedule, teams, prizePool, rules, streaming],
   );
   const lastSnapshotRef = useRef(snapshot);
   useEffect(() => {
@@ -440,6 +448,10 @@ export default function EsportCreatePage() {
       description: basic.description.trim(),
       format,
       platform,
+      competitionMode,
+      venueName: competitionMode === "onsite" ? venueName.trim() : null,
+      venueAddress: competitionMode === "onsite" ? venueAddress.trim() : null,
+      venueMapsUrl: competitionMode === "onsite" ? venueMapsUrl.trim() || null : null,
       category: basic.category,
       bannerData: basic.bannerData,
       tags: basic.tags.trim(),
@@ -500,7 +512,7 @@ export default function EsportCreatePage() {
         recordingEnabled: streaming.recordingEnabled,
       },
     };
-  }, [gameId, format, platform, basic, schedule, teams, prizePool, rules, streaming]);
+  }, [gameId, format, platform, competitionMode, venueName, venueAddress, venueMapsUrl, basic, schedule, teams, prizePool, rules, streaming]);
 
   useEffect(() => {
     buildPayloadRef.current = buildPayload;
@@ -551,6 +563,8 @@ export default function EsportCreatePage() {
     (index: number): string | null => {
       if (index === 0) {
         if (!gameId) return "Pilih game yang akan dipertandingkan.";
+        if (competitionMode === "onsite" && !venueName.trim()) return "Nama venue wajib diisi untuk kompetisi onsite.";
+        if (competitionMode === "onsite" && !venueAddress.trim()) return "Alamat lokasi wajib diisi untuk kompetisi onsite.";
       }
       if (index === 1) {
         if (basic.title.trim().length < 4) return "Judul turnamen minimal 4 karakter.";
@@ -609,7 +623,7 @@ export default function EsportCreatePage() {
       }
       return null;
     },
-    [gameId, basic.title, schedule, teams, prizePool.rows, prizePool.sponsors, streaming],
+    [gameId, competitionMode, venueName, venueAddress, basic.title, schedule, teams, prizePool.rows, prizePool.sponsors, streaming],
   );
 
   const goNext = () => {
@@ -946,6 +960,47 @@ export default function EsportCreatePage() {
                 );
               })}
             </div>
+          </div>
+          <div className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-6">
+            <div>
+              <h3 className="font-display text-lg font-semibold">Mode kompetisi *</h3>
+              <p className="text-sm text-muted-foreground">Pilih apakah pertandingan berlangsung daring atau di venue fisik.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(["online", "onsite"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={competitionMode === mode}
+                  onClick={() => setCompetitionMode(mode)}
+                  className={cn(
+                    "rounded-xl border p-3 text-left transition-colors",
+                    competitionMode === mode ? "border-orange-300 bg-orange-50" : "border-border bg-background hover:bg-secondary/60",
+                  )}
+                >
+                  <span className="block text-sm font-semibold">{mode === "online" ? "Online" : "Onsite"}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {mode === "online" ? "Peserta bertanding dari lokasi masing-masing." : "Cantumkan venue dan alamat turnamen."}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {competitionMode === "onsite" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wz-venue-name">Nama venue *</Label>
+                  <Input id="wz-venue-name" value={venueName} maxLength={160} onChange={(e) => setVenueName(e.target.value)} placeholder="Nama gedung / lokasi" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wz-venue-address">Alamat lengkap *</Label>
+                  <Input id="wz-venue-address" value={venueAddress} maxLength={500} onChange={(e) => setVenueAddress(e.target.value)} placeholder="Alamat venue" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="wz-venue-map">Tautan peta (opsional)</Label>
+                  <Input id="wz-venue-map" type="url" value={venueMapsUrl} maxLength={1000} onChange={(e) => setVenueMapsUrl(e.target.value)} placeholder="https://maps.google.com/..." />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
