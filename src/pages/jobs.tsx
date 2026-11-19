@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, CalendarClock, Loader2, Plus, RefreshCw, Video } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, Loader2, RefreshCw, Video } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useRoute } from "@/lib/router";
@@ -188,7 +188,6 @@ export default function JobsPage({ section = "browse", jobId }: { section?: "bro
       <nav className="flex flex-wrap gap-2" aria-label="Navigasi lowongan">
         <Button size="sm" variant={section === "browse" ? "default" : "outline"} onClick={() => navigate("/lowongan")}>Jelajahi</Button>
         {account ? <>
-          <Button size="sm" variant={section === "create" ? "default" : "outline"} onClick={() => navigate("/lowongan/baru")}><Plus className="mr-1 size-4" />Buat lowongan</Button>
           <Button size="sm" variant={section === "mine" ? "default" : "outline"} onClick={() => navigate("/lowongan/saya")}>Lowongan saya</Button>
           <Button size="sm" variant={section === "applications" ? "default" : "outline"} onClick={() => navigate("/lowongan/lamaran")}>Lamaran</Button>
           <Button size="sm" variant={section === "interviews" ? "default" : "outline"} onClick={() => navigate("/lowongan/wawancara")}>Wawancara</Button>

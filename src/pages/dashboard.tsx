@@ -4,6 +4,7 @@ import {
   Activity,
   BadgeCheck,
   BookOpen,
+  BriefcaseBusiness,
   Bot,
   Coins,
   Crown,
@@ -904,6 +905,21 @@ export default function DashboardPage() {
           <Button asChild size="sm" variant="outline"><Link to="/event">Event</Link></Button>
           <Button asChild size="sm" variant="outline"><Link to="/marketplace">Marketplace</Link></Button>
           <Button asChild size="sm" variant="outline"><Link to="/galang-dana">Dukung kampanye</Link></Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-primary/20 bg-primary/[0.03]">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 font-display text-lg">
+            <BriefcaseBusiness className="size-5 text-primary" aria-hidden />
+            Lowongan kerja
+          </CardTitle>
+          <CardDescription>Publikasikan peluang kerja dan temukan kandidat dari komunitas.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild size="sm">
+            <Link to="/lowongan/baru">Buat lowongan</Link>
+          </Button>
         </CardContent>
       </Card>
 
