@@ -696,7 +696,7 @@ export interface CampaignDonation {
   createdAt: string;
 }
 
-export type NotificationType = "follow" | "message" | "donation" | "verification" | "marketplace_low_stock" | "media_like" | "media_comment" | "marketplace_order" | "marketplace_order_update" | "job_application" | "job_application_status" | "job_interview" | "esport_committee";
+export type NotificationType = "follow" | "message" | "donation" | "verification" | "marketplace_low_stock" | "media_like" | "media_comment" | "marketplace_order" | "marketplace_order_update" | "job_application" | "job_application_status" | "job_interview" | "esport_committee" | "listing_updated" | "listing_archived";
 
 export interface NotificationItem {
   id: string;

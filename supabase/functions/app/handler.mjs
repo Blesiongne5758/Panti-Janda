@@ -14534,17 +14534,22 @@ async function adminTrialDelete(ctx) {
 // ---------- notifications ----------
 
 async function notify(supabase, recipientAccountId, type, actorAccountId, message, link) {
-  if (!recipientAccountId || recipientAccountId === actorAccountId) return;
-  await supabase.from("notifications").insert({
-    id: crypto.randomUUID(),
-    recipient_account_id: recipientAccountId,
-    type,
-    actor_account_id: actorAccountId ?? null,
-    message,
-    link: link ?? null,
-    read: false,
-    created_at: now(),
-  });
+  if (!recipientAccountId || recipientAccountId === actorAccountId) return false;
+  try {
+    const { error } = await supabase.from("notifications").insert({
+      id: crypto.randomUUID(),
+      recipient_account_id: recipientAccountId,
+      type,
+      actor_account_id: actorAccountId ?? null,
+      message,
+      link: link ?? null,
+      read: false,
+      created_at: now(),
+    });
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 const MARKETPLACE_LOW_STOCK_THRESHOLD = 5;
@@ -15065,6 +15070,14 @@ const LISTING_CATEGORIES = [
   "Lainnya",
 ];
 
+function listingPhotos(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 5).filter((photo) => {
+    if (typeof photo !== "string" || photo.length > 1500000) return false;
+    return /^https?:\/\//i.test(photo) || /^data:image\/(?:jpeg|png|webp);base64,/i.test(photo);
+  });
+}
+
 function publicListing(row, profile) {
   return {
     id: row.id,
@@ -15078,6 +15091,7 @@ function publicListing(row, profile) {
     price: row.price ?? null,
     stock: Number.isFinite(Number(row.stock)) ? Math.max(0, Number(row.stock)) : 1,
     category: row.category,
+    photos: listingPhotos(row.photos),
     status: row.status ?? "active",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -15149,6 +15163,7 @@ async function marketplaceCreate(ctx) {
     price,
     stock,
     category,
+    photos: listingPhotos(ctx.body.photos),
     status: "active",
     created_at: now(),
     updated_at: now(),
@@ -15181,7 +15196,7 @@ async function marketplaceUpdate(ctx) {
   if (!id) return fail(400, "invalid_input");
   const { data: existing } = await ctx.supabase
     .from("marketplace_listings")
-    .select("id,seller_profile_id,stock,title")
+    .select("id,seller_profile_id,stock,title,status")
     .eq("id", id)
     .maybeSingle();
   if (!existing || existing.seller_profile_id !== profile.id) return fail(404, "not_found");
@@ -15207,6 +15222,7 @@ async function marketplaceUpdate(ctx) {
     if (price !== null && (isNaN(price) || price < 0)) return fail(400, "invalid_price");
     updates.price = price;
   }
+  if (ctx.body.photos !== undefined) updates.photos = listingPhotos(ctx.body.photos);
   if (ctx.body.stock !== undefined) {
     const stock = Math.floor(Number(ctx.body.stock));
     if (!Number.isFinite(stock) || stock < 0 || stock > 1000000000) return fail(400, "invalid_stock");
@@ -15216,11 +15232,47 @@ async function marketplaceUpdate(ctx) {
     const status = text(ctx.body.status, 20);
     if (["active", "sold", "archived", "draft"].includes(status)) updates.status = status;
   }
-  await ctx.supabase.from("marketplace_listings").update(updates).eq("id", id);
-  const { data: row } = await ctx.supabase.from("marketplace_listings").select("*").eq("id", id).maybeSingle();
-  const nextStock = updates.stock ?? row?.stock ?? existing.stock;
-  await notifyMarketplaceLowStock(ctx.supabase, { ...row, title: row?.title ?? existing.title, seller_account_id: profile.account_id }, nextStock);
-  return ok({ listing: publicListing(row, profile) });
+  const { data: row, error: updateError } = await ctx.supabase
+    .from("marketplace_listings")
+    .update(updates)
+    .eq("id", id)
+    .eq("seller_profile_id", profile.id)
+    .neq("status", "sold")
+    .select("*")
+    .maybeSingle();
+  if (updateError) return fail(500, "server_error");
+  if (!row) return fail(409, "listing_unavailable");
+  const nextStock = updates.stock ?? row.stock ?? existing.stock;
+  await notifyMarketplaceLowStock(
+    ctx.supabase,
+    { ...row, title: row.title ?? existing.title, seller_account_id: profile.account_id },
+    nextStock,
+  );
+  const archivedNow = existing.status !== "archived" && row.status === "archived";
+  const edited = ["title", "description", "price", "photos"].some((key) =>
+    Object.prototype.hasOwnProperty.call(updates, key),
+  );
+  let notificationCreated = null;
+  if (archivedNow) {
+    notificationCreated = await notify(
+      ctx.supabase,
+      auth.account.id,
+      "listing_archived",
+      null,
+      `Produk "${row.title}" berhasil diarsipkan.`,
+      `#/marketplace/${row.id}`,
+    );
+  } else if (edited) {
+    notificationCreated = await notify(
+      ctx.supabase,
+      auth.account.id,
+      "listing_updated",
+      null,
+      `Produk "${row.title}" berhasil diperbarui.`,
+      `#/marketplace/${row.id}`,
+    );
+  }
+  return ok({ listing: publicListing(row, profile), notificationCreated });
 }
 
 async function marketplaceDelete(ctx) {

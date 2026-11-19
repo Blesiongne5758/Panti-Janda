@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, type ReactNode } from "react";
 import { getAccountRank } from "@/lib/constants";
-import { Bell, BriefcaseBusiness, Crown, HandHeart, Heart, LayoutDashboard, LogOut, Menu, MessageSquare, Package, Settings, ShieldCheck, ShoppingBag, UserRound } from "lucide-react";
+import { Archive, Bell, BriefcaseBusiness, Crown, HandHeart, Heart, LayoutDashboard, LogOut, Menu, MessageSquare, Package, PackageCheck, Settings, ShieldCheck, ShoppingBag, UserRound } from "lucide-react";
 import { Link, useRoute } from "@/lib/router";
 import { useAuth } from "@/lib/session";
 import { api } from "@/lib/api";
@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTranslation } from "@/lib/i18n-context";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import type { NotificationItem } from "@/lib/types";
+import { subscribeToNotificationRefresh } from "@/lib/notification-events";
 
 const NAV = [
   { to: "/", labelKey: "nav.home" as const, exact: true },
@@ -72,10 +73,12 @@ function NotificationBell() {
       }
     };
     void load();
+    const unsubscribeRefresh = subscribeToNotificationRefresh(() => { void load(); });
     const interval = setInterval(load, 30000);
     return () => {
       active = false;
       clearInterval(interval);
+      unsubscribeRefresh();
     };
   }, []);
 
@@ -160,6 +163,8 @@ function NotificationBell() {
                     {(n.type === "marketplace_order" || n.type === "marketplace_order_update") && <ShoppingBag className="size-3.5" aria-hidden />}
                     {n.type === "media_like" && <Heart className="size-3.5" aria-hidden />}
                     {n.type === "media_comment" && <MessageSquare className="size-3.5" aria-hidden />}
+                    {n.type === "listing_updated" && <PackageCheck className="size-3.5" aria-hidden />}
+                    {n.type === "listing_archived" && <Archive className="size-3.5" aria-hidden />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm">

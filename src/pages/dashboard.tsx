@@ -58,6 +58,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { AccountGate, MemberAvatar, StatusPill, TierBadge } from "@/components/common";
 import { DashboardCalendar } from "@/components/dashboard-calendar";
+import { DashboardMarketplaceManager } from "@/components/dashboard-marketplace-manager";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import { toast } from "sonner";
 
@@ -887,6 +888,8 @@ export default function DashboardPage() {
           </CardHeader>
         </Card>
       )}
+
+      {rank >= 2 && profile?.status === "verified" ? <DashboardMarketplaceManager /> : null}
 
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardHeader className="pb-3">
