@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useRef } from "react";
-import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn, Camera } from "lucide-react";
+import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn, Camera, Maximize2 } from "lucide-react";
 import type { CapturedMedia } from "@/components/camera-capture-dialog";
 import { compressImage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ export function FeedPage() {
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
+  const [previewPost, setPreviewPost] = useState<MediaPost | null>(null);
   const [uploadForm, setUploadForm] = useState({
     type: "photo" as "photo" | "video",
     mediaUrl: "",
@@ -527,30 +528,46 @@ export function FeedPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {post.type === "photo" ? (
-                    <img
-                      src={post.mediaUrl}
-                      alt={post.caption || "Photo"}
-                      className="aspect-[4/3] w-full rounded-lg bg-muted object-contain"
-                      width={640}
-                      height={480}
-                      loading={index === 0 ? "eager" : "lazy"}
-                      decoding="async"
-                      fetchPriority={index === 0 ? "high" : "low"}
-                      style={{ maxHeight: "500px" }}
-                    />
-                  ) : (
-                    <video
-                      src={post.mediaUrl}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      className="aspect-[4/3] w-full rounded-lg bg-black object-contain"
-                      style={{ maxHeight: "500px" }}
+                  <div className="group relative overflow-hidden rounded-lg bg-muted">
+                    {post.type === "photo" ? (
+                      <img
+                        src={post.mediaUrl}
+                        alt={post.caption || "Photo"}
+                        className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.01]"
+                        width={640}
+                        height={480}
+                        loading={index === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={index === 0 ? "high" : "low"}
+                        style={{ maxHeight: "500px" }}
+                        onClick={() => setPreviewPost(post)}
+                      />
+                    ) : (
+                      <video
+                        src={post.mediaUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="aspect-[4/3] w-full cursor-zoom-in rounded-lg bg-black object-contain"
+                        style={{ maxHeight: "500px" }}
+                        onClick={() => setPreviewPost(post)}
+                      >
+                        Video tidak didukung
+                      </video>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Buka ${post.type === "photo" ? "foto" : "video"} dalam layar penuh`}
+                      title="Buka layar penuh"
+                      className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-full bg-black/65 text-white opacity-0 shadow-lg transition-opacity hover:bg-black/80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white group-hover:opacity-100"
+                      onClick={() => setPreviewPost(post)}
                     >
-                      Video tidak didukung
-                    </video>
-                  )}
+                      <Maximize2 className="size-4" aria-hidden />
+                    </button>
+                    <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      Sentuh untuk layar penuh
+                    </span>
+                  </div>
 
                   {post.caption && <p className="text-sm">{post.caption}</p>}
 
@@ -639,13 +656,51 @@ export function FeedPage() {
         <Suspense fallback={null}>
           <CameraCaptureDialog
             open={cameraDialogOpen}
-        onOpenChange={setCameraDialogOpen}
-        allowedModes="both"
-        maxVideoSeconds={6}
+            onOpenChange={setCameraDialogOpen}
+            allowedModes="both"
+            maxVideoSeconds={6}
             onCapture={handleCameraCapture}
           />
         </Suspense>
       )}
+      <Dialog open={Boolean(previewPost)} onOpenChange={(open) => !open && setPreviewPost(null)}>
+        <DialogContent
+          className="h-[100dvh] w-screen max-w-none rounded-none border-0 bg-black/95 p-4 text-white sm:max-w-none sm:p-8"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Preview layar penuh</DialogTitle>
+          </DialogHeader>
+          {previewPost && (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4">
+              <div className="w-full max-w-6xl text-center text-sm text-white/75">
+                {previewPost.type === "video" ? "Preview video landscape" : "Preview foto"}
+              </div>
+              {previewPost.type === "photo" ? (
+                <img
+                  src={previewPost.mediaUrl}
+                  alt={previewPost.caption || "Preview foto layar penuh"}
+                  className="max-h-[calc(100dvh-7rem)] max-w-full object-contain"
+                />
+              ) : (
+                <video
+                  src={previewPost.mediaUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  preload="metadata"
+                  className="aspect-video h-auto max-h-[calc(100dvh-7rem)] w-full max-w-6xl rounded-lg bg-black object-contain shadow-2xl"
+                >
+                  Video tidak didukung
+                </video>
+              )}
+              {previewPost.caption && (
+                <p className="max-w-3xl text-center text-sm text-white/85">{previewPost.caption}</p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
