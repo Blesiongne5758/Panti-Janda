@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapPin, MessageCircle, ArrowLeft, Pencil, Trash2, Package, Loader2 } from "lucide-react";
+import { MapPin, MessageCircle, ArrowLeft, Package } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { Link, useRoute } from "@/lib/router";
@@ -22,8 +22,6 @@ export default function MarketplaceDetailPage() {
   const id = pathParts[1] ?? "";
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [sellerWhatsapp, setSellerWhatsapp] = useState<string | null>(null);
-  const [isOwner, setIsOwner] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState("1");
   const [buyerMessage, setBuyerMessage] = useState("");
@@ -48,32 +46,6 @@ export default function MarketplaceDetailPage() {
     void load();
     return () => { active = false; };
   }, [id]);
-
-  useEffect(() => {
-    if (!account) return;
-    let active = true;
-    const loadMine = async () => {
-      try {
-        const res = await api<{ items: MarketplaceListing[] }>("marketplace.mine");
-        if (active) setIsOwner(Boolean(res?.items?.some((item) => item.id === id)));
-      } catch {
-        if (active) setIsOwner(false);
-      }
-    };
-    void loadMine();
-    return () => { active = false; };
-  }, [account, id]);
-
-  const handleDelete = async () => {
-    if (!window.confirm("Hapus produk ini? Produk akan dihapus dari Marketplace dan tidak dapat dikembalikan.")) return;
-    setDeleting(true);
-    try {
-      await api("marketplace.delete", { id });
-      navigate("/marketplace");
-    } catch {
-      setDeleting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -151,17 +123,6 @@ export default function MarketplaceDetailPage() {
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <CardTitle className="font-display text-2xl">{formatRupiah(listing.price)}</CardTitle>
-              {isOwner && (
-                <div className="flex gap-2">
-                  <Button asChild size="sm" variant="outline">
-                    <Link to={`/marketplace/${listing.id}/edit`}><Pencil className="mr-1.5 size-3.5" />Edit</Link>
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleting}>
-                    {deleting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Trash2 className="mr-1.5 size-3.5" />}
-                    Hapus
-                  </Button>
-                </div>
-              )}
             </div>
             <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
               <Package className="size-4" aria-hidden />

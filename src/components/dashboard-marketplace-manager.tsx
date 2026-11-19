@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArchiveRestore, Eye, Loader2, PackagePlus, Pencil, RefreshCw, Store } from "lucide-react";
+import { Archive, ArchiveRestore, Eye, Loader2, PackagePlus, Pencil, RefreshCw, Store, Trash2 } from "lucide-react";
 import { api, errorText } from "@/lib/api";
 import { publishNotificationRefresh } from "@/lib/notification-events";
 import { Link } from "@/lib/router";
@@ -127,7 +127,7 @@ function ListingEditor({
   );
 }
 
-export function DashboardMarketplaceManager() {
+export function DashboardMarketplaceManager({ canCreate }: { canCreate: boolean }) {
   const [items, setItems] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState("");
@@ -186,6 +186,20 @@ export function DashboardMarketplaceManager() {
     }
   };
 
+  const deleteListing = async (listing: MarketplaceListing) => {
+    if (updatingId || !window.confirm("Hapus produk ini? Produk akan dihapus dari Marketplace dan tidak dapat dikembalikan.")) return;
+    setUpdatingId(listing.id);
+    try {
+      await api("marketplace.delete", { id: listing.id });
+      setItems((current) => current.filter((item) => item.id !== listing.id));
+      toast.success("Produk dihapus dari etalase.");
+    } catch (error) {
+      toast.error(errorText(error));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   return (
     <Card className="overflow-hidden border-primary/20 shadow-sm">
       <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -194,11 +208,11 @@ export function DashboardMarketplaceManager() {
             <Store className="size-5 text-primary" aria-hidden="true" />
             Etalase Saya
           </h2>
-          <CardDescription>Kelola detail dan status produk atau jasa yang Anda jual.</CardDescription>
+          <CardDescription>{canCreate ? "Kelola produk, foto, stok, dan status jualan Anda." : "Kelola listing yang sudah ada. Verifikasi profil diperlukan untuk menambahkan produk baru."}</CardDescription>
         </div>
-        <Button asChild className="min-h-10 shrink-0">
-          <Link to="/marketplace/baru"><PackagePlus className="size-4" aria-hidden="true" />Produk baru</Link>
-        </Button>
+        {canCreate ? <Button asChild className="min-h-10 shrink-0">
+          <Link to="/marketplace/baru?from=dashboard"><PackagePlus className="size-4" aria-hidden="true" />Produk baru</Link>
+        </Button> : null}
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Ringkasan etalase">
@@ -236,8 +250,8 @@ export function DashboardMarketplaceManager() {
           <div className="rounded-2xl border border-dashed border-border bg-secondary/20 px-4 py-9 text-center">
             <Store className="mx-auto size-8 text-primary" aria-hidden="true" />
             <p className="mt-3 font-display text-lg font-semibold">Etalase Anda masih kosong</p>
-            <p className="mt-1 text-sm text-muted-foreground">Tambahkan produk atau jasa pertama untuk mulai dikenal komunitas.</p>
-            <Button asChild size="sm" className="mt-4"><Link to="/marketplace/baru"><PackagePlus className="size-4" aria-hidden="true" />Tambah listing</Link></Button>
+            <p className="mt-1 text-sm text-muted-foreground">{canCreate ? "Tambahkan produk atau jasa pertama untuk mulai dikenal komunitas." : "Verifikasi profil diperlukan sebelum Anda dapat menambahkan produk atau jasa."}</p>
+            {canCreate ? <Button asChild size="sm" className="mt-4"><Link to="/marketplace/baru?from=dashboard"><PackagePlus className="size-4" aria-hidden="true" />Tambah listing</Link></Button> : null}
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="rounded-xl bg-secondary/30 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -272,11 +286,13 @@ export function DashboardMarketplaceManager() {
                   <h3 className="mt-1 line-clamp-2 font-display text-base font-semibold leading-snug">{listing.title}</h3>
                   {listing.description ? <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-sm">{listing.description}</p> : null}
                   <p className="mt-3 font-display text-lg font-semibold text-primary">{marketPrice(listing.price)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Stok tersedia: {listing.stock}</p>
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-border/70 pt-3">
                     <Button asChild type="button" variant="ghost" size="sm" className="min-h-9">
                       <Link to={`/marketplace/${listing.id}`}><Eye className="size-4" aria-hidden="true" />Lihat</Link>
                     </Button>
-                    {listing.status !== "sold" ? <ListingEditor key={`${listing.id}-${listing.updatedAt}`} listing={listing} onSaved={(updated) => setItems((current) => current.map((item) => item.id === updated.id ? updated : item))} /> : <span className="inline-flex min-h-9 items-center px-2 text-xs text-muted-foreground">Listing terjual · baca saja</span>}
+                    {listing.status !== "sold" ? <ListingEditor key={`${listing.id}-${listing.updatedAt}`} listing={listing} onSaved={(updated) => setItems((current) => current.map((item) => item.id === updated.id ? updated : item))} /> : <span className="inline-flex min-h-9 items-center px-2 text-xs text-muted-foreground">Listing terjual</span>}
+                    <Button asChild type="button" variant="outline" size="sm" className="min-h-9"><Link to={`/marketplace/${listing.id}/edit?from=dashboard`} aria-label={`Edit lengkap ${listing.title}`}><Pencil className="size-4" aria-hidden="true" />Edit lengkap</Link></Button>
                     {listing.status !== "sold" ? (
                       <Button
                         type="button"
@@ -291,13 +307,25 @@ export function DashboardMarketplaceManager() {
                         {listing.status === "active" ? "Arsipkan" : "Aktifkan"}
                       </Button>
                     ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="min-h-9"
+                      disabled={updatingId !== null}
+                      aria-label={`Hapus ${listing.title}`}
+                      onClick={() => void deleteListing(listing)}
+                    >
+                      {updatingId === listing.id ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
+                      Hapus
+                    </Button>
                   </div>
                 </div>
               </article>
             ))}
           </div>
         )}
-        <p className="text-xs leading-relaxed text-muted-foreground">Listing aktif tampil di marketplace. Arsip dapat diaktifkan kembali; listing yang sudah terjual hanya dapat dilihat. Pengelolaan dibatasi pada listing milik akun Anda.</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">Listing aktif tampil di marketplace. Arsip dapat diaktifkan kembali; listing terjual dapat diedit atau dihapus dari dasbor. Pengelolaan dibatasi pada listing milik akun Anda.</p>
       </CardContent>
     </Card>
   );

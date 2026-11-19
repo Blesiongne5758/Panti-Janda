@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Loader2, ImagePlus, X, Package } from "lucide-react";
 import { api, errorText } from "@/lib/api";
-import { useRoute } from "@/lib/router";
+import { useQueryParam, useRoute } from "@/lib/router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { usePresignedUpload } from "@/hooks/use-presigned-upload";
 
 export default function MarketplaceFormPage() {
   const { navigate, path } = useRoute();
+  const fromDashboard = useQueryParam("from") === "dashboard";
   const pathParts = path.split("?")[0].split("/").filter(Boolean);
   const editId = pathParts[1] && pathParts[1] !== "baru" && pathParts[2] === "edit" ? pathParts[1] : "";
   const isEdit = Boolean(editId);
@@ -112,7 +113,7 @@ export default function MarketplaceFormPage() {
       const res = isEdit
         ? await api<{ listing: { id: string } }>("marketplace.update", { ...payload, id: editId, status: "active" })
         : await api<{ listing: { id: string } }>("marketplace.create", payload);
-      if (res?.listing?.id) navigate(`/marketplace/${res.listing.id}`);
+      if (res?.listing?.id) navigate(fromDashboard ? "/dasbor" : `/marketplace/${res.listing.id}`);
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -127,9 +128,9 @@ export default function MarketplaceFormPage() {
   return (
     <>
       <PageBanner art="/images/banner-event.svg">
-        <button onClick={() => navigate(isEdit ? `/marketplace/${editId}` : "/marketplace")} className="mb-2 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={() => navigate(fromDashboard ? "/dasbor" : isEdit ? `/marketplace/${editId}` : "/marketplace")} className="mb-2 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" />
-          Kembali ke Marketplace
+          {fromDashboard ? "Kembali ke Dasbor" : "Kembali ke Marketplace"}
         </button>
         <h1 className="font-display text-3xl font-bold">{isEdit ? "Edit Produk atau Jasa" : "Jual Produk atau Jasa"}</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">

@@ -889,7 +889,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {rank >= 2 && profile?.status === "verified" ? <DashboardMarketplaceManager /> : null}
+      {rank >= 2 && profile ? <DashboardMarketplaceManager canCreate={profile.status === "verified"} /> : null}
 
       <Card className="border-primary/20 bg-primary/[0.03]">
         <CardHeader className="pb-3">
