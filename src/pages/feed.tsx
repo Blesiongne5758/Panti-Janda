@@ -30,6 +30,7 @@ export function FeedPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
   const [previewPost, setPreviewPost] = useState<MediaPost | null>(null);
+  const [compressingMedia, setCompressingMedia] = useState(false);
   const [uploadForm, setUploadForm] = useState({
     type: "photo" as "photo" | "video",
     mediaUrl: "",
@@ -186,11 +187,21 @@ export function FeedPage() {
     setFilePreview(previewUrl);
 
     if (isImage) {
-      const compressed = await compressImage(file, { maxWidth: 1200, quality: 0.78 });
-      selectedFileRef.current = compressed;
-      const previewUrl = URL.createObjectURL(compressed);
-      setFilePreview(previewUrl);
-      setUploadForm((prev) => ({ ...prev, type: "photo" }));
+      setCompressingMedia(true);
+      try {
+        const compressed = await compressImage(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.76,
+          maxSizeBytes: 1_500_000,
+        });
+        URL.revokeObjectURL(previewUrl);
+        selectedFileRef.current = compressed;
+        setFilePreview(URL.createObjectURL(compressed));
+        setUploadForm((prev) => ({ ...prev, type: "photo" }));
+      } finally {
+        setCompressingMedia(false);
+      }
       return;
     }
 
@@ -447,9 +458,9 @@ export function FeedPage() {
                     </div>
                   )}
 
-                  <Button onClick={handleUpload} className="w-full" disabled={uploading}>
-                    {uploading && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {uploading ? "Mengunggah..." : "Posting"}
+                  <Button onClick={handleUpload} className="w-full" disabled={uploading || compressingMedia}>
+                    {(uploading || compressingMedia) && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    {compressingMedia ? "Mengoptimalkan media..." : uploading ? "Mengunggah..." : "Posting"}
                   </Button>
                 </div>
               </DialogContent>
@@ -533,13 +544,12 @@ export function FeedPage() {
                       <img
                         src={post.mediaUrl}
                         alt={post.caption || "Photo"}
-                        className="aspect-[4/3] w-full cursor-zoom-in rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.01]"
+                        className="block h-auto min-h-48 w-full cursor-zoom-in rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.01]"
                         width={640}
                         height={480}
                         loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
                         fetchPriority={index === 0 ? "high" : "low"}
-                        style={{ maxHeight: "500px" }}
                         onClick={() => setPreviewPost(post)}
                       />
                     ) : (
@@ -548,8 +558,7 @@ export function FeedPage() {
                         controls
                         playsInline
                         preload="metadata"
-                        className="aspect-[4/3] w-full cursor-zoom-in rounded-lg bg-black object-contain"
-                        style={{ maxHeight: "500px" }}
+                        className="aspect-video w-full cursor-zoom-in rounded-lg bg-black object-contain"
                         onClick={() => setPreviewPost(post)}
                       >
                         Video tidak didukung
