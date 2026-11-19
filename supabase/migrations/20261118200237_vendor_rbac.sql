@@ -1,0 +1,86 @@
+-- Vendor admin RBAC
+CREATE TABLE IF NOT EXISTS vendor_rbac_roles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text,
+  is_system boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS vendor_rbac_permissions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS vendor_rbac_role_permissions (
+  role_id uuid NOT NULL REFERENCES vendor_rbac_roles(id) ON DELETE CASCADE,
+  permission_id uuid NOT NULL REFERENCES vendor_rbac_permissions(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, permission_id)
+);
+CREATE TABLE IF NOT EXISTS vendor_rbac_assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  role_id uuid NOT NULL REFERENCES vendor_rbac_roles(id) ON DELETE CASCADE,
+  vendor_id uuid REFERENCES vendor_profiles(id) ON DELETE CASCADE,
+  assigned_by uuid REFERENCES accounts(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (account_id, role_id, vendor_id)
+);
+CREATE TABLE IF NOT EXISTS vendor_rbac_audit_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id uuid,
+  action text NOT NULL,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  actor_account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO vendor_rbac_roles (code, name, description) VALUES
+  ('vendor_manager', 'Vendor Manager', 'Akses penuh operasional vendor dan pengaturan RBAC vendor.'),
+  ('vendor_reviewer', 'Vendor Reviewer', 'Meninjau vendor, profil, dan dokumen verifikasi.'),
+  ('vendor_finance', 'Vendor Finance', 'Mengelola komisi, payout, dan laporan keuangan vendor.'),
+  ('vendor_support', 'Vendor Support', 'Melihat data vendor dan menangani kebutuhan dukungan.')
+ON CONFLICT (code) DO NOTHING;
+INSERT INTO vendor_rbac_permissions (code, name, description) VALUES
+  ('vendor.view', 'Lihat vendor', 'Melihat data operasional vendor.'),
+  ('vendor.review', 'Review vendor', 'Mengubah status verifikasi vendor.'),
+  ('vendor.commission.manage', 'Kelola komisi', 'Mengubah komisi platform vendor.'),
+  ('vendor.payout.manage', 'Kelola payout', 'Mengelola jadwal dan proses pencairan.'),
+  ('vendor.support', 'Dukungan vendor', 'Mengakses data untuk membantu vendor.'),
+  ('vendor.rbac.manage', 'Kelola akses', 'Menambah, menghapus, dan mengatur assignment RBAC vendor.')
+ON CONFLICT (code) DO NOTHING;
+INSERT INTO vendor_rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM vendor_rbac_roles r CROSS JOIN vendor_rbac_permissions p
+WHERE r.code = 'vendor_manager'
+ON CONFLICT DO NOTHING;
+INSERT INTO vendor_rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM vendor_rbac_roles r JOIN vendor_rbac_permissions p ON p.code IN ('vendor.view','vendor.review')
+WHERE r.code = 'vendor_reviewer'
+ON CONFLICT DO NOTHING;
+INSERT INTO vendor_rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM vendor_rbac_roles r JOIN vendor_rbac_permissions p ON p.code IN ('vendor.view','vendor.commission.manage','vendor.payout.manage')
+WHERE r.code = 'vendor_finance'
+ON CONFLICT DO NOTHING;
+INSERT INTO vendor_rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM vendor_rbac_roles r JOIN vendor_rbac_permissions p ON p.code IN ('vendor.view','vendor.support')
+WHERE r.code = 'vendor_support'
+ON CONFLICT DO NOTHING;
+CREATE INDEX IF NOT EXISTS vendor_rbac_assignment_account_idx ON vendor_rbac_assignments(account_id);
+CREATE INDEX IF NOT EXISTS vendor_rbac_assignment_vendor_idx ON vendor_rbac_assignments(vendor_id);
+ALTER TABLE vendor_rbac_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_rbac_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_rbac_role_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_rbac_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_rbac_audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Vendor RBAC admin access" ON vendor_rbac_roles;
+CREATE POLICY "Vendor RBAC admin access" ON vendor_rbac_roles FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+DROP POLICY IF EXISTS "Vendor RBAC permissions admin access" ON vendor_rbac_permissions;
+CREATE POLICY "Vendor RBAC permissions admin access" ON vendor_rbac_permissions FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+DROP POLICY IF EXISTS "Vendor RBAC role permissions admin access" ON vendor_rbac_role_permissions;
+CREATE POLICY "Vendor RBAC role permissions admin access" ON vendor_rbac_role_permissions FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+DROP POLICY IF EXISTS "Vendor RBAC assignments admin access" ON vendor_rbac_assignments;
+CREATE POLICY "Vendor RBAC assignments admin access" ON vendor_rbac_assignments FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+DROP POLICY IF EXISTS "Vendor RBAC audit admin access" ON vendor_rbac_audit_logs;
+CREATE POLICY "Vendor RBAC audit admin access" ON vendor_rbac_audit_logs FOR SELECT USING (is_admin());

@@ -6579,6 +6579,10 @@ const ROUTES = {
   "admin.partners.list": adminPartnersList,
   "admin.partners.create": adminPartnerCreate,
   "admin.partners.update": adminPartnerUpdate,
+  "admin.vendor.rbac.list": adminVendorRbacList,
+  "admin.vendor.rbac.assign": adminVendorRbacAssign,
+  "admin.vendor.rbac.remove": adminVendorRbacRemove,
+  "vendor.rbac.me": vendorRbacMe,
   "admin.events.list": adminEventsList,
   "admin.events.approvals": adminEventApprovals,
   "admin.events.decide": adminEventDecide,
@@ -13457,6 +13461,81 @@ async function adminPartnerUpdate(ctx) {
   if (patch.organization_name !== undefined && String(patch.organization_name).length < 2) return fail(400, "invalid_organization_name");
   const { error } = await ctx.supabase.from("external_partners").update(patch).eq("id", id); if (error) return fail(500, "server_error");
   await adminPartnerAudit(ctx, "partner", id, "update", { fromStatus: existing.status, toStatus: patch.status ?? existing.status }); return ok({ updated: true });
+}
+
+async function vendorHasPermission(ctx, permissionCode, vendorId = null) {
+  const auth = await actor(ctx, 1);
+  if (auth.error) return { allowed: false, error: auth.error };
+  if (auth.account.role === "admin") return { allowed: true, account: auth.account };
+  let query = ctx.supabase.from("vendor_rbac_assignments").select("role_id").eq("account_id", auth.account.id);
+  if (vendorId) query = query.or(`vendor_id.is.null,vendor_id.eq.${vendorId}`);
+  else query = query.is("vendor_id", null);
+  const { data: assignments, error } = await query;
+  if (error || !(assignments ?? []).length) return { allowed: false, account: auth.account };
+  const roleIds = assignments.map((item) => item.role_id);
+  const { data: rolePermissions } = await ctx.supabase.from("vendor_rbac_role_permissions").select("permission_id").in("role_id", roleIds);
+  const permissionIds = [...new Set((rolePermissions ?? []).map((item) => item.permission_id))];
+  if (!permissionIds.length) return { allowed: false, account: auth.account };
+  const { data: permissions } = await ctx.supabase.from("vendor_rbac_permissions").select("code").in("id", permissionIds).eq("code", permissionCode);
+  return { allowed: Boolean((permissions ?? []).length), account: auth.account };
+}
+
+async function adminVendorRbacList(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const [{ data: roles }, { data: permissions }, { data: rolePermissions }, { data: assignments }] = await Promise.all([
+    ctx.supabase.from("vendor_rbac_roles").select("*").order("name"),
+    ctx.supabase.from("vendor_rbac_permissions").select("*").order("code"),
+    ctx.supabase.from("vendor_rbac_role_permissions").select("role_id,permission_id"),
+    ctx.supabase.from("vendor_rbac_assignments").select("*").order("created_at", { ascending: false }).limit(300),
+  ]);
+  const accountIds = [...new Set((assignments ?? []).map((item) => item.account_id))];
+  const vendorIds = [...new Set((assignments ?? []).map((item) => item.vendor_id).filter(Boolean))];
+  const [{ data: accounts }, { data: vendors }] = await Promise.all([
+    accountIds.length ? ctx.supabase.from("accounts").select("id,email,display_name,role,status").in("id", accountIds) : Promise.resolve({ data: [] }),
+    vendorIds.length ? ctx.supabase.from("vendor_profiles").select("id,business_name").in("id", vendorIds) : Promise.resolve({ data: [] }),
+  ]);
+  const accountMap = new Map((accounts ?? []).map((item) => [item.id, item]));
+  const vendorMap = new Map((vendors ?? []).map((item) => [item.id, item]));
+  const permissionMap = new Map((permissions ?? []).map((item) => [item.id, item.code]));
+  const roleItems = (roles ?? []).map((role) => ({ ...role, permissions: (rolePermissions ?? []).filter((item) => item.role_id === role.id).map((item) => permissionMap.get(item.permission_id)).filter(Boolean) }));
+  const assignmentItems = (assignments ?? []).map((item) => ({ id: item.id, accountId: item.account_id, accountName: accountMap.get(item.account_id)?.display_name ?? accountMap.get(item.account_id)?.email ?? null, accountEmail: accountMap.get(item.account_id)?.email ?? null, roleId: item.role_id, roleName: roles?.find((role) => role.id === item.role_id)?.name ?? null, vendorId: item.vendor_id ?? null, vendorName: item.vendor_id ? vendorMap.get(item.vendor_id)?.business_name ?? null : "Semua vendor", createdAt: item.created_at }));
+  return ok({ roles: roleItems, permissions: permissions ?? [], assignments: assignmentItems, accounts: accounts ?? [], vendors: vendors ?? [] });
+}
+
+async function adminVendorRbacAssign(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const accountId = text(ctx.body.accountId, 60); const roleId = text(ctx.body.roleId, 60); const vendorId = textOrNull(ctx.body.vendorId, 60);
+  if (!accountId || !roleId) return fail(400, "invalid_input");
+  const { data: role } = await ctx.supabase.from("vendor_rbac_roles").select("id").eq("id", roleId).maybeSingle(); if (!role) return fail(404, "role_not_found");
+  const { data: account } = await ctx.supabase.from("accounts").select("id").eq("id", accountId).maybeSingle(); if (!account) return fail(404, "account_not_found");
+  let existingQuery = ctx.supabase.from("vendor_rbac_assignments").select("id").eq("account_id", accountId).eq("role_id", roleId);
+  existingQuery = vendorId ? existingQuery.eq("vendor_id", vendorId) : existingQuery.is("vendor_id", null);
+  const { data: existing } = await existingQuery.maybeSingle();
+  if (existing) return ok({ assignmentId: existing.id, alreadyAssigned: true });
+  const { data: assignment, error } = await ctx.supabase.from("vendor_rbac_assignments").insert({ account_id: accountId, role_id: roleId, vendor_id: vendorId, assigned_by: auth.account.id }).select("id").single();
+  if (error) return fail(500, "server_error");
+  await ctx.supabase.from("vendor_rbac_audit_logs").insert({ assignment_id: assignment.id, action: "assign", details: { accountId, roleId, vendorId }, actor_account_id: auth.account.id });
+  return ok({ assignmentId: assignment.id });
+}
+
+async function adminVendorRbacRemove(ctx) {
+  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const id = text(ctx.body.id, 60); if (!id) return fail(400, "invalid_input");
+  const { data: assignment } = await ctx.supabase.from("vendor_rbac_assignments").select("*").eq("id", id).maybeSingle(); if (!assignment) return fail(404, "not_found");
+  const { error } = await ctx.supabase.from("vendor_rbac_assignments").delete().eq("id", id); if (error) return fail(500, "server_error");
+  await ctx.supabase.from("vendor_rbac_audit_logs").insert({ assignment_id: id, action: "remove", details: { accountId: assignment.account_id, roleId: assignment.role_id, vendorId: assignment.vendor_id }, actor_account_id: auth.account.id });
+  return ok({ removed: true });
+}
+
+async function vendorRbacMe(ctx) {
+  const auth = await actor(ctx, 1); if (auth.error) return auth.error;
+  if (auth.account.role === "admin") return ok({ isAdmin: true, permissions: ["*"] });
+  const { data: assignments } = await ctx.supabase.from("vendor_rbac_assignments").select("role_id").eq("account_id", auth.account.id);
+  const roleIds = [...new Set((assignments ?? []).map((item) => item.role_id))];
+  const { data: links } = roleIds.length ? await ctx.supabase.from("vendor_rbac_role_permissions").select("permission_id").in("role_id", roleIds) : { data: [] };
+  const permissionIds = [...new Set((links ?? []).map((item) => item.permission_id))];
+  const { data: permissions } = permissionIds.length ? await ctx.supabase.from("vendor_rbac_permissions").select("code").in("id", permissionIds) : { data: [] };
+  return ok({ isAdmin: false, permissions: (permissions ?? []).map((item) => item.code) });
 }
 
 // ---------- admin settings ----------

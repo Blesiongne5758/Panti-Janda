@@ -633,6 +633,27 @@ export interface ExternalPartnerAdminItem {
   updatedAt: string;
 }
 
+export interface VendorRbacRole {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: string[];
+}
+
+export interface VendorRbacAssignment {
+  id: string;
+  accountId: string;
+  accountName: string | null;
+  accountEmail: string | null;
+  roleId: string;
+  roleName: string | null;
+  vendorId: string | null;
+  vendorName: string | null;
+  createdAt: string;
+}
+
 export interface ReportItem {
   id: string;
   targetType: "profile" | "update" | "comment";

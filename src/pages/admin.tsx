@@ -53,6 +53,8 @@ import type {
   Profile,
   ReportItem,
   VendorAdminItem,
+  VendorRbacAssignment,
+  VendorRbacRole,
   WidowRole,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -286,6 +288,13 @@ export default function AdminPage() {
   const [vendorStatus, setVendorStatus] = useState("all");
   const [partnerQuery, setPartnerQuery] = useState("");
   const [partnerStatus, setPartnerStatus] = useState("all");
+  const [rbacRoles, setRbacRoles] = useState<VendorRbacRole[]>([]);
+  const [rbacAssignments, setRbacAssignments] = useState<VendorRbacAssignment[]>([]);
+  const [rbacAccounts, setRbacAccounts] = useState<{ id: string; email: string; display_name: string | null }[]>([]);
+  const [rbacVendors, setRbacVendors] = useState<{ id: string; business_name: string }[]>([]);
+  const [rbacAccountId, setRbacAccountId] = useState("");
+  const [rbacRoleId, setRbacRoleId] = useState("");
+  const [rbacVendorId, setRbacVendorId] = useState("all");
   const [pending, setPending] = useState<Profile[] | null>(null);
   const [reports, setReports] = useState<ReportItem[] | null>(null);
   const [donations, setDonations] = useState<DonationItem[] | null>(null);
@@ -492,6 +501,12 @@ export default function AdminPage() {
         const partnersData = await api<{ items: ExternalPartnerAdminItem[] }>("admin.partners.list");
         setPartners(partnersData.items);
       } catch { setPartners([]); }
+      try {
+        const rbacData = await api<{ roles: VendorRbacRole[]; assignments: VendorRbacAssignment[]; accounts: { id: string; email: string; display_name: string | null }[]; vendors: { id: string; business_name: string }[] }>("admin.vendor.rbac.list");
+        setRbacRoles(rbacData.roles); setRbacAssignments(rbacData.assignments); setRbacAccounts(rbacData.accounts); setRbacVendors(rbacData.vendors);
+        if (!rbacRoleId && rbacData.roles[0]) setRbacRoleId(rbacData.roles[0].id);
+        if (!rbacAccountId && rbacData.accounts[0]) setRbacAccountId(rbacData.accounts[0].id);
+      } catch { setRbacRoles([]); setRbacAssignments([]); }
       try {
         const eventsData = await api<{ items: AdminEventRow[] }>("admin.events.list");
         setEventsAdmin(eventsData.items);
@@ -740,6 +755,24 @@ export default function AdminPage() {
     } catch (err) { toast.error(errorText(err)); }
   };
 
+  const assignVendorRole = async () => {
+    if (!rbacAccountId || !rbacRoleId) { toast.error("Pilih akun dan role terlebih dahulu."); return; }
+    try {
+      await api("admin.vendor.rbac.assign", { accountId: rbacAccountId, roleId: rbacRoleId, vendorId: rbacVendorId === "all" ? null : rbacVendorId });
+      toast.success("Role vendor berhasil ditugaskan.");
+      await load();
+    } catch (err) { toast.error(errorText(err)); }
+  };
+
+  const removeVendorRole = async (assignment: VendorRbacAssignment) => {
+    setBusyId(assignment.id);
+    try {
+      await api("admin.vendor.rbac.remove", { id: assignment.id });
+      setRbacAssignments((items) => items.filter((item) => item.id !== assignment.id));
+      toast.success("Assignment role dicabut.");
+    } catch (err) { toast.error(errorText(err)); } finally { setBusyId(null); }
+  };
+
   const resolveReport = async (report: ReportItem, resolution: "hide" | "dismiss") => {
     setBusyId(report.id);
     try {
@@ -974,6 +1007,7 @@ export default function AdminPage() {
           <TabsTrigger value="pengguna">Pengguna</TabsTrigger>
           <TabsTrigger value="vendor"><Store className="size-3.5" /> Vendor</TabsTrigger>
           <TabsTrigger value="mitra"><Handshake className="size-3.5" /> Mitra Eksternal</TabsTrigger>
+          <TabsTrigger value="vendorRbac"><UserCog className="size-3.5" /> Akses Vendor</TabsTrigger>
           <TabsTrigger value="laporan">
             Laporan{reports && reports.length ? ` (${reports.length})` : ""}
           </TabsTrigger>
@@ -1270,6 +1304,17 @@ export default function AdminPage() {
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2"><div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Cari organisasi atau tipe..." value={partnerQuery} onChange={(event) => setPartnerQuery(event.target.value)} /></div><Select value={partnerStatus} onValueChange={setPartnerStatus}><SelectTrigger className="w-44"><SelectValue placeholder="Semua status" /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{["prospect", "review", "active", "suspended", "completed"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>
               {filteredPartners.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Belum ada mitra. Tambahkan organisasi pertama untuk memulai pipeline kerja sama.</p> : <div className="space-y-2">{filteredPartners.map((partner) => <div key={partner.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"><div className="min-w-52 flex-1"><p className="font-medium">{partner.organizationName}</p><p className="text-xs text-muted-foreground">{partner.partnerType} · {partner.contactName ?? "PIC belum diisi"}</p></div><div className="text-xs text-muted-foreground">{partner.contactEmail ?? "Kontak belum diisi"}</div><Select value={partner.status} onValueChange={(value) => updatePartner(partner, value as ExternalPartnerAdminItem["status"])} disabled={busyId === partner.id}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent>{["prospect", "review", "active", "suspended", "completed"].map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>)}</div>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="vendorRbac" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 font-display text-lg"><UserCog className="size-4" /> Role & Hak Akses Vendor</CardTitle><CardDescription>Atur akses operasional vendor berdasarkan peran. Assignment dapat berlaku untuk semua vendor atau satu vendor tertentu.</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{rbacRoles.map((role) => <div key={role.id} className="rounded-xl border border-border bg-secondary/20 p-3"><p className="font-medium">{role.name}</p><p className="mt-1 text-xs text-muted-foreground">{role.description}</p><div className="mt-3 flex flex-wrap gap-1.5">{role.permissions.map((permission) => <Badge key={permission} variant="outline" className="text-[10px]">{permission}</Badge>)}</div></div>)}</div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4"><div className="mb-3"><p className="font-medium">Tugaskan role ke akun</p><p className="text-xs text-muted-foreground">Admin utama tetap memiliki akses penuh. Gunakan scope vendor untuk membatasi akses.</p></div><div className="grid gap-2 md:grid-cols-4"><Select value={rbacAccountId} onValueChange={setRbacAccountId}><SelectTrigger><SelectValue placeholder="Pilih akun" /></SelectTrigger><SelectContent>{rbacAccounts.map((item) => <SelectItem key={item.id} value={item.id}>{item.display_name ?? item.email}</SelectItem>)}</SelectContent></Select><Select value={rbacRoleId} onValueChange={setRbacRoleId}><SelectTrigger><SelectValue placeholder="Pilih role" /></SelectTrigger><SelectContent>{rbacRoles.map((role) => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}</SelectContent></Select><Select value={rbacVendorId} onValueChange={setRbacVendorId}><SelectTrigger><SelectValue placeholder="Scope vendor" /></SelectTrigger><SelectContent><SelectItem value="all">Semua vendor</SelectItem>{rbacVendors.map((vendor) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.business_name}</SelectItem>)}</SelectContent></Select><Button onClick={assignVendorRole}><Plus className="size-4" /> Tugaskan</Button></div></div>
+              <div className="space-y-2">{rbacAssignments.length === 0 ? <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Belum ada assignment role vendor.</p> : rbacAssignments.map((assignment) => <div key={assignment.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"><div className="min-w-52 flex-1"><p className="font-medium">{assignment.accountName ?? assignment.accountEmail}</p><p className="text-xs text-muted-foreground">{assignment.accountEmail}</p></div><Badge variant="secondary">{assignment.roleName}</Badge><span className="text-xs text-muted-foreground">Scope: {assignment.vendorName ?? "Semua vendor"}</span><Button size="sm" variant="outline" disabled={busyId === assignment.id} onClick={() => removeVendorRole(assignment)}>{busyId === assignment.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />} Cabut</Button></div>)}</div>
             </CardContent>
           </Card>
         </TabsContent>
