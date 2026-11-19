@@ -151,18 +151,6 @@ const APP_SETTINGS = {
     enabled: true,
     items: [],
   },
-  liveTrading: {
-    enabled: true,
-    provider: "tradingview",
-    tradingViewWidgetId: "",
-    tradingViewSymbol: "IDX:IHSG",
-    tradingViewInterval: "1D",
-    tradingViewTheme: "light",
-    apiKey: "",
-    apiBaseUrl: "",
-    symbols: [{ id: "1", symbol: "IDX:IHSG", label: "IHSG", enabled: true }],
-    refreshInterval: 5000,
-  },
   metaTrader5: {
     enabled: false,
     broker: "",
@@ -180,31 +168,6 @@ const APP_SETTINGS = {
       stopLossPips: 50,
       takeProfitPips: 100,
       dailyLossLimit: 500,
-    },
-  },
-  aiTradingAgent: {
-    enabled: false,
-    name: "AI Agent",
-    description: "AI trading assistant",
-    model: "gpt-4",
-    strategy: "momentum",
-    riskLevel: "medium",
-    maxDailyTrades: 10,
-    minConfidence: 0.7,
-    autoExecute: false,
-    notifyOnTrade: true,
-    parameters: {
-      lookbackPeriod: 14,
-      entryThreshold: 0.7,
-      exitThreshold: 0.3,
-      positionSizePercent: 10,
-    },
-    allowedMarkets: ["forex", "crypto"],
-    schedule: {
-      enabled: false,
-      startHour: 9,
-      endHour: 17,
-      timezone: "Asia/Jakarta",
     },
   },
   coinSettings: {
@@ -408,35 +371,6 @@ const server = createServer(async (req, res) => {
               events: [],
               stats: { verifiedMembers: 0, programs: 0, members: accounts.length },
               paymentEnabled: false,
-            },
-          };
-          break;
-        }
-
-        case "liveTrading.settings": {
-          response = {
-            ok: true,
-            data: {
-              liveTrading: {
-                enabled: true,
-                provider: "twelvedata",
-                tradingViewWidgetId: "",
-                tradingViewSymbol: "IDX:IHSG",
-                tradingViewInterval: "15",
-                tradingViewTheme: "light",
-                apiKey: "39cdbd541ed04eda9475e517d01ff3d6",
-                apiBaseUrl: "https://api.twelvedata.com",
-                symbols: [
-                  { id: "sym1", symbol: "AAPL", label: "Apple", enabled: true },
-                  { id: "sym2", symbol: "GOOGL", label: "Google", enabled: true },
-                  { id: "sym3", symbol: "MSFT", label: "Microsoft", enabled: true },
-                  { id: "sym4", symbol: "BTC/USD", label: "Bitcoin", enabled: true },
-                  { id: "sym5", symbol: "ETH/USD", label: "Ethereum", enabled: true },
-                  { id: "sym6", symbol: "EUR/USD", label: "EUR/USD", enabled: true },
-                  { id: "sym7", symbol: "XAU/USD", label: "Emas", enabled: true },
-                ],
-                refreshInterval: 10,
-              },
             },
           };
           break;

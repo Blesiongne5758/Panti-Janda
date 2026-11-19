@@ -899,78 +899,6 @@ export interface MediaPost {
   createdAt: string;
 }
 
-export type SubAgentStatus = "active" | "standby" | "disabled";
-export type SubAgentRole =
-  | "market_scanner"
-  | "trading_executor"
-  | "risk_manager"
-  | "news_analyzer"
-  | "portfolio_manager"
-  | "backtester"
-  | "data_aggregator"
-  | "wallet_monitor"
-  | "social_sentinel"
-  | "copy_trader";
-
-export interface SubAgentConfig {
-  id: string;
-  name: string;
-  icon: string;
-  role: SubAgentRole;
-  description: string;
-  status: SubAgentStatus;
-  priority: number;
-  intervalSeconds: number;
-  enabled: boolean;
-  config: Record<string, string | number | boolean>;
-}
-
-export type TradingServerStatus = "connected" | "disconnected" | "error" | "demo";
-
-export interface TradingServerConfig {
-  id: string;
-  name: string;
-  provider: string;
-  description: string;
-  baseUrl: string;
-  wsUrl: string;
-  apiKey: string;
-  apiSecret: string;
-  testnet: boolean;
-  status: TradingServerStatus;
-  enabled: boolean;
-  rateLimit: number;
-  symbols: string[];
-  features: string[];
-  lastHeartbeat: string | null;
-}
-
-export type PromptCategory =
-  | "wallet_monitor"
-  | "news_analysis"
-  | "news_surveillance"
-  | "telegram_forum"
-  | "twitter_x"
-  | "copy_trading"
-  | "market_analysis"
-  | "risk_assessment"
-  | "sentiment"
-  | "execution";
-
-export interface AiPromptTemplate {
-  id: string;
-  name: string;
-  category: PromptCategory;
-  description: string;
-  prompt: string;
-  variables: string[];
-  enabled: boolean;
-  priority: number;
-  subAgentRoles: SubAgentRole[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface AppSettings {
   payment: {
     midtransServerKey: string;
@@ -1014,18 +942,6 @@ export interface AppSettings {
     enabled: boolean;
     items: { id: string; title: string; url: string; enabled: boolean }[];
   };
-  liveTrading: {
-    enabled: boolean;
-    provider: string;
-    tradingViewWidgetId: string;
-    tradingViewSymbol: string;
-    tradingViewInterval: string;
-    tradingViewTheme: string;
-    apiKey: string;
-    apiBaseUrl: string;
-    symbols: { id: string; symbol: string; label: string; enabled: boolean }[];
-    refreshInterval: number;
-  };
   metaTrader5: {
     enabled: boolean;
     broker: string;
@@ -1044,34 +960,6 @@ export interface AppSettings {
       takeProfitPips: number;
       dailyLossLimit: number;
     };
-  };
-  aiTradingAgent: {
-    enabled: boolean;
-    name: string;
-    description: string;
-    model: string;
-    strategy: string;
-    riskLevel: string;
-    maxDailyTrades: number;
-    minConfidence: number;
-    autoExecute: boolean;
-    notifyOnTrade: boolean;
-    parameters: {
-      lookbackPeriod: number;
-      entryThreshold: number;
-      exitThreshold: number;
-      positionSizePercent: number;
-    };
-    allowedMarkets: string[];
-    schedule: {
-      enabled: boolean;
-      startHour: number;
-      endHour: number;
-      timezone: string;
-    };
-    subAgents: SubAgentConfig[];
-    tradingServers: TradingServerConfig[];
-    promptLibrary: AiPromptTemplate[];
   };
   coinSettings: {
     purchaseMethods: { id: string; label: string; enabled: boolean }[];

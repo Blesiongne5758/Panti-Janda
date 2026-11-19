@@ -24,14 +24,11 @@ const BusinessesPage = lazy(() => import("@/pages/businesses"));
 const BusinessDetailPage = lazy(() => import("@/pages/business-detail"));
 const BusinessFormPage = lazy(() => import("@/pages/business-form"));
 const SubscriptionPage = lazy(() => import("@/pages/subscription"));
-const AIMentorPage = lazy(() => import("@/pages/ai-mentor"));
 const MarketplacePage = lazy(() => import("@/pages/marketplace"));
 const MarketplaceDetailPage = lazy(() => import("@/pages/marketplace-detail"));
 const MarketplaceFormPage = lazy(() => import("@/pages/marketplace-form"));
 const MarketplaceOrdersPage = lazy(() => import("@/pages/marketplace-orders"));
 const CoinsPage = lazy(() => import("@/pages/coins"));
-const LiveTradingPage = lazy(() => import("@/pages/live-trading"));
-const AiAgentPage = lazy(() => import("@/pages/ai-agent"));
 const LearningCenterPage = lazy(() => import("@/pages/learning-center"));
 const JobsPage = lazy(() => import("@/pages/jobs"));
 const InterviewRoomPage = lazy(() => import("@/pages/interview-room"));
@@ -88,8 +85,6 @@ function Routes() {
       return <BusinessFormPage />;
     case "subscription":
       return <SubscriptionPage />;
-    case "ai-mentor":
-      return <AIMentorPage />;
     case "marketplace":
       return <MarketplacePage />;
     case "marketplace-orders":
@@ -100,10 +95,6 @@ function Routes() {
       return <MarketplaceFormPage />;
     case "coins":
       return <CoinsPage />;
-    case "live-trading":
-      return <LiveTradingPage />;
-    case "ai-agent":
-      return <AiAgentPage />;
     case "learning-center":
       return <LearningCenterPage />;
     case "jobs":

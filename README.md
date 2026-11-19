@@ -54,15 +54,8 @@ Platform komunitas digital untuk pemberdayaan janda — menghubungkan anggota, m
 - **Statistik Pemain** — Statistik lengkap, review dari tim lain, dan riwayat roster
 - **Sengketa Transfer** — Sistem pelaporan dan penyelesaian sengketa transfer
 
-### Trading & AI
-- **Live Trading** — Widget trading real-time dengan chart (line/candle), multi-simbol (saham & kripto), demo mode, dan MetaTrader 5 integration
-- **AI Trading Agent** — Agent trading otomatis dengan strategi AI, risk management, dan auto-execute
-- **AI Mentor** — Asisten AI untuk konsultasi bisnis dan dokumen
-
-### Sumber Data Trading
-- **Crypto live dan demo** menggunakan Binance Spot public market-data API: candle awal diambil dari endpoint klines dan harga berjalan diterima melalui WebSocket publik tanpa API key.
-- **Saham, forex, dan komoditas** menggunakan quote serta histori candle Twelve Data. API key provider dikonfigurasi dari Admin → Live Trading; jika key atau kuota tidak tersedia, UI menampilkan Offline dan tidak mengganti data dengan harga acak.
-- **Demo trading** memakai sumber harga pasar yang sama dengan Live Trading, tetapi saldo, posisi, dan eksekusinya tetap virtual.
+### Trading Education & Integrations
+- **Belajar Trading** dan pengaturan koneksi MetaTrader 5 tetap tersedia; terminal Live Trading dan fitur AI terkait telah dihapus.
 
 ### Admin
 - **Dashboard Admin** — Statistik akun, profil pending, laporan, total donasi
@@ -95,8 +88,8 @@ Platform komunitas digital untuk pemberdayaan janda — menghubungkan anggota, m
 ```
 ├── src/
 │   ├── components/       # Komponen reusable (app-shell, cards, common, esport, ui)
-│   ├── lib/              # Utility (api, constants, format, i18n, price-stream, router, session, types)
-│   ├── pages/            # 35+ halaman (dashboard, bursa-transfer, esport-*, live-trading, marketplace, admin, dll)
+│   ├── lib/              # Utility (api, constants, format, i18n, router, session, types)
+│   ├── pages/            # halaman aplikasi (dashboard, bursa-transfer, esport-*, marketplace, admin, dll)
 │   ├── App.tsx           # Root component dengan routing
 │   └── main.tsx          # Entry point
 ├── functions/
@@ -149,11 +142,8 @@ Platform komunitas digital untuk pemberdayaan janda — menghubungkan anggota, m
 | `/admin` | Admin | Panel admin |
 | `/keuangan` | Finance | Laporan keuangan |
 | `/langganan` | Subscription | Manajemen langganan |
-| `/mentor-ai` | AI Mentor | Konsultasi AI |
 | `/marketplace` | Marketplace | Jual beli |
 | `/koin` | Coins | Koin, crypto, & fitur premium |
-| `/live-trading` | Live Trading | Trading real-time |
-| `/ai-agent` | AI Agent | Agent trading AI |
 | `/kompetisi-esport` | E-Sport Hub | Portal kompetisi E-Sport |
 | `/kompetisi-esport/tim` | E-Sport Teams | Manajemen tim |
 | `/kompetisi-esport/buat` | E-Sport Create | Buat turnamen |

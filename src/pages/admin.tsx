@@ -313,22 +313,11 @@ export default function AdminPage() {
   const [academyForm, setAcademyForm] = useState<{ enabled: boolean; title: string; description: string; schedule: string; location: string; modules: { id: string; title: string; duration: string; enabled: boolean }[] }>({ enabled: true, title: "", description: "", schedule: "", location: "", modules: [] });
   const [tradingForm, setTradingForm] = useState<{ enabled: boolean; title: string; description: string; schedule: string; location: string; modules: { id: string; title: string; duration: string; enabled: boolean }[] }>({ enabled: true, title: "", description: "", schedule: "", location: "", modules: [] });
   const [linksForm, setLinksForm] = useState<{ enabled: boolean; items: { id: string; title: string; url: string; enabled: boolean }[] }>({ enabled: true, items: [] });
-  const [liveTradingForm, setLiveTradingForm] = useState<{
-    enabled: boolean; provider: string; tradingViewWidgetId: string; tradingViewSymbol: string;
-    tradingViewInterval: string; tradingViewTheme: string; apiKey: string; apiBaseUrl: string;
-    symbols: { id: string; symbol: string; label: string; enabled: boolean }[]; refreshInterval: number;
-  }>({ enabled: false, provider: "tradingview", tradingViewWidgetId: "", tradingViewSymbol: "IDX:IHSG", tradingViewInterval: "15", tradingViewTheme: "light", apiKey: "", apiBaseUrl: "", symbols: [], refreshInterval: 30 });
   const [metaTrader5Form, setMetaTrader5Form] = useState<{
     enabled: boolean; broker: string; server: string; login: string; password: string;
     accountType: "demo" | "real"; leverage: number; balance: number; currency: string;
     allowedSymbols: string[]; riskManagement: { maxLotSize: number; maxOpenPositions: number; stopLossPips: number; takeProfitPips: number; dailyLossLimit: number };
   }>({ enabled: false, broker: "", server: "", login: "", password: "", accountType: "demo", leverage: 100, balance: 10000000, currency: "USD", allowedSymbols: [], riskManagement: { maxLotSize: 1, maxOpenPositions: 10, stopLossPips: 50, takeProfitPips: 100, dailyLossLimit: 500 } });
-  const [aiTradingAgentForm, setAiTradingAgentForm] = useState<{
-    enabled: boolean; name: string; description: string; model: string; strategy: string;
-    riskLevel: string; maxDailyTrades: number; minConfidence: number; autoExecute: boolean; notifyOnTrade: boolean;
-    parameters: { lookbackPeriod: number; entryThreshold: number; exitThreshold: number; positionSizePercent: number };
-    allowedMarkets: string[]; schedule: { enabled: boolean; startHour: number; endHour: number; timezone: string };
-  }>({ enabled: false, name: "", description: "", model: "gpt-4", strategy: "momentum", riskLevel: "medium", maxDailyTrades: 20, minConfidence: 0.7, autoExecute: false, notifyOnTrade: true, parameters: { lookbackPeriod: 14, entryThreshold: 0.65, exitThreshold: 0.45, positionSizePercent: 5 }, allowedMarkets: [], schedule: { enabled: true, startHour: 8, endHour: 22, timezone: "Asia/Jakarta" } });
   const [coinSettingsForm, setCoinSettingsForm] = useState<{
     purchaseMethods: { id: string; label: string; enabled: boolean }[];
     withdrawMethods: { id: string; label: string; enabled: boolean }[];
@@ -365,9 +354,7 @@ export default function AdminPage() {
   const [academyDirty, setAcademyDirty] = useState(false);
   const [tradingDirty, setTradingDirty] = useState(false);
   const [linksDirty, setLinksDirty] = useState(false);
-  const [liveTradingDirty, setLiveTradingDirty] = useState(false);
   const [metaTrader5Dirty, setMetaTrader5Dirty] = useState(false);
-  const [aiTradingAgentDirty, setAiTradingAgentDirty] = useState(false);
   const [coinSettingsDirty, setCoinSettingsDirty] = useState(false);
   const [blockchainApiDirty, setBlockchainApiDirty] = useState(false);
   const [trialForm, setTrialForm] = useState<{ accountsPerTier: number; password: string }>({ accountsPerTier: 2, password: "trial12345" });
@@ -555,27 +542,12 @@ export default function AdminPage() {
         enabled: settingsData.settings.links.enabled,
         items: settingsData.settings.links.items.map((item) => ({ ...item })),
       });
-      const lt = settingsData.settings.liveTrading;
-      setLiveTradingForm({
-        enabled: lt.enabled, provider: lt.provider, tradingViewWidgetId: lt.tradingViewWidgetId,
-        tradingViewSymbol: lt.tradingViewSymbol, tradingViewInterval: lt.tradingViewInterval,
-        tradingViewTheme: lt.tradingViewTheme, apiKey: lt.apiKey, apiBaseUrl: lt.apiBaseUrl,
-        symbols: lt.symbols.map((s) => ({ ...s })), refreshInterval: lt.refreshInterval,
-      });
       const mt = settingsData.settings.metaTrader5;
       setMetaTrader5Form({
         enabled: mt.enabled, broker: mt.broker, server: mt.server, login: mt.login,
         password: mt.password, accountType: mt.accountType, leverage: mt.leverage,
         balance: mt.balance, currency: mt.currency, allowedSymbols: [...mt.allowedSymbols],
         riskManagement: { ...mt.riskManagement },
-      });
-      const ai = settingsData.settings.aiTradingAgent;
-      setAiTradingAgentForm({
-        enabled: ai.enabled, name: ai.name, description: ai.description, model: ai.model,
-        strategy: ai.strategy, riskLevel: ai.riskLevel, maxDailyTrades: ai.maxDailyTrades,
-        minConfidence: ai.minConfidence, autoExecute: ai.autoExecute, notifyOnTrade: ai.notifyOnTrade,
-        parameters: { ...ai.parameters }, allowedMarkets: [...ai.allowedMarkets],
-        schedule: { ...ai.schedule },
       });
       const cs = settingsData.settings.coinSettings;
       setCoinSettingsForm({
@@ -590,9 +562,7 @@ export default function AdminPage() {
       setAcademyDirty(false);
       setTradingDirty(false);
       setLinksDirty(false);
-      setLiveTradingDirty(false);
       setMetaTrader5Dirty(false);
-      setAiTradingAgentDirty(false);
       setCoinSettingsDirty(false);
       const ba = settingsData.settings.blockchainApi;
       setBlockchainApiForm({
@@ -849,16 +819,6 @@ export default function AdminPage() {
         });
         setLinksDirty(false);
       }
-      if (newSettings.liveTrading) {
-        const lt = res.settings.liveTrading;
-        setLiveTradingForm({
-          enabled: lt.enabled, provider: lt.provider, tradingViewWidgetId: lt.tradingViewWidgetId,
-          tradingViewSymbol: lt.tradingViewSymbol, tradingViewInterval: lt.tradingViewInterval,
-          tradingViewTheme: lt.tradingViewTheme, apiKey: lt.apiKey, apiBaseUrl: lt.apiBaseUrl,
-          symbols: lt.symbols.map((s) => ({ ...s })), refreshInterval: lt.refreshInterval,
-        });
-        setLiveTradingDirty(false);
-      }
       if (newSettings.metaTrader5) {
         const mt = res.settings.metaTrader5;
         setMetaTrader5Form({
@@ -868,17 +828,6 @@ export default function AdminPage() {
           riskManagement: { ...mt.riskManagement },
         });
         setMetaTrader5Dirty(false);
-      }
-      if (newSettings.aiTradingAgent) {
-        const ai = res.settings.aiTradingAgent;
-        setAiTradingAgentForm({
-          enabled: ai.enabled, name: ai.name, description: ai.description, model: ai.model,
-          strategy: ai.strategy, riskLevel: ai.riskLevel, maxDailyTrades: ai.maxDailyTrades,
-          minConfidence: ai.minConfidence, autoExecute: ai.autoExecute, notifyOnTrade: ai.notifyOnTrade,
-          parameters: { ...ai.parameters }, allowedMarkets: [...ai.allowedMarkets],
-          schedule: { ...ai.schedule },
-        });
-        setAiTradingAgentDirty(false);
       }
       if (newSettings.coinSettings) {
         const cs = res.settings.coinSettings;
@@ -1024,9 +973,7 @@ export default function AdminPage() {
           <TabsTrigger value="akademi">Akademi</TabsTrigger>
           <TabsTrigger value="trading">Belajar Trading</TabsTrigger>
           <TabsTrigger value="tautan">Tautan</TabsTrigger>
-          <TabsTrigger value="liveTrading">Live Trading</TabsTrigger>
           <TabsTrigger value="metaTrader5">MetaTrader 5</TabsTrigger>
-          <TabsTrigger value="aiAgent">AI Trading Agent</TabsTrigger>
           <TabsTrigger value="coinSettings">Pengaturan Koin</TabsTrigger>
           <TabsTrigger value="blockchainApi">API Blockchain</TabsTrigger>
           <TabsTrigger value="cryptoSettings">Crypto Wallet</TabsTrigger>
@@ -2590,265 +2537,6 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="liveTrading" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
-                <Activity className="size-4" aria-hidden />
-                Live Trading
-              </CardTitle>
-              <CardDescription>Konfigurasi TradingView widget dan API data pasar real-time.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="text-sm font-medium">Fitur Live Trading</p>
-                  <p className="text-xs text-muted-foreground">Aktifkan tampilan data pasar real-time.</p>
-                </div>
-                <Switch
-                  checked={liveTradingForm.enabled}
-                  onCheckedChange={(checked) => {
-                    setLiveTradingForm((prev) => ({ ...prev, enabled: checked }));
-                    setLiveTradingDirty(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Provider</Label>
-                  <Select
-                    value={liveTradingForm.provider}
-                    onValueChange={(value) => {
-                      setLiveTradingForm((prev) => ({ ...prev, provider: value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tradingview">TradingView</SelectItem>
-                      <SelectItem value="custom">Custom API</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Tema</Label>
-                  <Select
-                    value={liveTradingForm.tradingViewTheme}
-                    onValueChange={(value) => {
-                      setLiveTradingForm((prev) => ({ ...prev, tradingViewTheme: value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Terang</SelectItem>
-                      <SelectItem value="dark">Gelap</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Widget ID</Label>
-                  <Input
-                    placeholder="ID widget TradingView"
-                    value={liveTradingForm.tradingViewWidgetId}
-                    onChange={(e) => {
-                      setLiveTradingForm((prev) => ({ ...prev, tradingViewWidgetId: e.target.value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Interval</Label>
-                  <Select
-                    value={liveTradingForm.tradingViewInterval}
-                    onValueChange={(value) => {
-                      setLiveTradingForm((prev) => ({ ...prev, tradingViewInterval: value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 menit</SelectItem>
-                      <SelectItem value="5">5 menit</SelectItem>
-                      <SelectItem value="15">15 menit</SelectItem>
-                      <SelectItem value="60">1 jam</SelectItem>
-                      <SelectItem value="D">Harian</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Symbol default</Label>
-                <Input
-                  placeholder="IDX:IHSG"
-                  value={liveTradingForm.tradingViewSymbol}
-                  onChange={(e) => {
-                    setLiveTradingForm((prev) => ({ ...prev, tradingViewSymbol: e.target.value }));
-                    setLiveTradingDirty(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>API Key</Label>
-                  <Input
-                    type="password"
-                    placeholder="Kunci API provider"
-                    value={liveTradingForm.apiKey}
-                    onChange={(e) => {
-                      setLiveTradingForm((prev) => ({ ...prev, apiKey: e.target.value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>API Base URL</Label>
-                  <Input
-                    placeholder="https://api.provider.com"
-                    value={liveTradingForm.apiBaseUrl}
-                    onChange={(e) => {
-                      setLiveTradingForm((prev) => ({ ...prev, apiBaseUrl: e.target.value }));
-                      setLiveTradingDirty(true);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Refresh interval (detik)</Label>
-                <Input
-                  type="number"
-                  min={5}
-                  value={liveTradingForm.refreshInterval}
-                  onChange={(e) => {
-                    setLiveTradingForm((prev) => ({ ...prev, refreshInterval: Number(e.target.value) }));
-                    setLiveTradingDirty(true);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Daftar Symbol</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setLiveTradingForm((prev) => ({
-                        ...prev,
-                        symbols: [...prev.symbols, { id: `sym_${Date.now()}`, symbol: "", label: "", enabled: true }],
-                      }));
-                      setLiveTradingDirty(true);
-                    }}
-                  >
-                    <Plus className="size-3.5" aria-hidden />
-                    Tambah symbol
-                  </Button>
-                </div>
-                {liveTradingForm.symbols.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                    Belum ada symbol yang dikonfigurasi.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {liveTradingForm.symbols.map((sym, index) => (
-                      <div key={sym.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-3">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Symbol</Label>
-                            <Input
-                              placeholder="IDX:BBCA"
-                              value={sym.symbol}
-                              onChange={(e) => {
-                                setLiveTradingForm((prev) => ({
-                                  ...prev,
-                                  symbols: prev.symbols.map((s, i) => i === index ? { ...s, symbol: e.target.value } : s),
-                                }));
-                                setLiveTradingDirty(true);
-                              }}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Label</Label>
-                            <Input
-                              placeholder="BBCA"
-                              value={sym.label}
-                              onChange={(e) => {
-                                setLiveTradingForm((prev) => ({
-                                  ...prev,
-                                  symbols: prev.symbols.map((s, i) => i === index ? { ...s, label: e.target.value } : s),
-                                }));
-                                setLiveTradingDirty(true);
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={sym.enabled}
-                              onCheckedChange={(checked) => {
-                                setLiveTradingForm((prev) => ({
-                                  ...prev,
-                                  symbols: prev.symbols.map((s, i) => i === index ? { ...s, enabled: checked } : s),
-                                }));
-                                setLiveTradingDirty(true);
-                              }}
-                            />
-                            <span className="text-xs text-muted-foreground">{sym.enabled ? "Aktif" : "Nonaktif"}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setLiveTradingForm((prev) => ({
-                                ...prev,
-                                symbols: prev.symbols.filter((_, i) => i !== index),
-                              }));
-                              setLiveTradingDirty(true);
-                            }}
-                          >
-                            <Trash2 className="size-3.5 text-rose-600" aria-hidden />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Button
-                disabled={savingSettings || !liveTradingDirty}
-                onClick={() =>
-                  updateSettings({
-                    liveTrading: {
-                      enabled: liveTradingForm.enabled,
-                      provider: liveTradingForm.provider,
-                      tradingViewWidgetId: liveTradingForm.tradingViewWidgetId,
-                      tradingViewSymbol: liveTradingForm.tradingViewSymbol,
-                      tradingViewInterval: liveTradingForm.tradingViewInterval,
-                      tradingViewTheme: liveTradingForm.tradingViewTheme,
-                      apiKey: liveTradingForm.apiKey,
-                      apiBaseUrl: liveTradingForm.apiBaseUrl,
-                      symbols: liveTradingForm.symbols,
-                      refreshInterval: liveTradingForm.refreshInterval,
-                    },
-                  })
-                }
-              >
-                {savingSettings ? <Loader2 className="size-4 animate-spin" /> : null}
-                Simpan pengaturan live trading
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="metaTrader5" className="mt-4">
           <Card>
             <CardHeader>
@@ -3083,334 +2771,6 @@ export default function AdminPage() {
               >
                 {savingSettings ? <Loader2 className="size-4 animate-spin" /> : null}
                 Simpan pengaturan MetaTrader 5
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="aiAgent" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
-                <Bot className="size-4" aria-hidden />
-                AI Trading Agent
-              </CardTitle>
-              <CardDescription>Konfigurasi agent trading otomatis berbasis kecerdasan buatan.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="text-sm font-medium">Aktifkan AI Agent</p>
-                  <p className="text-xs text-muted-foreground">Jalankan agent trading otomatis.</p>
-                </div>
-                <Switch
-                  checked={aiTradingAgentForm.enabled}
-                  onCheckedChange={(checked) => {
-                    setAiTradingAgentForm((prev) => ({ ...prev, enabled: checked }));
-                    setAiTradingAgentDirty(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Nama agent</Label>
-                  <Input
-                    placeholder="AI Trading Agent"
-                    value={aiTradingAgentForm.name}
-                    onChange={(e) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, name: e.target.value }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Model AI</Label>
-                  <Select
-                    value={aiTradingAgentForm.model}
-                    onValueChange={(value) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, model: value }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gpt-4">GPT-4</SelectItem>
-                      <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                      <SelectItem value="claude-3">Claude 3</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Deskripsi</Label>
-                <Textarea
-                  rows={2}
-                  maxLength={1000}
-                  placeholder="Deskripsi agent trading"
-                  value={aiTradingAgentForm.description}
-                  onChange={(e) => {
-                    setAiTradingAgentForm((prev) => ({ ...prev, description: e.target.value }));
-                    setAiTradingAgentDirty(true);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <Label>Strategi</Label>
-                  <Select
-                    value={aiTradingAgentForm.strategy}
-                    onValueChange={(value) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, strategy: value }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="momentum">Momentum</SelectItem>
-                      <SelectItem value="mean_reversion">Mean Reversion</SelectItem>
-                      <SelectItem value="scalping">Scalping</SelectItem>
-                      <SelectItem value="swing">Swing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Level risiko</Label>
-                  <Select
-                    value={aiTradingAgentForm.riskLevel}
-                    onValueChange={(value) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, riskLevel: value }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Rendah</SelectItem>
-                      <SelectItem value="medium">Sedang</SelectItem>
-                      <SelectItem value="high">Tinggi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Max trade/hari</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={aiTradingAgentForm.maxDailyTrades}
-                    onChange={(e) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, maxDailyTrades: Number(e.target.value) }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Min confidence (0-1)</Label>
-                  <Input
-                    type="number"
-                    step={0.05}
-                    min={0}
-                    max={1}
-                    value={aiTradingAgentForm.minConfidence}
-                    onChange={(e) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, minConfidence: Number(e.target.value) }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2">
-                  <Switch
-                    checked={aiTradingAgentForm.autoExecute}
-                    onCheckedChange={(checked) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, autoExecute: checked }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                  <span className="text-sm">Eksekusi otomatis</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <Switch
-                    checked={aiTradingAgentForm.notifyOnTrade}
-                    onCheckedChange={(checked) => {
-                      setAiTradingAgentForm((prev) => ({ ...prev, notifyOnTrade: checked }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                  <span className="text-sm">Notifikasi setiap trade</span>
-                </label>
-              </div>
-
-              <div className="rounded-lg border border-border p-4">
-                <p className="mb-3 text-sm font-medium">Parameter Strategi</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Lookback period</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={aiTradingAgentForm.parameters.lookbackPeriod}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          parameters: { ...prev.parameters, lookbackPeriod: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Entry threshold (0-1)</Label>
-                    <Input
-                      type="number"
-                      step={0.05}
-                      min={0}
-                      max={1}
-                      value={aiTradingAgentForm.parameters.entryThreshold}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          parameters: { ...prev.parameters, entryThreshold: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Exit threshold (0-1)</Label>
-                    <Input
-                      type="number"
-                      step={0.05}
-                      min={0}
-                      max={1}
-                      value={aiTradingAgentForm.parameters.exitThreshold}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          parameters: { ...prev.parameters, exitThreshold: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Position size (%)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={aiTradingAgentForm.parameters.positionSizePercent}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          parameters: { ...prev.parameters, positionSizePercent: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border p-4">
-                <p className="mb-3 text-sm font-medium">Jadwal Operasional</p>
-                <div className="flex items-center gap-2 mb-3">
-                  <Switch
-                    checked={aiTradingAgentForm.schedule.enabled}
-                    onCheckedChange={(checked) => {
-                      setAiTradingAgentForm((prev) => ({
-                        ...prev,
-                        schedule: { ...prev.schedule, enabled: checked },
-                      }));
-                      setAiTradingAgentDirty(true);
-                    }}
-                  />
-                  <span className="text-sm">Batasi jadwal operasional</span>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Jam mulai</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      value={aiTradingAgentForm.schedule.startHour}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          schedule: { ...prev.schedule, startHour: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Jam selesai</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      value={aiTradingAgentForm.schedule.endHour}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          schedule: { ...prev.schedule, endHour: Number(e.target.value) },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Zona waktu</Label>
-                    <Input
-                      placeholder="Asia/Jakarta"
-                      value={aiTradingAgentForm.schedule.timezone}
-                      onChange={(e) => {
-                        setAiTradingAgentForm((prev) => ({
-                          ...prev,
-                          schedule: { ...prev.schedule, timezone: e.target.value },
-                        }));
-                        setAiTradingAgentDirty(true);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                disabled={savingSettings || !aiTradingAgentDirty}
-                onClick={() =>
-                  updateSettings({
-                    aiTradingAgent: {
-                      enabled: aiTradingAgentForm.enabled,
-                      name: aiTradingAgentForm.name,
-                      description: aiTradingAgentForm.description,
-                      model: aiTradingAgentForm.model,
-                      strategy: aiTradingAgentForm.strategy,
-                      riskLevel: aiTradingAgentForm.riskLevel,
-                      maxDailyTrades: aiTradingAgentForm.maxDailyTrades,
-                      minConfidence: aiTradingAgentForm.minConfidence,
-                      autoExecute: aiTradingAgentForm.autoExecute,
-                      notifyOnTrade: aiTradingAgentForm.notifyOnTrade,
-                      parameters: aiTradingAgentForm.parameters,
-                      allowedMarkets: aiTradingAgentForm.allowedMarkets,
-                      schedule: aiTradingAgentForm.schedule,
-                      subAgents: settings?.aiTradingAgent?.subAgents ?? [],
-                      tradingServers: settings?.aiTradingAgent?.tradingServers ?? [],
-                      promptLibrary: settings?.aiTradingAgent?.promptLibrary ?? [],
-                    },
-                  })
-                }
-              >
-                {savingSettings ? <Loader2 className="size-4 animate-spin" /> : null}
-                Simpan pengaturan AI agent
               </Button>
             </CardContent>
           </Card>

@@ -1001,7 +1001,7 @@ export default function DashboardPage() {
                         {log.sourceType === "business_submit" && "Mengajukan bisnis"}
                         {log.sourceType === "listing_create" && "Membuat listing"}
                         {log.sourceType === "listing_sale" && "Penjualan marketplace"}
-                        {log.sourceType === "mentor_chat" && "Konsultasi AI Mentor"}
+                        {log.sourceType === "mentor_chat" && "Aktivitas sebelumnya"}
                       </span>
                       <span className="font-medium text-primary">+{log.points} XP</span>
                     </li>
@@ -1032,61 +1032,8 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      {rank >= 2 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-display text-lg">
-              <Sparkles className="size-4 text-primary" aria-hidden />
-              AI Mentor Bisnis
-            </CardTitle>
-            <CardDescription>
-              Tanyakan apa saja tentang bisnis, proposal, RAB, atau strategi usaha Anda kepada mentor virtual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild size="sm">
-              <Link to="/mentor-ai">Mulai Konsultasi</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
-            <Activity className="size-4 text-emerald-600" aria-hidden />
-            Live Trading
-          </CardTitle>
-          <CardDescription>
-            Pantau pergerakan pasar real-time dengan TradingView. Tersedia mode Demo untuk belajar trading tanpa risiko.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link to="/live-trading">Buka Live Trading</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link to="/live-trading?mode=demo">Mode Demo</Link>
-          </Button>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
-            <Bot className="size-4 text-violet-600" aria-hidden />
-            {t("ai.title")}
-          </CardTitle>
-          <CardDescription>
-            {t("ai.description")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link to="/ai-agent">{t("ai.openCommand")}</Link>
-          </Button>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>

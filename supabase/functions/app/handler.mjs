@@ -51,7 +51,6 @@ const KPI_POINTS = {
   business_submit: 30,
   listing_create: 15,
   listing_sale: 25,
-  mentor_chat: 5,
   esport_tournament_create: 60,
 };
 
@@ -6629,18 +6628,7 @@ const ROUTES = {
   "academy.settings": academySettings,
   "trading.settings": tradingSettings,
   "links.settings": linksSettings,
-  "liveTrading.settings": liveTradingSettings,
   "metaTrader5.settings": metaTrader5Settings,
-  "aiTradingAgent.settings": aiTradingAgentSettings,
-  "aiTradingAgent.subAgents.list": aiSubAgentsList,
-  "aiTradingAgent.subAgents.update": aiSubAgentsUpdate,
-  "aiTradingAgent.servers.list": aiTradingServersList,
-  "aiTradingAgent.servers.update": aiTradingServersUpdate,
-  "aiTradingAgent.prompts.list": aiPromptsList,
-  "aiTradingAgent.prompts.get": aiPromptsGet,
-  "aiTradingAgent.prompts.create": aiPromptsCreate,
-  "aiTradingAgent.prompts.update": aiPromptsUpdate,
-  "aiTradingAgent.prompts.delete": aiPromptsDelete,
   "coinSettings.settings": coinSettingsPublic,
   "payment.qrisSettings": paymentQrisSettings,
 
@@ -6654,8 +6642,6 @@ const ROUTES = {
   "media.comment": mediaComment,
   "media.share": mediaShare,
   "media.delete": mediaDelete,
-
-  "ai.mentor.chat": aiMentorChat,
 
   "finance.summary": financeSummary,
 
@@ -10003,7 +9989,6 @@ async function coinsPurchase(ctx) {
 const COIN_FEATURES = [
   { id: "featured_profile", name: "Profil Unggulan", description: "Tampil di posisi atas halaman Jelajah selama 7 hari", cost: 500, duration: "7 hari" },
   { id: "premium_badge", name: "Badge Premium", description: "Badge khusus di profil Anda", cost: 200, duration: "Permanen" },
-  { id: "ai_mentor_10", name: "10 Kredit AI Mentor", description: "Gunakan AI Mentor untuk 10 sesi konsultasi", cost: 300, duration: "10 sesi" },
   { id: "event_priority", name: "Prioritas Event", description: "Registrasi lebih awal untuk event eksklusif", cost: 150, duration: "1 event" },
 ];
 
@@ -13627,26 +13612,6 @@ const APP_SETTINGS = {
       { id: "link3", title: "WhatsApp Group", url: "https://chat.whatsapp.com/example", enabled: true },
     ],
   },
-  liveTrading: {
-    enabled: true,
-    provider: "twelvedata",
-    tradingViewWidgetId: "",
-    tradingViewSymbol: "IDX:IHSG",
-    tradingViewInterval: "15",
-    tradingViewTheme: "light",
-    apiKey: "39cdbd541ed04eda9475e517d01ff3d6",
-    apiBaseUrl: "https://api.twelvedata.com",
-    symbols: [
-      { id: "sym1", symbol: "AAPL", label: "Apple", enabled: true },
-      { id: "sym2", symbol: "GOOGL", label: "Google", enabled: true },
-      { id: "sym3", symbol: "MSFT", label: "Microsoft", enabled: true },
-      { id: "sym4", symbol: "BTC/USD", label: "Bitcoin", enabled: true },
-      { id: "sym5", symbol: "ETH/USD", label: "Ethereum", enabled: true },
-      { id: "sym6", symbol: "EUR/USD", label: "EUR/USD", enabled: true },
-      { id: "sym7", symbol: "XAU/USD", label: "Emas", enabled: true },
-    ],
-    refreshInterval: 10,
-  },
   metaTrader5: {
     enabled: false,
     broker: "",
@@ -13665,195 +13630,6 @@ const APP_SETTINGS = {
       takeProfitPips: 100,
       dailyLossLimit: 500,
     },
-  },
-  aiTradingAgent: {
-    enabled: false,
-    name: "AI Trading Agent",
-    description: "Agent trading otomatis berbasis kecerdasan buatan",
-    model: "gpt-4",
-    strategy: "momentum",
-    riskLevel: "medium",
-    maxDailyTrades: 20,
-    minConfidence: 0.7,
-    autoExecute: false,
-    notifyOnTrade: true,
-    parameters: {
-      lookbackPeriod: 14,
-      entryThreshold: 0.65,
-      exitThreshold: 0.45,
-      positionSizePercent: 5,
-    },
-    allowedMarkets: ["forex", "crypto", "stocks"],
-    schedule: {
-      enabled: true,
-      startHour: 8,
-      endHour: 22,
-      timezone: "Asia/Jakarta",
-    },
-    subAgents: [
-      { id: "sa_market_scanner", name: "MARKET SCANNER", icon: "⌁", role: "market_scanner", description: "Memindai aset dan sinyal pasar", status: "active", priority: 1, intervalSeconds: 30, enabled: true, config: {} },
-      { id: "sa_trading_executor", name: "TRADING EXECUTOR", icon: "ϟ", role: "trading_executor", description: "Simulasi eksekusi strategi", status: "standby", priority: 2, intervalSeconds: 60, enabled: true, config: {} },
-      { id: "sa_risk_manager", name: "RISK MANAGER", icon: "⬡", role: "risk_manager", description: "Limit risiko dan kontrol modal", status: "active", priority: 1, intervalSeconds: 15, enabled: true, config: {} },
-      { id: "sa_news_analyzer", name: "NEWS ANALYZER", icon: "▤", role: "news_analyzer", description: "Sentimen dan berita pasar", status: "active", priority: 2, intervalSeconds: 120, enabled: true, config: {} },
-      { id: "sa_portfolio_manager", name: "PORTFOLIO MANAGER", icon: "◉", role: "portfolio_manager", description: "Alokasi dan rebalancing", status: "active", priority: 3, intervalSeconds: 300, enabled: true, config: {} },
-      { id: "sa_backtester", name: "BACKTESTER", icon: "⚙", role: "backtester", description: "Uji strategi historis", status: "standby", priority: 4, intervalSeconds: 600, enabled: true, config: {} },
-      { id: "sa_data_aggregator", name: "DATA AGGREGATOR", icon: "▦", role: "data_aggregator", description: "Normalisasi feed data", status: "active", priority: 1, intervalSeconds: 10, enabled: true, config: {} },
-      { id: "sa_wallet_monitor", name: "WALLET MONITOR", icon: "⊚", role: "wallet_monitor", description: "Monitor pergerakan dompet digital trader", status: "active", priority: 2, intervalSeconds: 60, enabled: true, config: {} },
-      { id: "sa_social_sentinel", name: "SOCIAL SENTINEL", icon: "◈", role: "social_sentinel", description: "Pantau Telegram, X/Twitter, dan forum", status: "active", priority: 2, intervalSeconds: 45, enabled: true, config: {} },
-      { id: "sa_copy_trader", name: "COPY TRADER", icon: "⧉", role: "copy_trader", description: "Salin posisi trader terpilih", status: "standby", priority: 3, intervalSeconds: 30, enabled: false, config: {} },
-    ],
-    tradingServers: [
-      { id: "ts_binance", name: "SERVER 01", provider: "Binance", description: "Binance endpoint", baseUrl: "https://api.binance.com", wsUrl: "wss://stream.binance.com:9443/ws", apiKey: "", apiSecret: "", testnet: true, status: "demo", enabled: true, rateLimit: 1200, symbols: ["BTCUSDT", "ETHUSDT", "BNBUSDT"], features: ["spot", "futures"], lastHeartbeat: null },
-      { id: "ts_bybit", name: "SERVER 02", provider: "Bybit", description: "Bybit endpoint", baseUrl: "https://api.bybit.com", wsUrl: "wss://stream.bybit.com/v5/public/spot", apiKey: "", apiSecret: "", testnet: true, status: "demo", enabled: true, rateLimit: 600, symbols: ["BTCUSDT", "ETHUSDT"], features: ["spot", "futures", "copy"], lastHeartbeat: null },
-      { id: "ts_okx", name: "SERVER 03", provider: "OKX", description: "OKX endpoint", baseUrl: "https://www.okx.com", wsUrl: "wss://ws.okx.com:8443/ws/v5/public", apiKey: "", apiSecret: "", testnet: true, status: "demo", enabled: true, rateLimit: 600, symbols: ["BTC-USDT", "ETH-USDT"], features: ["spot", "futures"], lastHeartbeat: null },
-      { id: "ts_bitget", name: "SERVER 04", provider: "Bitget", description: "Bitget endpoint", baseUrl: "https://api.bitget.com", wsUrl: "wss://ws.bitget.com/spot/v1/stream", apiKey: "", apiSecret: "", testnet: true, status: "demo", enabled: false, rateLimit: 600, symbols: ["BTCUSDT", "ETHUSDT"], features: ["spot", "futures", "copy"], lastHeartbeat: null },
-      { id: "ts_custom", name: "SERVER 05", provider: "Custom", description: "Custom / MT5", baseUrl: "", wsUrl: "", apiKey: "", apiSecret: "", testnet: true, status: "demo", enabled: false, rateLimit: 300, symbols: [], features: [], lastHeartbeat: null },
-    ],
-    promptLibrary: [
-      {
-        id: "prompt_wallet_monitor_01",
-        name: "Monitor Pergerakan Wallet Besar",
-        category: "wallet_monitor",
-        description: "Deteksi dan analisis pergerakan wallet whale/trader besar di blockchain",
-        prompt: "Anda adalah WALLET MONITOR agent. Tugas Anda:\n1. Pantau alamat wallet {{wallet_addresses}} di jaringan {{network}}\n2. Deteksi transaksi masuk/keluar di atas {{threshold_usd}} USD\n3. Analisis pola: akumulasi, distribusi, atau transfer internal\n4. Hitung perubahan saldo 24j/7j/1j terakhir\n5. Beri skor urgensi 1-10 berdasarkan volume dan frekuensi\n6. Jika ada pergerakan mencurigakan, kirim alert dengan detail:\n   - Alamat wallet\n   - Hash transaksi\n   - Nilai dalam USD\n   - Arah transfer\n   - Potensi dampak ke harga\n\nFormat output: JSON dengan field: alert_level, wallet, action, amount_usd, confidence, recommendation",
-        variables: ["wallet_addresses", "network", "threshold_usd"],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["wallet_monitor", "market_scanner"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_wallet_tracker_02",
-        name: "Tracker Profit/Loss Trader",
-        category: "wallet_monitor",
-        description: "Lacak profit/loss real-time dari wallet trader yang di-follow",
-        prompt: "Anda adalah WALLET PROFIT TRACKER. Analisis wallet {{wallet_address}}:\n1. Hitung total entry price vs current value\n2. Track unrealized P&L per token\n3. Identifikasi token yang sedang profit/loss tertinggi\n4. Hitung win rate dari historikal transaksi\n5. Bandingkan performa dengan BTC buy-hold\n6. Generate laporan harian:\n   - Total P&L (USD & %)\n   - Best/worst performing token\n   - Rekomendasi: hold/take profit/cut loss\n\nOutput format: { wallet, total_pnl_usd, total_pnl_pct, top_gainers, top_losers, win_rate, recommendation }",
-        variables: ["wallet_address"],
-        enabled: true,
-        priority: 2,
-        subAgentRoles: ["wallet_monitor", "portfolio_manager"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_news_analysis_01",
-        name: "Analisis Sentimen Berita Crypto",
-        category: "news_analysis",
-        description: "Baca dan analisis sentimen dari berita crypto terkini",
-        prompt: "Anda adalah NEWS ANALYZER agent. Tugas Anda:\n1. Baca berita dari {{news_sources}} untuk {{coins}}\n2. Klasifikasi sentimen: bullish/bearish/neutral (skor -10 s/d +10)\n3. Identifikasi kata kunci: regulation, adoption, hack, partnership, listing\n4. Hitung impact score berdasarkan:\n   - Sumber (reputasi)\n   - Reach (jumlah pembaca)\n   - Relevansi dengan coin\n5. Prediksi dampak jangka pendek (1-4 jam) dan menengah (1-7 hari)\n6. Generate trading signal: BUY/HOLD/SELL dengan confidence level\n\nFormat output: { coin, sentiment_score, impact_score, keywords, short_term_outlook, medium_term_outlook, signal, confidence }",
-        variables: ["news_sources", "coins"],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["news_analyzer", "market_scanner"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_news_surveillance_01",
-        name: "Surveillance Berita Global",
-        category: "news_surveillance",
-        description: "Pantau berita global yang berdampak ke pasar crypto dan forex",
-        prompt: "Anda adalah GLOBAL NEWS SURVEILLANCE agent. Monitor:\n1. Berita ekonomi makro: Fed rate decision, CPI, GDP, employment data\n2. Regulasi crypto: SEC, CFTC, EU MiCA, Asia regulations\n3. Geopolitik: perang, sanksi, trade war\n4. Black swan events: exchange hack, stablecoin depeg, bank failure\n5. Central bank announcements: ECB, BOJ, PBOC\n\nUntuk setiap event:\n- Kategorikan: crypto_specific, macro_economic, geopolitical, regulatory\n- Hitung market impact: high/medium/low\n- Identifikasi affected assets\n- Estimasi timeframe dampak\n- Rekomendasi action: hedge, reduce exposure, increase position\n\nOutput: { event_type, headline, impact_level, affected_assets, timeframe, recommendation }",
-        variables: [],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["news_analyzer", "risk_manager"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_telegram_forum_01",
-        name: "Monitor Telegram Forum Crypto",
-        category: "telegram_forum",
-        description: "Pantau dan analisis diskusi di grup/channel Telegram crypto",
-        prompt: "Anda adalah TELEGRAM FORUM MONITOR. Analisis channel/grup:\n{{telegram_channels}}\n\nTugas:\n1. Track mention frequency untuk {{coins}}\n2. Identifikasi influencer/KOL yang aktif\n3. Deteksi pump & dump signals:\n   - Koordinasi beli di waktu tertentu\n   - Mention tiba-tiba dari coin kecil\n   - Hype tanpa fundamental\n4. Analisis sentimen komunitas: FUD, FOMO, HODL\n5. Track developer activity announcements\n6. Identifikasi alpha: info insider, partnership leak, listing rumor\n\nOutput format: { channel, coin_mentions, sentiment, kol_activity, pump_risk_score, alpha_signals }",
-        variables: ["telegram_channels", "coins"],
-        enabled: true,
-        priority: 2,
-        subAgentRoles: ["social_sentinel", "news_analyzer"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_twitter_x_01",
-        name: "Monitor X/Twitter Crypto Influencer",
-        category: "twitter_x",
-        description: "Track tweet dari influencer dan akun resmi project crypto",
-        prompt: "Anda是 TWITTER/X SENTINEL. Monitor akun:\n{{twitter_accounts}}\n\nAnalisis:\n1. Track tweet tentang {{coins}} dari {{time_range}} terakhir\n2. Hitung engagement: likes, retweets, replies, quote tweets\n3. Identifikasi viral tweets (>1000 engagement)\n4. Deteksi coordinated shilling (multiple akun tweet serupa)\n5. Track announcement dari official accounts\n6. Analisis thread length dan depth (indikasi serious alpha vs noise)\n7. Hitung sentiment score per coin berdasarkan tweet\n\nOutput: { account, tweets_analyzed, viral_tweets, coin_sentiment, engagement_metrics, alpha_score }",
-        variables: ["twitter_accounts", "coins", "time_range"],
-        enabled: true,
-        priority: 2,
-        subAgentRoles: ["social_sentinel", "news_analyzer"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_copy_trading_01",
-        name: "Copy Trading dari Trader Top",
-        category: "copy_trading",
-        description: "Analisis dan copy posisi dari trader dengan track record terbaik",
-        prompt: "Anda adalah COPY TRADING ENGINE. Tugas:\n1. Identifikasi top traders dari {{source_exchange}} dengan kriteria:\n   - Win rate > {{min_win_rate}}%\n   - Profit factor > {{min_profit_factor}}\n   - Minimal {{min_trades}} transaksi\n   - Track record > {{min_track_record_days}} hari\n2. Analisis posisi terbuka trader terpilih:\n   - Entry price, size, leverage\n   - Stop loss, take profit\n   - Risk/reward ratio\n3. Hitung copy signal:\n   - Confidence score berdasarkan historical accuracy\n   - Suggested position size (max {{max_copy_percent}}% dari portfolio)\n   - Adjusted entry untuk slippage\n4. Monitor real-time dan auto-close jika:\n   - Trader close position\n   - Drawdown > {{max_drawdown}}%\n   - Signal confidence turun di bawah {{min_confidence}}\n\nOutput: { trader_id, signal_type, coin, entry_price, suggested_size, stop_loss, take_profit, confidence, risk_reward }",
-        variables: ["source_exchange", "min_win_rate", "min_profit_factor", "min_trades", "min_track_record_days", "max_copy_percent", "max_drawdown", "min_confidence"],
-        enabled: true,
-        priority: 3,
-        subAgentRoles: ["copy_trader", "trading_executor"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_market_analysis_01",
-        name: "Analisis Teknikal Multi-Timeframe",
-        category: "market_analysis",
-        description: "Analisis teknikal komprehensif dengan multiple timeframe dan indikator",
-        prompt: "Anda adalah TECHNICAL ANALYST agent. Analisis {{coin}} di timeframe {{timeframes}}:\n\nIndikator yang harus dihitung:\n1. Trend: EMA 20/50/200, MACD, ADX\n2. Momentum: RSI, Stochastic, CCI\n3. Volatility: Bollinger Bands, ATR\n4. Volume: OBV, Volume Profile, VWAP\n5. Support/Resistance: Pivot points, Fibonacci\n6. Pattern: candlestick patterns, chart patterns\n\nUntuk setiap timeframe:\n- Tentukan trend direction\n- Identifikasi key levels\n- Hitung confluence score (berapa indikator yang confirm)\n- Generate signal: STRONG BUY / BUY / NEUTRAL / SELL / STRONG SELL\n\nMulti-timeframe analysis:\n- Jika semua timeframe align: high confidence signal\n- Jika conflicting: wait for confirmation\n\nOutput: { coin, timeframe_analysis, overall_signal, confidence, key_levels, patterns_detected }",
-        variables: ["coin", "timeframes"],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["market_scanner", "trading_executor"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_risk_assessment_01",
-        name: "Risk Assessment Portfolio",
-        category: "risk_assessment",
-        description: "Evaluasi risiko portfolio dan posisi trading secara real-time",
-        prompt: "Anda adalah RISK MANAGER agent. Evaluasi portfolio:\n\n1. Position sizing analysis:\n   - Total exposure per coin\n   - Correlation antar posisi\n   - Concentration risk (max {{max_single_position}}% per coin)\n2. Drawdown monitoring:\n   - Current drawdown vs max allowed {{max_drawdown}}%\n   - Daily/weekly loss vs limit\n3. Leverage risk:\n   - Effective leverage\n   - Liquidation distance\n   - Margin utilization\n4. Market risk:\n   - Volatility regime (low/normal/high/extreme)\n   - Liquidity risk (bid-ask spread, depth)\n   - Event risk (upcoming news, FOMC, dll)\n5. Risk metrics:\n   - VaR (Value at Risk) 95% confidence\n   - Sharpe ratio\n   - Max drawdown historical\n\nAction triggers:\n- Jika drawdown > {{warning_drawdown}}%: WARNING\n- Jika drawdown > {{critical_drawdown}}%: CRITICAL, reduce positions\n- Jika volatility > {{high_vol_threshold}}: reduce leverage\n\nOutput: { portfolio_risk_score, position_risks, drawdown_status, leverage_risk, market_risk, action_required }",
-        variables: ["max_single_position", "max_drawdown", "warning_drawdown", "critical_drawdown", "high_vol_threshold"],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["risk_manager", "portfolio_manager"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_sentiment_aggregate_01",
-        name: "Aggregate Sentiment Score",
-        category: "sentiment",
-        description: "Gabungkan semua sumber sentimen menjadi skor komposit",
-        prompt: "Anda是 SENTIMENT AGGREGATOR. Gabungkan data dari:\n1. News sentiment (bobot {{news_weight}}%)\n2. Social media sentiment (bobot {{social_weight}}%)\n3. On-chain metrics (bobot {{onchain_weight}}%)\n4. Technical indicators (bobot {{technical_weight}}%)\n\nUntuk {{coin}}:\n- Hitung weighted sentiment score (-100 s/d +100)\n- Identifikasi divergensi (contoh: price naik tapi sentiment turun)\n- Deteksi extreme sentiment (FOMO > 80 atau FUD > 80)\n- Generate contrarian signal jika extreme\n\nOutput format:\n{ coin, composite_sentiment, news_component, social_component, onchain_component, technical_component, divergence_detected, contrarian_signal, confidence }",
-        variables: ["coin", "news_weight", "social_weight", "onchain_weight", "technical_weight"],
-        enabled: true,
-        priority: 2,
-        subAgentRoles: ["market_scanner", "news_analyzer"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-      {
-        id: "prompt_execution_01",
-        name: "Smart Order Execution",
-        category: "execution",
-        description: "Eksekusi order dengan optimasi slippage dan timing",
-        prompt: "Anda adalah ORDER EXECUTION ENGINE. Tugas:\n1. Terima signal dari {{signal_source}}:\n   - Side: BUY/SELL\n   - Coin: {{coin}}\n   - Size: {{position_size}}\n   - Urgency: {{urgency_level}}\n2. Analisis market microstructure:\n   - Order book depth\n   - Recent trade flow\n   - Spread analysis\n3. Pilih execution strategy:\n   - Market order (untuk urgency tinggi)\n   - Limit order (untuk size besar)\n   - TWAP (Time Weighted Average Price)\n   - VWAP (Volume Weighted Average Price)\n   - Iceberg (untuk hide size)\n4. Split order ke {{num_chunks}} bagian\n5. Monitor slippage dan adjust jika perlu\n6. Report execution quality:\n   - Average fill price vs signal price\n   - Total slippage\n   - Execution time\n\nOutput: { order_id, strategy_used, chunks_executed, avg_fill_price, slippage_bps, execution_time_ms }",
-        variables: ["signal_source", "coin", "position_size", "urgency_level", "num_chunks"],
-        enabled: true,
-        priority: 1,
-        subAgentRoles: ["trading_executor"],
-        createdAt: "2026-10-13T00:00:00Z",
-        updatedAt: "2026-10-13T00:00:00Z",
-      },
-    ],
   },
   coinSettings: {
     purchaseMethods: [
@@ -14071,7 +13847,7 @@ async function adminSettingsGet(ctx) {
 async function adminSettingsUpdate(ctx) {
   const auth = await actor(ctx, 5);
   if (auth.error) return auth.error;
-  const { payment, shipping, subscription, academy, trading, links, liveTrading, metaTrader5, aiTradingAgent, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement, storage, themeSettings } = ctx.body ?? {};
+  const { payment, shipping, subscription, academy, trading, links, metaTrader5, coinSettings, blockchainApi, trialAccounts, cryptoSettings, apiManagement, storage, themeSettings } = ctx.body ?? {};
   if (payment) {
     if (typeof payment.midtransServerKey === "string") APP_SETTINGS.payment.midtransServerKey = payment.midtransServerKey;
     if (typeof payment.midtransClientKey === "string") APP_SETTINGS.payment.midtransClientKey = payment.midtransClientKey;
@@ -14143,25 +13919,6 @@ async function adminSettingsUpdate(ctx) {
       }));
     }
   }
-  if (liveTrading) {
-    if (typeof liveTrading.enabled === "boolean") APP_SETTINGS.liveTrading.enabled = liveTrading.enabled;
-    if (typeof liveTrading.provider === "string") APP_SETTINGS.liveTrading.provider = text(liveTrading.provider, 50);
-    if (typeof liveTrading.tradingViewWidgetId === "string") APP_SETTINGS.liveTrading.tradingViewWidgetId = text(liveTrading.tradingViewWidgetId, 100);
-    if (typeof liveTrading.tradingViewSymbol === "string") APP_SETTINGS.liveTrading.tradingViewSymbol = text(liveTrading.tradingViewSymbol, 50);
-    if (typeof liveTrading.tradingViewInterval === "string") APP_SETTINGS.liveTrading.tradingViewInterval = text(liveTrading.tradingViewInterval, 10);
-    if (typeof liveTrading.tradingViewTheme === "string") APP_SETTINGS.liveTrading.tradingViewTheme = text(liveTrading.tradingViewTheme, 20);
-    if (typeof liveTrading.apiKey === "string") APP_SETTINGS.liveTrading.apiKey = liveTrading.apiKey;
-    if (typeof liveTrading.apiBaseUrl === "string") APP_SETTINGS.liveTrading.apiBaseUrl = text(liveTrading.apiBaseUrl, 500);
-    if (Array.isArray(liveTrading.symbols)) {
-      APP_SETTINGS.liveTrading.symbols = liveTrading.symbols.map((s) => ({
-        id: text(s.id, 50),
-        symbol: text(s.symbol, 50),
-        label: text(s.label, 100),
-        enabled: Boolean(s.enabled),
-      }));
-    }
-    if (typeof liveTrading.refreshInterval === "number") APP_SETTINGS.liveTrading.refreshInterval = Math.max(5, Math.floor(liveTrading.refreshInterval));
-  }
   if (metaTrader5) {
     if (typeof metaTrader5.enabled === "boolean") APP_SETTINGS.metaTrader5.enabled = metaTrader5.enabled;
     if (typeof metaTrader5.broker === "string") APP_SETTINGS.metaTrader5.broker = text(metaTrader5.broker, 200);
@@ -14184,35 +13941,6 @@ async function adminSettingsUpdate(ctx) {
       if (typeof rm.stopLossPips === "number") APP_SETTINGS.metaTrader5.riskManagement.stopLossPips = Math.max(1, Math.floor(rm.stopLossPips));
       if (typeof rm.takeProfitPips === "number") APP_SETTINGS.metaTrader5.riskManagement.takeProfitPips = Math.max(1, Math.floor(rm.takeProfitPips));
       if (typeof rm.dailyLossLimit === "number") APP_SETTINGS.metaTrader5.riskManagement.dailyLossLimit = Math.max(0, Math.floor(rm.dailyLossLimit));
-    }
-  }
-  if (aiTradingAgent) {
-    if (typeof aiTradingAgent.enabled === "boolean") APP_SETTINGS.aiTradingAgent.enabled = aiTradingAgent.enabled;
-    if (typeof aiTradingAgent.name === "string") APP_SETTINGS.aiTradingAgent.name = text(aiTradingAgent.name, 200);
-    if (typeof aiTradingAgent.description === "string") APP_SETTINGS.aiTradingAgent.description = text(aiTradingAgent.description, 1000);
-    if (typeof aiTradingAgent.model === "string") APP_SETTINGS.aiTradingAgent.model = text(aiTradingAgent.model, 50);
-    if (typeof aiTradingAgent.strategy === "string") APP_SETTINGS.aiTradingAgent.strategy = text(aiTradingAgent.strategy, 50);
-    if (typeof aiTradingAgent.riskLevel === "string") APP_SETTINGS.aiTradingAgent.riskLevel = text(aiTradingAgent.riskLevel, 20);
-    if (typeof aiTradingAgent.maxDailyTrades === "number") APP_SETTINGS.aiTradingAgent.maxDailyTrades = Math.max(1, Math.floor(aiTradingAgent.maxDailyTrades));
-    if (typeof aiTradingAgent.minConfidence === "number") APP_SETTINGS.aiTradingAgent.minConfidence = Math.max(0, Math.min(1, aiTradingAgent.minConfidence));
-    if (typeof aiTradingAgent.autoExecute === "boolean") APP_SETTINGS.aiTradingAgent.autoExecute = aiTradingAgent.autoExecute;
-    if (typeof aiTradingAgent.notifyOnTrade === "boolean") APP_SETTINGS.aiTradingAgent.notifyOnTrade = aiTradingAgent.notifyOnTrade;
-    if (aiTradingAgent.parameters) {
-      const p = aiTradingAgent.parameters;
-      if (typeof p.lookbackPeriod === "number") APP_SETTINGS.aiTradingAgent.parameters.lookbackPeriod = Math.max(1, Math.floor(p.lookbackPeriod));
-      if (typeof p.entryThreshold === "number") APP_SETTINGS.aiTradingAgent.parameters.entryThreshold = Math.max(0, Math.min(1, p.entryThreshold));
-      if (typeof p.exitThreshold === "number") APP_SETTINGS.aiTradingAgent.parameters.exitThreshold = Math.max(0, Math.min(1, p.exitThreshold));
-      if (typeof p.positionSizePercent === "number") APP_SETTINGS.aiTradingAgent.parameters.positionSizePercent = Math.max(1, Math.min(100, Math.floor(p.positionSizePercent)));
-    }
-    if (Array.isArray(aiTradingAgent.allowedMarkets)) {
-      APP_SETTINGS.aiTradingAgent.allowedMarkets = aiTradingAgent.allowedMarkets.map((m) => text(m, 30));
-    }
-    if (aiTradingAgent.schedule) {
-      const s = aiTradingAgent.schedule;
-      if (typeof s.enabled === "boolean") APP_SETTINGS.aiTradingAgent.schedule.enabled = s.enabled;
-      if (typeof s.startHour === "number") APP_SETTINGS.aiTradingAgent.schedule.startHour = Math.max(0, Math.min(23, Math.floor(s.startHour)));
-      if (typeof s.endHour === "number") APP_SETTINGS.aiTradingAgent.schedule.endHour = Math.max(0, Math.min(23, Math.floor(s.endHour)));
-      if (typeof s.timezone === "string") APP_SETTINGS.aiTradingAgent.schedule.timezone = text(s.timezone, 50);
     }
   }
   if (coinSettings) {
@@ -15408,34 +15136,6 @@ async function financeSummary(ctx) {
 
 // ---------- ai mentor ----------
 
-async function aiMentorChat(ctx) {
-  const auth = await actor(ctx, 2);
-  if (auth.error) return auth.error;
-  const message = text(ctx.body.message, 1000);
-  if (!message) return fail(400, "invalid_input");
-
-  const lower = message.toLowerCase();
-  let reply = "";
-
-  if (lower.includes("kuliner") || lower.includes("makanan")) {
-    reply = "Untuk memulai usaha kuliner dari rumah, Anda bisa mulai dengan:\n\n1. Tentukan menu andalan yang unik dan diminati pasar\n2. Mulai dari skala kecil, terima pesanan dari tetangga atau media sosial\n3. Urus izin PIRT (Pangan Industri Rumah Tangga) untuk legalitas\n4. Manfaatkan platform ojek online untuk memperluas jangkauan\n5. Jaga kualitas dan konsistensi rasa\n\nApakah ada aspek spesifik yang ingin Anda tanyakan lebih lanjut?";
-  } else if (lower.includes("proposal")) {
-    reply = "Proposal bisnis yang baik harus mencakup:\n\n1. Ringkasan Eksekutif — gambaran umum bisnis Anda\n2. Latar Belakang — mengapa bisnis ini penting\n3. Visi & Misi — arah jangka panjang\n4. Analisis Pasar — target konsumen dan kompetitor\n5. Rencana Pemasaran — strategi promosi\n6. Rencana Operasional — bagaimana bisnis berjalan\n7. Proyeksi Keuangan — estimasi pendapatan dan biaya\n8. RAB — rincian anggaran yang dibutuhkan\n\nSaya bisa membantu Anda menyusun salah satu bagian tersebut.";
-  } else if (lower.includes("rab") || lower.includes("anggaran")) {
-    reply = "RAB (Rencana Anggaran Biaya) yang baik harus detail dan realistis. Komponen utamanya:\n\n1. Biaya Investasi — peralatan, renovasi, deposit\n2. Biaya Operasional Tetap — sewa, gaji, listrik\n3. Biaya Operasional Variabel — bahan baku, kemasan, transportasi\n4. Biaya Pemasaran — iklan, promosi, sampling\n5. Dana Cadangan — 10-15% dari total anggaran\n\nTips: Selalu tambahkan buffer 10-15% untuk biaya tak terduga. Mau saya bantu hitungkan untuk jenis usaha tertentu?";
-  } else if (lower.includes("keuangan") || lower.includes("uang")) {
-    reply = "Mengelola keuangan usaha untuk pemula:\n\n1. Pisahkan rekening pribadi dan usaha — ini wajib!\n2. Catat semua transaksi, sekecil apapun\n3. Buat laporan laba rugi sederhana setiap bulan\n4. Sisihkan minimal 20% laba untuk dana darurat\n5. Tentukan gaji sendiri, jangan campur dengan laba usaha\n6. Gunakan aplikasi akuntansi sederhana atau spreadsheet\n\nKonsistensi mencatat adalah kunci. Sudah punya sistem pencatatan?";
-  } else if (lower.includes("pemasaran") || lower.includes("marketing") || lower.includes("promosi")) {
-    reply = "Strategi pemasaran digital untuk UMKM:\n\n1. Media Sosial — Instagram, TikTok, Facebook (pilih yang sesuai target pasar)\n2. Google Bisnisku — gratis dan muncul di pencarian lokal\n3. Content Marketing — bagikan tips, behind the scene, testimoni\n4. Kolaborasi — kerja sama dengan influencer lokal atau UMKM lain\n5. Promo Pembukaan — diskon, buy 1 get 1, atau sampling gratis\n6. WhatsApp Business — untuk komunikasi langsung dengan pelanggan\n\nMulai dari 1-2 channel dulu, kuatkan di sana sebelum ekspansi. Platform apa yang sudah Anda coba?";
-  } else if (lower.includes("modal") || lower.includes("dana")) {
-    reply = "Opsi pendanaan untuk usaha:\n\n1. Tabungan Pribadi — paling aman, tidak ada beban utang\n2. Keluarga/Teman — pastikan ada perjanjian tertulis\n3. Kredit Usaha Rakyat (KUR) — bunga rendah dari pemerintah\n4. Peer-to-Peer Lending — platform fintech resmi\n5. Investor — untuk usaha yang scalable\n6. Galang Dana — bisa lewat platform crowdfunding\n\nTips: Mulai dari modal seadanya, buktikan konsep bisnis dulu, baru cari pendanaan lebih besar. Berapa estimasi modal yang Anda butuhkan?";
-  } else {
-    reply = "Terima kasih atas pertanyaannya! Sebagai AI Mentor, saya bisa membantu Anda dengan:\n\n• Perencanaan bisnis dan penyusunan proposal\n• Penyusunan RAB (Rencana Anggaran Biaya)\n• Strategi pemasaran digital\n• Pengelolaan keuangan usaha\n• Tips memulai usaha dari rumah\n• Akses pendanaan dan modal\n\nCoba tanyakan hal yang lebih spesifik, misalnya:\n- \"Bagaimana cara membuat proposal bisnis?\"\n- \"Tips pemasaran digital untuk UMKM\"\n- \"Cara mengelola keuangan usaha\"\n\nApa yang ingin Anda ketahui lebih lanjut?";
-  }
-
-  return ok({ reply });
-}
-
 async function subscriptionsCreate(ctx) {
   const auth = await actor(ctx, 2);
   if (auth.error) return auth.error;
@@ -15548,119 +15248,8 @@ async function linksSettings(ctx) {
   return ok({ links: APP_SETTINGS.links });
 }
 
-async function liveTradingSettings(ctx) {
-  return ok({ liveTrading: APP_SETTINGS.liveTrading });
-}
-
 async function metaTrader5Settings(ctx) {
   return ok({ metaTrader5: APP_SETTINGS.metaTrader5 });
-}
-
-async function aiTradingAgentSettings(ctx) {
-  return ok({ aiTradingAgent: APP_SETTINGS.aiTradingAgent });
-}
-
-async function aiSubAgentsList(ctx) {
-  return ok({ subAgents: APP_SETTINGS.aiTradingAgent.subAgents || [] });
-}
-
-async function aiSubAgentsUpdate(ctx) {
-  const { body } = ctx;
-  const id = typeof body.id === "string" ? body.id : "";
-  const agent = (APP_SETTINGS.aiTradingAgent.subAgents || []).find((a) => a.id === id);
-  if (!agent) return fail(404, "sub_agent_not_found");
-  if (typeof body.name === "string") agent.name = body.name;
-  if (typeof body.icon === "string") agent.icon = body.icon;
-  if (typeof body.description === "string") agent.description = body.description;
-  if (typeof body.status === "string") agent.status = body.status;
-  if (typeof body.priority === "number") agent.priority = body.priority;
-  if (typeof body.intervalSeconds === "number") agent.intervalSeconds = body.intervalSeconds;
-  if (typeof body.enabled === "boolean") agent.enabled = body.enabled;
-  if (body.config && typeof body.config === "object") agent.config = body.config;
-  return ok({ subAgent: agent });
-}
-
-async function aiTradingServersList(ctx) {
-  return ok({ tradingServers: APP_SETTINGS.aiTradingAgent.tradingServers || [] });
-}
-
-async function aiTradingServersUpdate(ctx) {
-  const { body } = ctx;
-  const id = typeof body.id === "string" ? body.id : "";
-  const server = (APP_SETTINGS.aiTradingAgent.tradingServers || []).find((s) => s.id === id);
-  if (!server) return fail(404, "server_not_found");
-  if (typeof body.name === "string") server.name = body.name;
-  if (typeof body.provider === "string") server.provider = body.provider;
-  if (typeof body.description === "string") server.description = body.description;
-  if (typeof body.baseUrl === "string") server.baseUrl = body.baseUrl;
-  if (typeof body.wsUrl === "string") server.wsUrl = body.wsUrl;
-  if (typeof body.apiKey === "string") server.apiKey = body.apiKey;
-  if (typeof body.apiSecret === "string") server.apiSecret = body.apiSecret;
-  if (typeof body.testnet === "boolean") server.testnet = body.testnet;
-  if (typeof body.enabled === "boolean") server.enabled = body.enabled;
-  if (typeof body.rateLimit === "number") server.rateLimit = body.rateLimit;
-  if (Array.isArray(body.symbols)) server.symbols = body.symbols;
-  if (Array.isArray(body.features)) server.features = body.features;
-  return ok({ tradingServer: server });
-}
-
-async function aiPromptsList(ctx) {
-  return ok({ prompts: APP_SETTINGS.aiTradingAgent.promptLibrary || [] });
-}
-
-async function aiPromptsGet(ctx) {
-  const { body } = ctx;
-  const id = typeof body.id === "string" ? body.id : "";
-  const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
-  if (!prompt) return fail(404, "prompt_not_found");
-  return ok({ prompt });
-}
-
-async function aiPromptsCreate(ctx) {
-  const { body } = ctx;
-  const now = new Date().toISOString();
-  const prompt = {
-    id: `prompt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    name: typeof body.name === "string" ? body.name : "Untitled Prompt",
-    category: typeof body.category === "string" ? body.category : "market_analysis",
-    description: typeof body.description === "string" ? body.description : "",
-    prompt: typeof body.prompt === "string" ? body.prompt : "",
-    variables: Array.isArray(body.variables) ? body.variables : [],
-    enabled: typeof body.enabled === "boolean" ? body.enabled : true,
-    priority: typeof body.priority === "number" ? body.priority : 5,
-    subAgentRoles: Array.isArray(body.subAgentRoles) ? body.subAgentRoles : [],
-    createdAt: now,
-    updatedAt: now,
-  };
-  if (!APP_SETTINGS.aiTradingAgent.promptLibrary) APP_SETTINGS.aiTradingAgent.promptLibrary = [];
-  APP_SETTINGS.aiTradingAgent.promptLibrary.push(prompt);
-  return ok({ prompt });
-}
-
-async function aiPromptsUpdate(ctx) {
-  const { body } = ctx;
-  const id = typeof body.id === "string" ? body.id : "";
-  const prompt = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).find((p) => p.id === id);
-  if (!prompt) return fail(404, "prompt_not_found");
-  if (typeof body.name === "string") prompt.name = body.name;
-  if (typeof body.category === "string") prompt.category = body.category;
-  if (typeof body.description === "string") prompt.description = body.description;
-  if (typeof body.prompt === "string") prompt.prompt = body.prompt;
-  if (Array.isArray(body.variables)) prompt.variables = body.variables;
-  if (typeof body.enabled === "boolean") prompt.enabled = body.enabled;
-  if (typeof body.priority === "number") prompt.priority = body.priority;
-  if (Array.isArray(body.subAgentRoles)) prompt.subAgentRoles = body.subAgentRoles;
-  prompt.updatedAt = new Date().toISOString();
-  return ok({ prompt });
-}
-
-async function aiPromptsDelete(ctx) {
-  const { body } = ctx;
-  const id = typeof body.id === "string" ? body.id : "";
-  const idx = (APP_SETTINGS.aiTradingAgent.promptLibrary || []).findIndex((p) => p.id === id);
-  if (idx === -1) return fail(404, "prompt_not_found");
-  APP_SETTINGS.aiTradingAgent.promptLibrary.splice(idx, 1);
-  return ok({ deleted: true });
 }
 
 async function coinSettingsPublic(ctx) {

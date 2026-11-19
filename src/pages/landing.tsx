@@ -321,44 +321,6 @@ export function LandingPage() {
 
             <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
               <CardContent className="space-y-3.5 p-6">
-                <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                  <LineChart className="size-6" />
-                </div>
-                <h3 className="font-display text-lg font-semibold text-foreground">Live Trading & Simulasi Demo</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Grafik real-time pasar saham, kripto, komoditas, dan valuta asing terintegrasi TradingView lengkap dengan saldo latihan bebas risiko bagi anggota pemula.
-                </p>
-                <div className="pt-1">
-                  <Button asChild variant="link" className="h-auto p-0 text-emerald-600 font-medium text-xs">
-                    <Link to="/live-trading">
-                      Buka Terminal Trading <ArrowRight className="ml-1 size-3" />
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
-              <CardContent className="space-y-3.5 p-6">
-                <div className="flex size-11 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500">
-                  <Bot className="size-6" />
-                </div>
-                <h3 className="font-display text-lg font-semibold text-foreground">AI Mentor & Autonomous Agent</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Konsultasi bisnis 24/7 dengan AI Mentor ramah serta Agen Shibai Ōtsutsuki dengan analisis indikator teknikal cerdas, manajemen risiko, dan simulasi strategi pasar.
-                </p>
-                <div className="pt-1">
-                  <Button asChild variant="link" className="h-auto p-0 text-cyan-600 font-medium text-xs">
-                    <Link to="/ai-agent">
-                      Kenali AI Agent <ArrowRight className="ml-1 size-3" />
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-lift border-primary/20 bg-card/80 backdrop-blur-sm">
-              <CardContent className="space-y-3.5 p-6">
                 <div className="flex size-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
                   <Gamepad2 className="size-6" />
                 </div>

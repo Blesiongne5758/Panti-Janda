@@ -111,8 +111,6 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "register", params: {} };
     case "langganan":
       return { name: "subscription", params: {} };
-    case "mentor-ai":
-      return { name: "ai-mentor", params: {} };
     case "marketplace":
       if (second === "orders") return { name: "marketplace-orders", params: {} };
       if (second === "baru") return { name: "marketplace-form", params: {} };
@@ -121,10 +119,6 @@ export function matchRoute(path: string): { name: string; params: Record<string,
       return { name: "marketplace", params: {} };
     case "koin":
       return { name: "coins", params: {} };
-    case "live-trading":
-      return { name: "live-trading", params: {} };
-    case "ai-agent":
-      return { name: "ai-agent", params: {} };
     case "learning-center":
       return { name: "learning-center", params: {} };
     case "lowongan":
