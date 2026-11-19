@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { lazy, Suspense, useEffect, useState, useRef } from "react";
 import { Heart, MessageCircle, Share2, Trash2, Clock, User, Upload, X, Loader2, LogIn, Camera } from "lucide-react";
-import { CameraCaptureDialog, type CapturedMedia } from "@/components/camera-capture-dialog";
+import type { CapturedMedia } from "@/components/camera-capture-dialog";
 import { compressImage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,6 +15,10 @@ import { TIER_META } from "@/lib/constants";
 import type { MediaPost, WidowRole } from "@/lib/types";
 import { toast } from "sonner";
 import { usePresignedUpload } from "@/hooks/use-presigned-upload";
+
+const CameraCaptureDialog = lazy(() =>
+  import("@/components/camera-capture-dialog").then((module) => ({ default: module.CameraCaptureDialog }))
+);
 
 export function FeedPage() {
   const auth = useAuth();
@@ -286,23 +290,28 @@ export function FeedPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold sr-only">Feed</h1>
+        <div className="flex flex-col gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Feed komunitas</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Cerita, karya, dan kabar terbaru dari anggota Panti Janda.</p>
+          </div>
           {auth.account ? (
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
               <Button
                 variant="outline"
-                size="icon"
-                className="border-primary/40 text-primary hover:bg-primary/10"
+                size="sm"
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
                 onClick={() => setCameraDialogOpen(true)}
                 title="Kamera Langsung"
               >
-                <Camera className="size-5" />
+                <Camera className="size-4" aria-hidden />
+                <span>Kamera</span>
               </Button>
               <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="icon" title="Posting Foto/Video">
-                    <Upload className="size-5" />
+                  <Button size="sm" className="flex-1 gap-2 sm:flex-none" title="Posting Foto/Video">
+                    <Upload className="size-4" aria-hidden />
+                    <span>Buat postingan</span>
                   </Button>
                 </DialogTrigger>
               <DialogContent>
@@ -446,7 +455,7 @@ export function FeedPage() {
             </Dialog>
             </div>
           ) : (
-            <Button onClick={() => navigate("/masuk")}>Posting Foto/Video</Button>
+            <Button className="w-full sm:w-auto" onClick={() => navigate("/masuk")}>Posting Foto/Video</Button>
           )}
         </div>
 
@@ -476,7 +485,7 @@ export function FeedPage() {
             </CardContent>
           </Card>
         ) : (
-          posts.map((post) => {
+          posts.map((post, index) => {
             const isLiked = auth.account ? post.likes.includes(auth.account.id) : false;
             const isOwner = auth.account ? post.accountId === auth.account.id : false;
 
@@ -489,7 +498,7 @@ export function FeedPage() {
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
                       {post.authorPhoto ? (
-                        <img src={post.authorPhoto} alt={post.authorName} className="h-full w-full object-cover" />
+                        <img src={post.authorPhoto} alt={post.authorName} className="h-full w-full object-cover" width={40} height={40} loading="lazy" decoding="async" />
                       ) : (
                         <User className="h-5 w-5 text-primary" />
                       )}
@@ -522,7 +531,12 @@ export function FeedPage() {
                     <img
                       src={post.mediaUrl}
                       alt={post.caption || "Photo"}
-                      className="w-full rounded-lg object-cover"
+                      className="aspect-[4/3] w-full rounded-lg bg-muted object-contain"
+                      width={640}
+                      height={480}
+                      loading={index === 0 ? "eager" : "lazy"}
+                      decoding="async"
+                      fetchPriority={index === 0 ? "high" : "low"}
                       style={{ maxHeight: "500px" }}
                     />
                   ) : (
@@ -530,7 +544,8 @@ export function FeedPage() {
                       src={post.mediaUrl}
                       controls
                       playsInline
-                      className="w-full rounded-lg bg-black"
+                      preload="metadata"
+                      className="aspect-[4/3] w-full rounded-lg bg-black object-contain"
                       style={{ maxHeight: "500px" }}
                     >
                       Video tidak didukung
@@ -620,13 +635,17 @@ export function FeedPage() {
           })
         )}
       </div>
-      <CameraCaptureDialog
-        open={cameraDialogOpen}
+      {cameraDialogOpen && (
+        <Suspense fallback={null}>
+          <CameraCaptureDialog
+            open={cameraDialogOpen}
         onOpenChange={setCameraDialogOpen}
         allowedModes="both"
         maxVideoSeconds={6}
-        onCapture={handleCameraCapture}
-      />
+            onCapture={handleCameraCapture}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
