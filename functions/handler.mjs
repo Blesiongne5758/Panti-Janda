@@ -13414,8 +13414,18 @@ async function adminPartnerAudit(ctx, entityType, entityId, action, details = {}
   await ctx.supabase.from("admin_partner_audit_logs").insert({ entity_type: entityType, entity_id: entityId, action, details, actor_account_id: ctx._actor?.account?.id ?? null, created_at: now() });
 }
 async function adminVendorsList(ctx) {
-  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
-  const { data: rows, error } = await ctx.supabase.from("vendor_profiles").select("*").order("created_at", { ascending: false }).limit(200);
+  const auth = await actor(ctx, 1); if (auth.error) return auth.error;
+  let vendorIds = null;
+  if (auth.account.role !== "admin") {
+    const access = await vendorHasPermission(ctx, "vendor.view");
+    if (access.error) return access.error;
+    if (!access.allowed) return fail(403, "forbidden");
+    const { data: scopes } = await ctx.supabase.from("vendor_rbac_assignments").select("vendor_id").eq("account_id", auth.account.id);
+    if (!(scopes ?? []).some((item) => item.vendor_id === null)) vendorIds = [...new Set((scopes ?? []).map((item) => item.vendor_id).filter(Boolean))];
+  }
+  let vendorQuery = ctx.supabase.from("vendor_profiles").select("*").order("created_at", { ascending: false }).limit(200);
+  if (vendorIds) vendorQuery = vendorQuery.in("id", vendorIds);
+  const { data: rows, error } = await vendorQuery;
   if (error) return fail(500, "server_error");
   const accountIds = [...new Set((rows ?? []).map((row) => row.account_id))];
   const { data: accounts } = accountIds.length ? await ctx.supabase.from("accounts").select("id,email,display_name").in("id", accountIds) : { data: [] };
@@ -13425,8 +13435,14 @@ async function adminVendorsList(ctx) {
   return ok({ items: (rows ?? []).map((row) => adminVendorItem(row, accountMap.get(row.account_id), docCounts.get(row.id) ?? 0)) });
 }
 async function adminVendorUpdate(ctx) {
-  const auth = await actor(ctx, 5); if (auth.error) return auth.error;
+  const auth = await actor(ctx, 1); if (auth.error) return auth.error;
   const id = text(ctx.body.id, 60); if (!id) return fail(400, "invalid_input");
+  const requestedPermission = ctx.body.commissionPercent !== undefined ? "vendor.commission.manage" : ctx.body.payoutSchedule !== undefined ? "vendor.payout.manage" : ctx.body.status !== undefined ? "vendor.review" : "vendor.support";
+  if (auth.account.role !== "admin") {
+    const access = await vendorHasPermission(ctx, requestedPermission, id);
+    if (access.error) return access.error;
+    if (!access.allowed) return fail(403, "forbidden");
+  }
   const { data: existing } = await ctx.supabase.from("vendor_profiles").select("*").eq("id", id).maybeSingle(); if (!existing) return fail(404, "not_found");
   const patch = { updated_at: now(), reviewed_by: auth.account.id, reviewed_at: now() };
   if (ctx.body.status !== undefined) { const status = text(ctx.body.status, 20); if (!VENDOR_ADMIN_STATUSES.includes(status)) return fail(400, "invalid_status"); patch.status = status; }
